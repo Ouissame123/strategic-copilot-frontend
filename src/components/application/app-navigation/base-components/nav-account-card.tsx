@@ -26,23 +26,6 @@ type NavAccountType = {
     status: "online" | "offline";
 };
 
-const placeholderAccounts: NavAccountType[] = [
-    {
-        id: "olivia",
-        name: "Olivia Rhye",
-        email: "olivia@untitledui.com",
-        avatar: "https://www.untitledui.com/images/avatars/olivia-rhye?fm=webp&q=80",
-        status: "online",
-    },
-    {
-        id: "sienna",
-        name: "Sienna Hewitt",
-        email: "sienna@untitledui.com",
-        avatar: "https://www.untitledui.com/images/avatars/transparent/sienna-hewitt?bg=%23E0E0E0",
-        status: "online",
-    },
-];
-
 export const NavAccountMenu = ({
     className,
     isAdmin = false,
@@ -160,7 +143,7 @@ const NavAccountCardMenuItem = ({
         <button
             {...rest}
             type="button"
-            onClick={onClick ?? rest.onClick}
+            onClick={onClick}
             className={cx("group/item w-full cursor-pointer px-1.5 focus:outline-hidden", rest.className)}
         >
             {content}

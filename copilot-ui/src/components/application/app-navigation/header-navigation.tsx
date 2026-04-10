@@ -6,7 +6,6 @@ import { ThemeToggle } from "@/components/application/theme-toggle/theme-toggle"
 import { cx } from "@/utils/cx";
 import { MobileNavigationHeader } from "./base-components/mobile-header";
 import { NavItemBase } from "./base-components/nav-item";
-import { NavItemButton } from "./base-components/nav-item-button";
 import { NavList } from "./base-components/nav-list";
 
 type NavItem = {
@@ -38,7 +37,6 @@ interface HeaderNavigationBaseProps {
 }
 
 export const HeaderNavigationBase = ({
-    activeUrl,
     items,
     subItems,
     trailingContent,

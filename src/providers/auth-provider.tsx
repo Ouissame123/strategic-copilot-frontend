@@ -5,10 +5,10 @@ const AUTH_KEY = "strategic-copilot-auth";
 const USERS_KEY = "strategic-copilot-users";
 const ADMIN_EMAIL_KEY = "strategic-copilot-admin-email";
 
-const ADMIN_EMAIL_ENV = typeof import.meta !== "undefined" && (import.meta.env?.VITE_ADMIN_EMAIL as string | undefined);
-
 function getAdminEmail(): string | null {
-    const fromEnv = ADMIN_EMAIL_ENV?.trim().toLowerCase();
+    const rawEnv =
+        typeof import.meta !== "undefined" ? (import.meta.env?.VITE_ADMIN_EMAIL as string | undefined) : undefined;
+    const fromEnv = typeof rawEnv === "string" ? rawEnv.trim().toLowerCase() : undefined;
     if (fromEnv) return fromEnv;
     try {
         const fromStorage = localStorage.getItem(ADMIN_EMAIL_KEY)?.trim().toLowerCase();
@@ -66,7 +66,9 @@ function readRegisteredUsers(): RegisteredUser[] {
         if (!raw) return [];
         const arr = JSON.parse(raw) as unknown[];
         if (!Array.isArray(arr)) return [];
-        return arr.filter((u): u is RegisteredUser => u && typeof u === "object" && typeof (u as RegisteredUser).email === "string");
+        return arr.filter((u): u is RegisteredUser =>
+            Boolean(u && typeof u === "object" && typeof (u as RegisteredUser).email === "string"),
+        );
     } catch {
         return [];
     }

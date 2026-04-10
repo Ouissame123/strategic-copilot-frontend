@@ -26,29 +26,21 @@ type NavAccountType = {
     status: "online" | "offline";
 };
 
-const placeholderAccounts: NavAccountType[] = [
-    {
-        id: "olivia",
-        name: "Olivia Rhye",
-        email: "olivia@untitledui.com",
-        avatar: "https://www.untitledui.com/images/avatars/olivia-rhye?fm=webp&q=80",
-        status: "online",
-    },
-    {
-        id: "sienna",
-        name: "Sienna Hewitt",
-        email: "sienna@untitledui.com",
-        avatar: "https://www.untitledui.com/images/avatars/transparent/sienna-hewitt?bg=%23E0E0E0",
-        status: "online",
-    },
-];
+/** `AriaDialog` n’expose pas `onKeyDown` dans ses props ; on le gère sur un conteneur interne. */
+type NavAccountMenuProps = AriaDialogProps & {
+    className?: string;
+    accounts?: NavAccountType[];
+    selectedAccountId?: string;
+    isAdmin?: boolean;
+    onKeyDown?: (e: KeyboardEvent<HTMLDivElement>) => void;
+};
 
 export const NavAccountMenu = ({
     className,
     isAdmin = false,
     onKeyDown: upstreamOnKeyDown,
     ...dialogProps
-}: AriaDialogProps & { className?: string; accounts?: NavAccountType[]; selectedAccountId?: string; isAdmin?: boolean }) => {
+}: NavAccountMenuProps) => {
     const { t } = useTranslation("nav");
     const navigate = useNavigate();
     const { logout } = useAuth();
@@ -79,27 +71,28 @@ export const NavAccountMenu = ({
         <AriaDialog
             {...dialogProps}
             ref={dialogRef}
-            onKeyDown={handleKeyDown}
             className={cx("w-66 rounded-xl bg-secondary_alt shadow-lg ring ring-secondary_alt outline-hidden", className)}
         >
-            <div className="rounded-xl bg-primary ring-1 ring-secondary">
-                <div className="flex flex-col gap-0.5 py-1.5">
-                    <NavAccountCardMenuItem label="View profile" icon={User01} shortcut="⌘K->P" href="/profile" />
-                    {isAdmin && (
-                        <NavAccountCardMenuItem label={t("accountSettings")} icon={Settings01} shortcut="⌘S" href="/account-settings" />
-                    )}
+            <div onKeyDown={handleKeyDown}>
+                <div className="rounded-xl bg-primary ring-1 ring-secondary">
+                    <div className="flex flex-col gap-0.5 py-1.5">
+                        <NavAccountCardMenuItem label="View profile" icon={User01} shortcut="⌘K->P" href="/profile" />
+                        {isAdmin && (
+                            <NavAccountCardMenuItem label={t("accountSettings")} icon={Settings01} shortcut="⌘S" href="/account-settings" />
+                        )}
+                    </div>
                 </div>
-            </div>
 
-            <div className="pt-1 pb-1.5">
-                <NavAccountCardMenuItem
-                    label="Sign out"
-                    icon={LogOut01}
-                    shortcut="⌥⇧Q"
-                    onClick={() => {
-                        void logout().finally(() => navigate("/login", { replace: true }));
-                    }}
-                />
+                <div className="pt-1 pb-1.5">
+                    <NavAccountCardMenuItem
+                        label="Sign out"
+                        icon={LogOut01}
+                        shortcut="⌥⇧Q"
+                        onClick={() => {
+                            void logout().finally(() => navigate("/login", { replace: true }));
+                        }}
+                    />
+                </div>
             </div>
         </AriaDialog>
     );
@@ -155,7 +148,7 @@ const NavAccountCardMenuItem = ({
         <button
             {...rest}
             type="button"
-            onClick={onClick ?? rest.onClick}
+            onClick={onClick}
             className={cx("group/item w-full cursor-pointer px-1.5 focus:outline-hidden", rest.className)}
         >
             {content}

@@ -254,7 +254,7 @@ export const CommandMenuPreview = ({ children, asChild, ...props }: CommandMenuP
     const keys = Array.from(selectedKeys);
     if (!keys.length) return null;
 
-    const selectedId = keys.at(0) as Key;
+    const selectedId = keys[0] as Key;
 
     if (asChild) {
         return <Fragment>{typeof children === "function" ? children({ selectedId }) : children}</Fragment>;
