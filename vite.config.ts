@@ -26,6 +26,11 @@ export default defineConfig(({ mode }) => {
 
     return {
         root: appRoot,
+        /** À la racine du repo pour Vercel (défaut : `dist` dans `copilot-ui/`). */
+        build: {
+            outDir: path.resolve(__dirname, "dist"),
+            emptyOutDir: true,
+        },
         plugins: [react(), tailwindcss()],
         server: { proxy },
         resolve: {
