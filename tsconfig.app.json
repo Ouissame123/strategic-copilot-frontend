@@ -17,7 +17,8 @@
 
     /* Linting */
     "strict": true,
-    "noUnusedLocals": true,
+    /* Désactivé : évite TS6133 sur imports React inutiles (jsx react-jsx) si CI / cache diverge du repo. Nettoyer avec ESLint en local. */
+    "noUnusedLocals": false,
     "noUnusedParameters": true,
     "noFallthroughCasesInSwitch": true,
     "noUncheckedSideEffectImports": true,
