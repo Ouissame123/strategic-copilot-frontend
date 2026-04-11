@@ -1,7 +1,15 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { backendApi } from "@/config/backend-api";
-import { ApiError, apiGet } from "@/utils/apiClient";
+import { listRhSessions } from "@/api/rhService";
+import { ApiError } from "@/utils/apiClient";
 import type { SessionStatus } from "@/types/auth";
+
+const DEFAULT_PAGE = 1;
+const DEFAULT_PAGE_SIZE = 10;
+
+export type UseRhSessionsOptions = {
+    page?: number;
+    pageSize?: number;
+};
 
 export interface RhSessionRow {
     id: string;
@@ -40,7 +48,9 @@ function extractSessions(response: unknown): unknown[] {
     return [];
 }
 
-export function useRhSessions() {
+export function useRhSessions(options?: UseRhSessionsOptions) {
+    const page = options?.page ?? DEFAULT_PAGE;
+    const pageSize = options?.pageSize ?? DEFAULT_PAGE_SIZE;
     const [items, setItems] = useState<RhSessionRow[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
@@ -49,7 +59,7 @@ export function useRhSessions() {
         setLoading(true);
         setError(null);
         try {
-            const response = await apiGet<unknown>(backendApi.rhSessions);
+            const response = await listRhSessions(page, pageSize);
             const list = extractSessions(response).map(mapSession);
             setItems(list);
         } catch (err) {
@@ -58,7 +68,7 @@ export function useRhSessions() {
         } finally {
             setLoading(false);
         }
-    }, []);
+    }, [page, pageSize]);
 
     useEffect(() => {
         void refresh();

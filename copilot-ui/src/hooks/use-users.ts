@@ -1,9 +1,19 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { backendApi } from "@/config/backend-api";
-import { ApiError, apiGet, apiPatch, apiPost } from "@/utils/apiClient";
+import {
+    createRhUser,
+    listRhUsers,
+    patchRhUserPasswordReset,
+    patchRhUserRole,
+    patchRhUserStatus,
+    type RhCreateUserBody,
+} from "@/api/rhService";
+import { ApiError } from "@/utils/apiClient";
 
 export type UserRole = "rh" | "manager" | "talent";
 export type UserStatus = "pending" | "active" | "disabled";
+
+/** Rôles autorisés pour POST /rh/users (contrat API : pas de création RH via cette route). */
+export type CreateUserRole = "manager" | "talent";
 
 export interface User {
     id: string;
@@ -24,7 +34,8 @@ export interface UserInput {
     status: UserStatus;
 }
 
-export interface CreateUserInput extends UserInput {
+export interface CreateUserInput extends Omit<UserInput, "role"> {
+    role: CreateUserRole;
     initialPassword: string;
     mustChangePassword?: boolean;
     passwordValidityMonths?: number;
@@ -34,7 +45,7 @@ const DEFAULT_TIMEOUT = 15000;
 const DEFAULT_PAGE_SIZE = 10;
 
 export type UseUsersOptions = {
-    /** Defaults to 10. Use a larger value for admin directory views. */
+    /** Defaults to 10. Use a larger value for RH directory views. */
     pageSize?: number;
 };
 
@@ -69,8 +80,8 @@ const mapUser = (raw: unknown, index: number): User => {
     };
 };
 
-/** Corps attendu par le backend (cf. docs/BRIEF-BACKEND-COLLEGUE.md). */
-function buildCreateUserBody(input: CreateUserInput): Record<string, unknown> {
+/** Corps attendu par le backend (POST /rh/users). */
+function buildCreateUserBody(input: CreateUserInput): RhCreateUserBody {
     const fullName = `${input.firstName} ${input.lastName}`.trim() || input.email.trim();
     return {
         fullName,
@@ -79,6 +90,17 @@ function buildCreateUserBody(input: CreateUserInput): Record<string, unknown> {
         password: input.initialPassword,
         mustChangePassword: input.mustChangePassword ?? true,
     };
+}
+
+/** PATCH /rh/users/status : uniquement active | disabled (pending → active). */
+function statusForApiPatch(status: UserStatus): "active" | "disabled" {
+    return status === "disabled" ? "disabled" : "active";
+}
+
+/** PATCH /rh/users/role : uniquement manager | talent ; RH ne passe pas par ce PATCH. */
+function roleForApiPatch(role: UserRole): "manager" | "talent" | null {
+    if (role === "manager" || role === "talent") return role;
+    return null;
 }
 
 const extractList = (payload: unknown): unknown[] => {
@@ -131,14 +153,16 @@ export function useUsers(options?: UseUsersOptions) {
             setIsLoading(true);
             setError(null);
             try {
-                const params = new URLSearchParams();
-                params.set("page", String(page));
-                params.set("pageSize", String(pageSize));
-                if (debouncedSearch) params.set("search", debouncedSearch);
-                if (roleFilter !== "all") params.set("role", roleFilter);
-                if (statusFilter !== "all") params.set("status", statusFilter);
-                const q = params.toString();
-                const payload = await apiGet<unknown>(`${backendApi.rhUsersList}${q ? `?${q}` : ""}`, { timeout: DEFAULT_TIMEOUT, signal });
+                const payload = await listRhUsers(
+                    {
+                        page,
+                        pageSize,
+                        search: debouncedSearch || undefined,
+                        role: roleFilter !== "all" ? roleFilter : undefined,
+                        status: statusFilter !== "all" ? statusFilter : undefined,
+                    },
+                    { timeout: DEFAULT_TIMEOUT, signal },
+                );
                 const list = extractList(payload).map(mapUser);
                 setUsers(list);
                 setTotal(extractTotal(payload, list.length));
@@ -165,7 +189,7 @@ export function useUsers(options?: UseUsersOptions) {
             setSaving(true);
             setError(null);
             try {
-                await apiPost<unknown>(backendApi.rhUsersCreate, buildCreateUserBody(input), { timeout: DEFAULT_TIMEOUT });
+                await createRhUser(buildCreateUserBody(input), { timeout: DEFAULT_TIMEOUT });
                 await fetchUsers();
             } catch (err) {
                 const msg = err instanceof ApiError ? err.message : "Erreur de connexion";
@@ -183,8 +207,8 @@ export function useUsers(options?: UseUsersOptions) {
             setSaving(true);
             setError(null);
             try {
-                await apiPatch<unknown>(
-                    backendApi.rhUserPasswordReset(id),
+                await patchRhUserPasswordReset(
+                    id,
                     { newPassword: initialPassword, mustChangePassword },
                     { timeout: DEFAULT_TIMEOUT },
                 );
@@ -200,14 +224,17 @@ export function useUsers(options?: UseUsersOptions) {
         [fetchUsers],
     );
 
-    /** Mise à jour : PATCH rôle puis statut (body minimal : `id` + champ ciblé — cf. brief backend). */
+    /** Mise à jour : PATCH rôle (query `id`) puis statut — body sans `id`. */
     const updateUser = useCallback(
         async (id: string, input: UserInput) => {
             setSaving(true);
             setError(null);
             try {
-                await apiPatch<unknown>(backendApi.rhUsersRole, { id, role: input.role }, { timeout: DEFAULT_TIMEOUT });
-                await apiPatch<unknown>(backendApi.rhUsersStatus, { id, status: input.status }, { timeout: DEFAULT_TIMEOUT });
+                const rolePatch = roleForApiPatch(input.role);
+                if (rolePatch) {
+                    await patchRhUserRole(id, { role: rolePatch }, { timeout: DEFAULT_TIMEOUT });
+                }
+                await patchRhUserStatus(id, { status: statusForApiPatch(input.status) }, { timeout: DEFAULT_TIMEOUT });
                 await fetchUsers();
             } catch (err) {
                 const msg = err instanceof ApiError ? err.message : "Erreur de connexion";
@@ -225,7 +252,7 @@ export function useUsers(options?: UseUsersOptions) {
             setSaving(true);
             setError(null);
             try {
-                await apiPatch<unknown>(backendApi.rhUsersStatus, { id, status }, { timeout: DEFAULT_TIMEOUT });
+                await patchRhUserStatus(id, { status: statusForApiPatch(status) }, { timeout: DEFAULT_TIMEOUT });
                 await fetchUsers();
             } catch (err) {
                 const msg = err instanceof ApiError ? err.message : "Erreur de connexion";

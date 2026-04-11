@@ -28,7 +28,7 @@ export default function ForgotPasswordPage() {
             >
                 <div className="space-y-4">
                     <p className="text-sm text-tertiary">
-                        La réinitialisation du mot de passe nécessite un serveur d'envoi d'e-mails, qui n'est pas configuré ici. Essayez de vous connecter avec votre mot de passe habituel, ou contactez l'administrateur pour réinitialiser votre accès.
+                        La réinitialisation du mot de passe nécessite un serveur d'envoi d'e-mails, qui n'est pas configuré ici. Essayez de vous connecter avec votre mot de passe habituel, ou contactez le RH pour réinitialiser votre accès.
                     </p>
                     <Button color="primary" size="md" className="w-full" href="/login">
                         Retour à la connexion

@@ -72,9 +72,3 @@ export function copilotDecisionsUrl(): string {
     if (!base) return "";
     return joinBaseAndPath(base, resolveDecisionsPath());
 }
-
-/** @deprecated alias — préférer `copilotInsightsUrl` */
-export const copilotInsightsRunUrl = copilotInsightsUrl;
-
-/** @deprecated alias — préférer `copilotDecisionsUrl` */
-export const copilotDecisionSubmitUrl = copilotDecisionsUrl;

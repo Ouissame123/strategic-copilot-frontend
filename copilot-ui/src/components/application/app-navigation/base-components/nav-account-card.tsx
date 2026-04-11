@@ -31,13 +31,14 @@ type NavAccountMenuProps = AriaDialogProps & {
     className?: string;
     accounts?: NavAccountType[];
     selectedAccountId?: string;
-    isAdmin?: boolean;
+    /** Affiche les entrées réservées au rôle RH (ex. paramètres compte). */
+    isRh?: boolean;
     onKeyDown?: (e: KeyboardEvent<HTMLDivElement>) => void;
 };
 
 export const NavAccountMenu = ({
     className,
-    isAdmin = false,
+    isRh = false,
     onKeyDown: upstreamOnKeyDown,
     ...dialogProps
 }: NavAccountMenuProps) => {
@@ -77,7 +78,7 @@ export const NavAccountMenu = ({
                 <div className="rounded-xl bg-primary ring-1 ring-secondary">
                     <div className="flex flex-col gap-0.5 py-1.5">
                         <NavAccountCardMenuItem label="View profile" icon={User01} shortcut="⌘K->P" href="/profile" />
-                        {isAdmin && (
+                        {isRh && (
                             <NavAccountCardMenuItem label={t("accountSettings")} icon={Settings01} shortcut="⌘S" href="/account-settings" />
                         )}
                     </div>
@@ -168,7 +169,7 @@ export const NavAccountCard = ({
     const { user } = useAuth();
 
     const displayName = user?.fullName?.trim() ?? "";
-    const isAdmin = user?.role === "rh";
+    const isRhUser = user?.role === "rh";
 
     if (!user?.email) return null;
 
@@ -201,7 +202,7 @@ export const NavAccountCard = ({
                             )
                         }
                     >
-                        <NavAccountMenu isAdmin={isAdmin} />
+                        <NavAccountMenu isRh={isRhUser} />
                     </AriaPopover>
                 </AriaDialogTrigger>
             </div>

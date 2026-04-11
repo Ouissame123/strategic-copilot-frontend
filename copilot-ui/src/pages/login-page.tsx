@@ -36,10 +36,27 @@ export default function LoginPage() {
             await login(email.trim(), password);
             navigate(from, { replace: true });
         } catch (err) {
-            if (err instanceof ApiError && err.payload && typeof err.payload === "object" && "message" in err.payload) {
-                setError(String((err.payload as { message: unknown }).message));
+            if (err instanceof ApiError) {
+                const fromPayload =
+                    err.payload && typeof err.payload === "object" && "message" in err.payload
+                        ? String((err.payload as { message: unknown }).message)
+                        : null;
+                setError(
+                    fromPayload ||
+                        (err.status === 401 || err.status === 403
+                            ? "E-mail ou mot de passe incorrect."
+                            : err.status === 404
+                              ? "404 : URL du webhook incorrecte ou workflow n8n inactif. Dans n8n, copiez l’URL de production du nœud Webhook (sans ajouter un segment /login si le nœud n’en définit pas). Lancez « npm run dev » depuis le dossier copilot-ui pour charger .env."
+                              : err.message),
+                );
+            } else if (err instanceof Error) {
+                setError(
+                    err.message.includes("Réponse de connexion invalide")
+                        ? "Réponse serveur inattendue (token ou utilisateur manquant). Vérifiez le format JSON du POST /login."
+                        : err.message,
+                );
             } else {
-                setError("Connexion impossible. Verifiez vos identifiants.");
+                setError("Connexion impossible. Vérifiez vos identifiants et la configuration API.");
             }
         } finally {
             setLoading(false);

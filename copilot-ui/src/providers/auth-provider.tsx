@@ -1,9 +1,16 @@
 import type { ReactNode } from "react";
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
-import { backendApi } from "@/config/backend-api";
-import { ApiError, apiGet, apiPost, setApiAuthToken } from "@/utils/apiClient";
+import { setOnAuthFailure } from "@/api/api";
+import {
+    login as authLogin,
+    logout as authLogout,
+    me as authMe,
+    persistTokensFromPayload,
+    refresh as authRefresh,
+} from "@/api/authService";
+import { ApiError, setApiAuthToken } from "@/utils/apiClient";
 import { getStoredRefreshToken, setStoredRefreshToken } from "@/utils/session-tokens";
-import type { AuthUser, LoginResponse, Permission, Role, UserStatus } from "@/types/auth";
+import type { AuthUser, Permission, Role, UserStatus } from "@/types/auth";
 
 const PERMISSIONS_BY_ROLE: Record<Role, Permission[]> = {
     rh: [
@@ -66,22 +73,6 @@ function unwrapData(payload: unknown): unknown {
     return payload;
 }
 
-function pickToken(payload: unknown): string | null {
-    const raw = unwrapData(payload);
-    if (!raw || typeof raw !== "object") return null;
-    const o = raw as Record<string, unknown>;
-    const t = o.token ?? o.accessToken ?? o.access_token;
-    return typeof t === "string" && t.trim() ? t.trim() : null;
-}
-
-function pickRefreshToken(payload: unknown): string | null {
-    const raw = unwrapData(payload);
-    if (!raw || typeof raw !== "object") return null;
-    const o = raw as Record<string, unknown>;
-    const t = o.refreshToken ?? o.refresh_token;
-    return typeof t === "string" && t.trim() ? t.trim() : null;
-}
-
 function pickUserFromAuthPayload(payload: unknown): AuthUser | null {
     const raw = unwrapData(payload);
     if (!raw || typeof raw !== "object") return null;
@@ -117,9 +108,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const [user, setUser] = useState<AuthUser | null>(null);
     const [hydrated, setHydrated] = useState(false);
 
+    useEffect(() => {
+        setOnAuthFailure(() => {
+            setApiAuthToken(null);
+            setStoredRefreshToken(null);
+            setUser(null);
+        });
+        return () => setOnAuthFailure(null);
+    }, []);
+
     const syncSession = useCallback(async () => {
         try {
-            const payload = await apiGet<unknown>(backendApi.me);
+            const payload = await authMe();
             const u = pickUserFromAuthPayload(payload);
             if (u) setUser(u);
             else clearSessionState(setUser);
@@ -135,11 +135,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             return;
         }
         try {
-            const payload = await apiPost<unknown>(backendApi.refresh, { refreshToken: rt });
-            const token = pickToken(payload);
-            const newRt = pickRefreshToken(payload);
-            if (token) setApiAuthToken(token);
-            if (newRt) setStoredRefreshToken(newRt);
+            const payload = await authRefresh();
+            persistTokensFromPayload(payload);
             await syncSession();
         } catch {
             clearSessionState(setUser);
@@ -151,11 +148,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             try {
                 const rt = getStoredRefreshToken();
                 if (rt) {
-                    const payload = await apiPost<unknown>(backendApi.refresh, { refreshToken: rt });
-                    const access = pickToken(payload);
-                    const newRt = pickRefreshToken(payload);
-                    if (access) setApiAuthToken(access);
-                    if (newRt) setStoredRefreshToken(newRt);
+                    const payload = await authRefresh();
+                    persistTokensFromPayload(payload);
                 }
                 await syncSession();
             } catch {
@@ -167,29 +161,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }, [syncSession]);
 
     const login = useCallback(async (email: string, password: string) => {
-        const payload = await apiPost<LoginResponse | Record<string, unknown>>(backendApi.login, {
+        const payload = await authLogin({
             email: email.trim(),
             password,
         });
-        const token = pickToken(payload);
-        const u = pickUserFromAuthPayload(payload);
-        const rt = pickRefreshToken(payload);
-        if (!token || !u) {
-            throw new Error("Réponse de connexion invalide (token ou utilisateur manquant).");
+        if (!persistTokensFromPayload(payload)) {
+            throw new Error("Réponse de connexion invalide (accessToken manquant).");
         }
-        setApiAuthToken(token);
-        if (rt) setStoredRefreshToken(rt);
+        const u = pickUserFromAuthPayload(payload);
+        if (!u) {
+            throw new Error("Réponse de connexion invalide (utilisateur manquant).");
+        }
         setUser(u);
     }, []);
 
     const logout = useCallback(async () => {
-        const rt = getStoredRefreshToken();
         try {
-            if (rt) {
-                await apiPost(backendApi.logout, { refreshToken: rt });
-            } else {
-                await apiPost(backendApi.logout, {});
-            }
+            await authLogout();
         } catch (err) {
             if (err instanceof ApiError && err.status === 401) {
                 // Session déjà invalide côté serveur.

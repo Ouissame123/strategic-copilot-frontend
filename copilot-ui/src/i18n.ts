@@ -36,8 +36,8 @@ i18n.use(initReactI18next).init({
                     mustChangePasswordBanner:
                         "Vous devez changer votre mot de passe (exigence du compte). Contactez le RH si besoin.",
                 },
-                adminUsersPage: {
-                    eyebrowAdmin: "Administration",
+                rhUsersPage: {
+                    eyebrowRh: "Espace RH",
                     description:
                         "En tant que RH, vous consultez l’annuaire des utilisateurs fourni par le serveur (comptes créés uniquement par le RH).",
                     sectionEyebrow: "Utilisateurs",
@@ -46,10 +46,9 @@ i18n.use(initReactI18next).init({
                     empty: "Aucun utilisateur pour le moment.",
                     loading: "Chargement des comptes…",
                     apiFallback: "Impossible de charger la liste des utilisateurs depuis le serveur.",
-                    badgeAdmin: "Admin",
-                    badgeUser: "Utilisateur",
+                    badgeRh: "RH",
                     badgeManager: "Manager",
-                    badgeViewer: "Lecteur",
+                    badgeTalent: "Talent",
                 },
                 projectShowcase: {
                     docTitle: "Fiche projet",
@@ -92,10 +91,10 @@ i18n.use(initReactI18next).init({
                     },
                     f2: {
                         name: "Espaces métier",
-                        detail: "Parcours RH, Manager et Talent avec navigation dédiée (admin uniquement pour changer de perspective).",
+                        detail: "Parcours RH, Manager et Talent avec navigation dédiée (le rôle RH peut basculer de perspective).",
                     },
                     f3: {
-                        name: "Utilisateurs & admin",
+                        name: "Utilisateurs & RH",
                         detail: "Annuaire utilisateurs via API, rôles et écran réservé au RH.",
                     },
                     f4: {
@@ -113,7 +112,7 @@ i18n.use(initReactI18next).init({
                     archEyebrow: "Architecture",
                     archTitle: "Découpage applicatif",
                     archBody:
-                        "Le front est organisé en pages, layouts, providers (auth, thème, toasts, copilot) et utilitaires API. Les rôles workspace pilotent la barre latérale ; l’admin contrôle la perspective métier.",
+                        "Le front est organisé en pages, layouts, providers (auth, thème, toasts, copilot) et utilitaires API. Les rôles workspace pilotent la barre latérale ; le rôle RH contrôle la perspective métier.",
                     archDiagram:
                         "┌─────────────────────────────────────────────┐\n│  App (Router) — ThemeProvider, AuthProvider  │\n├─────────────────────────────────────────────┤\n│  AppLayout — Sidebar (nav par rôle) + header │\n│            — Copilot, langue, thème          │\n├─────────────────────────────────────────────┤\n│  Pages — Dashboard, Projets, Workspaces,    │\n│          Décisions, Utilisateurs, Profil…    │\n├─────────────────────────────────────────────┤\n│  apiClient — GET/POST vers backend REST      │\n└─────────────────────────────────────────────┘",
                     qualityEyebrow: "Bonnes pratiques",
@@ -140,7 +139,7 @@ i18n.use(initReactI18next).init({
                     rhStaffingTitle: "Staffing & affectations",
                     rhAccountsEyebrow: "Comptes",
                     rhAccountsTitle: "Comptes & rôles",
-                    rhAccountsDesc: "Gestion des accès, statuts et validation administrateur.",
+                    rhAccountsDesc: "Gestion des accès, statuts et validation côté RH.",
                     rhReportsEyebrow: "Insights",
                     rhReportsTitle: "Rapports & indicateurs",
                     rhReportsDesc: "Synthèse RH : staffing, risques et adoption.",
@@ -469,8 +468,8 @@ i18n.use(initReactI18next).init({
                     mustChangePasswordBanner:
                         "You must change your password (account policy). Contact HR if needed.",
                 },
-                adminUsersPage: {
-                    eyebrowAdmin: "Administration",
+                rhUsersPage: {
+                    eyebrowRh: "HR",
                     description:
                         "As HR, you view the server-provided user directory (accounts are created by HR only).",
                     sectionEyebrow: "Users",
@@ -479,10 +478,9 @@ i18n.use(initReactI18next).init({
                     empty: "No users yet.",
                     loading: "Loading accounts…",
                     apiFallback: "Could not load the user list from the server.",
-                    badgeAdmin: "Admin",
-                    badgeUser: "User",
+                    badgeRh: "HR",
                     badgeManager: "Manager",
-                    badgeViewer: "Viewer",
+                    badgeTalent: "Talent",
                 },
                 projectShowcase: {
                     docTitle: "Project brief",
@@ -525,10 +523,10 @@ i18n.use(initReactI18next).init({
                     },
                     f2: {
                         name: "Role workspaces",
-                        detail: "HR, Manager and Talent journeys with dedicated navigation (only admins can switch perspective).",
+                        detail: "HR, Manager and Talent journeys with dedicated navigation (HR role can switch workspace perspective).",
                     },
                     f3: {
-                        name: "Users & admin",
+                        name: "Users & HR",
                         detail: "User directory via API, roles, HR-only screen.",
                     },
                     f4: {
@@ -546,7 +544,7 @@ i18n.use(initReactI18next).init({
                     archEyebrow: "Architecture",
                     archTitle: "Application structure",
                     archBody:
-                        "The front end is organised into pages, layouts, providers (auth, theme, toasts, copilot) and API utilities. Workspace roles drive the sidebar; the admin controls the business perspective.",
+                        "The front end is organised into pages, layouts, providers (auth, theme, toasts, copilot) and API utilities. Workspace roles drive the sidebar; the HR role controls the business perspective.",
                     archDiagram:
                         "┌─────────────────────────────────────────────┐\n│  App (Router) — ThemeProvider, AuthProvider  │\n├─────────────────────────────────────────────┤\n│  AppLayout — Sidebar (nav by role) + header  │\n│            — Copilot, language, theme        │\n├─────────────────────────────────────────────┤\n│  Pages — Dashboard, Projects, Workspaces,    │\n│          Decisions, Users, Profile…          │\n├─────────────────────────────────────────────┤\n│  apiClient — GET/POST to REST backend        │\n└─────────────────────────────────────────────┘",
                     qualityEyebrow: "Practices",
@@ -573,7 +571,7 @@ i18n.use(initReactI18next).init({
                     rhStaffingTitle: "Staffing & assignments",
                     rhAccountsEyebrow: "Accounts",
                     rhAccountsTitle: "Accounts & roles",
-                    rhAccountsDesc: "Access, statuses and admin validation.",
+                    rhAccountsDesc: "Access, statuses and HR-side validation.",
                     rhReportsEyebrow: "Insights",
                     rhReportsTitle: "Reports & KPIs",
                     rhReportsDesc: "HR summary: staffing, risk and adoption.",
@@ -902,8 +900,8 @@ i18n.use(initReactI18next).init({
                     mustChangePasswordBanner:
                         "يجب تغيير كلمة المرور (سياسة الحساب). تواصل مع الموارد البشرية عند الحاجة.",
                 },
-                adminUsersPage: {
-                    eyebrowAdmin: "الإدارة",
+                rhUsersPage: {
+                    eyebrowRh: "الموارد البشرية",
                     description:
                         "كموارد بشرية، تطلع على دليل المستخدمين القادم من الخادم (إنشاء الحسابات من الموارد البشرية فقط).",
                     sectionEyebrow: "المستخدمون",
@@ -912,10 +910,9 @@ i18n.use(initReactI18next).init({
                     empty: "لا يوجد مستخدمون بعد.",
                     loading: "جاري تحميل الحسابات…",
                     apiFallback: "تعذر تحميل قائمة المستخدمين من الخادم.",
-                    badgeAdmin: "مسؤول",
-                    badgeUser: "مستخدم",
+                    badgeRh: "الموارد البشرية",
                     badgeManager: "مدير",
-                    badgeViewer: "عارض",
+                    badgeTalent: "موهبة",
                 },
                 projectShowcase: {
                     docTitle: "بطاقة المشروع",
@@ -958,10 +955,10 @@ i18n.use(initReactI18next).init({
                     },
                     f2: {
                         name: "مساحات العمل",
-                        detail: "مسارات الموارد البشرية والمدير والموهبة (تبديل المنظور للمسؤول فقط).",
+                        detail: "مسارات الموارد البشرية والمدير والموهبة (دور الموارد البشرية يبدّل المنظور).",
                     },
                     f3: {
-                        name: "المستخدمون والإدارة",
+                        name: "المستخدمون والموارد البشرية",
                         detail: "دليل المستخدمين عبر API، أدوار، شاشة للموارد البشرية فقط.",
                     },
                     f4: {
@@ -979,7 +976,7 @@ i18n.use(initReactI18next).init({
                     archEyebrow: "البنية",
                     archTitle: "هيكل التطبيق",
                     archBody:
-                        "الواجهة منظمة في صفحات وتخطيطات وموفرات (مصادقة، مظهر، إشعارات، copilot) وأدوات API. أدوار مساحة العمل تتحكم في الشريط الجانبي؛ المسؤول يتحكم في منظور العمل.",
+                        "الواجهة منظمة في صفحات وتخطيطات وموفرات (مصادقة، مظهر، إشعارات، copilot) وأدوات API. أدوار مساحة العمل تتحكم في الشريط الجانبي؛ دور الموارد البشرية يتحكم في منظور العمل.",
                     archDiagram:
                         "┌─────────────────────────────────────────────┐\n│  App (Router) — ThemeProvider, AuthProvider  │\n├─────────────────────────────────────────────┤\n│  AppLayout — Sidebar (حسب الدور) + رأس       │\n│            — Copilot، اللغة، المظهر          │\n├─────────────────────────────────────────────┤\n│  صفحات — لوحة، مشاريع، مساحات، قرارات…       │\n├─────────────────────────────────────────────┤\n│  apiClient — GET/POST نحو REST               │\n└─────────────────────────────────────────────┘",
                     qualityEyebrow: "الممارسات",

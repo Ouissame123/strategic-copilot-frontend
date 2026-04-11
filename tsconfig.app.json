@@ -13,7 +13,7 @@
     "isolatedModules": true,
     "moduleDetection": "force",
     "noEmit": true,
-    "jsx": "preserve",
+    "jsx": "react-jsx",
 
     /* Linting */
     "strict": true,
@@ -23,8 +23,8 @@
     "noUncheckedSideEffectImports": true,
     "baseUrl": ".",
     "paths": {
-      "@/*": ["./src/*"]
+      "@/*": ["./copilot-ui/src/*"]
     }
   },
-  "include": ["src"]
+  "include": ["copilot-ui/src"]
 }

@@ -28,21 +28,18 @@ export function setApiAuthToken(token: string | null) {
     authToken = token?.trim() || null;
 }
 
+export function getApiAuthToken(): string | null {
+    return authToken;
+}
+
 export interface ApiClientOptions {
     timeout?: number;
     signal?: AbortSignal;
 }
 
-export class ApiError extends Error {
-    constructor(
-        message: string,
-        public status?: number,
-        public payload?: unknown,
-    ) {
-        super(message);
-        this.name = "ApiError";
-    }
-}
+import { ApiError } from "@/api/errors";
+
+export { ApiError };
 
 export async function apiGet<T = unknown>(
     path: string,

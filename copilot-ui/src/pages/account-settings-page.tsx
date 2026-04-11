@@ -44,18 +44,18 @@ export default function AccountSettingsPage() {
     return (
         <div className="space-y-8">
             <header className="rounded-2xl border border-secondary bg-primary p-5 shadow-xs ring-1 ring-secondary/80 md:p-6">
-                <p className="text-xs font-semibold uppercase tracking-wide text-quaternary">{t("common:adminUsersPage.eyebrowAdmin")}</p>
+                <p className="text-xs font-semibold uppercase tracking-wide text-quaternary">{t("common:rhUsersPage.eyebrowRh")}</p>
                 <h1 className="mt-1 text-display-xs font-semibold text-primary md:text-display-sm">{pageTitle}</h1>
-                <p className="mt-2 text-md text-tertiary">{t("common:adminUsersPage.description")}</p>
+                <p className="mt-2 text-md text-tertiary">{t("common:rhUsersPage.description")}</p>
             </header>
 
             <section className="rounded-2xl border border-secondary bg-primary p-5 shadow-xs ring-1 ring-secondary/80 md:p-6">
-                <p className="text-xs font-semibold uppercase tracking-wide text-quaternary">{t("common:adminUsersPage.sectionEyebrow")}</p>
-                <h2 className="mt-1 text-lg font-semibold text-primary">{t("common:adminUsersPage.sectionTitle")}</h2>
-                <p className="mt-2 text-sm text-tertiary">{t("common:adminUsersPage.count", { count: users.length })}</p>
+                <p className="text-xs font-semibold uppercase tracking-wide text-quaternary">{t("common:rhUsersPage.sectionEyebrow")}</p>
+                <h2 className="mt-1 text-lg font-semibold text-primary">{t("common:rhUsersPage.sectionTitle")}</h2>
+                <p className="mt-2 text-sm text-tertiary">{t("common:rhUsersPage.count", { count: users.length })}</p>
 
                 {isLoading ? (
-                    <p className="mt-6 text-sm text-tertiary">{t("common:adminUsersPage.loading")}</p>
+                    <p className="mt-6 text-sm text-tertiary">{t("common:rhUsersPage.loading")}</p>
                 ) : (
                     <ul className="mt-6 divide-y divide-secondary">
                         {users.map((row) => {
@@ -79,7 +79,7 @@ export default function AccountSettingsPage() {
                 )}
 
                 {!isLoading && users.length === 0 && (
-                    <p className="mt-4 text-sm text-tertiary">{t("common:adminUsersPage.empty")}</p>
+                    <p className="mt-4 text-sm text-tertiary">{t("common:rhUsersPage.empty")}</p>
                 )}
             </section>
         </div>

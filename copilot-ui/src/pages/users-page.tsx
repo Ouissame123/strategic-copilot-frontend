@@ -14,11 +14,18 @@ import { Button } from "@/components/base/buttons/button";
 import { Input } from "@/components/base/input/input";
 import { Select } from "@/components/base/select/select";
 import { useCopilotPage } from "@/hooks/use-copilot-page";
-import type { CreateUserInput, User, UserInput, UserRole, UserStatus } from "@/hooks/use-users";
+import type { CreateUserInput, CreateUserRole, User, UserInput, UserRole, UserStatus } from "@/hooks/use-users";
 import { useUsers } from "@/hooks/use-users";
 import { cx } from "@/utils/cx";
 
-const CREATE_ROLES: UserRole[] = ["manager", "talent"];
+/** Brouillon formulaire création + édition (édition peut avoir rôle RH). */
+type UsersFormDraft = UserInput & {
+    initialPassword: string;
+    mustChangePassword: boolean;
+    passwordValidityMonths: number;
+};
+
+const CREATE_ROLES: CreateUserRole[] = ["manager", "talent"];
 const FILTER_ROLES: UserRole[] = ["rh", "manager", "talent"];
 const STATUSES: UserStatus[] = ["pending", "active", "disabled"];
 
@@ -53,7 +60,7 @@ export function UsersPage() {
     const [formOpen, setFormOpen] = useState(false);
     const [formMode, setFormMode] = useState<"create" | "edit">("create");
     const [editingId, setEditingId] = useState<string | null>(null);
-    const [draft, setDraft] = useState<CreateUserInput>({
+    const [draft, setDraft] = useState<UsersFormDraft>({
         firstName: "",
         lastName: "",
         email: "",
@@ -103,7 +110,17 @@ export function UsersPage() {
             e.preventDefault();
             try {
                 if (formMode === "create") {
-                    await createUser(draft);
+                    const payload: CreateUserInput = {
+                        firstName: draft.firstName,
+                        lastName: draft.lastName,
+                        email: draft.email,
+                        role: draft.role === "manager" ? "manager" : "talent",
+                        status: draft.status,
+                        initialPassword: draft.initialPassword,
+                        mustChangePassword: draft.mustChangePassword,
+                        passwordValidityMonths: draft.passwordValidityMonths,
+                    };
+                    await createUser(payload);
                 } else if (editingId) {
                     const payload: UserInput = {
                         firstName: draft.firstName,
