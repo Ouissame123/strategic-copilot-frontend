@@ -1,0 +1,9 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "rewrites": [
+    {
+      "source": "/webhook/:path*",
+      "destination": "https://n8nprod.aphelionxinnovations.com/webhook/:path*"
+    }
+  ]
+}
