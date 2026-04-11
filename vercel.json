@@ -4,6 +4,10 @@
     {
       "source": "/webhook/:path*",
       "destination": "https://n8nprod.aphelionxinnovations.com/webhook/:path*"
+    },
+    {
+      "source": "/(.*)",
+      "destination": "/index.html"
     }
   ]
 }
