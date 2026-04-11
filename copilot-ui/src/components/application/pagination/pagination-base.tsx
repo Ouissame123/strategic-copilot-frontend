@@ -1,5 +1,16 @@
-import type { CSSProperties, FC, HTMLAttributes, ReactNode } from "react";
-import { cloneElement, createContext, isValidElement, useCallback, useContext, useEffect, useState } from "react";
+import {
+    type CSSProperties,
+    type FC,
+    type HTMLAttributes,
+    type ReactNode,
+    cloneElement,
+    createContext,
+    isValidElement,
+    useCallback,
+    useContext,
+    useEffect,
+    useState,
+} from "react";
 
 type PaginationPage = {
     /** The type of the pagination item. */
