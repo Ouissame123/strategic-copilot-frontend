@@ -22,7 +22,12 @@ export type Permission =
 export interface AuthUser {
     id: string;
     fullName: string;
+    /** Si le backend les expose (sinon dérivés du nom complet à l’affichage). */
+    firstName?: string;
+    lastName?: string;
     email: string;
+    /** Périmètre entreprise (ex. GET /me : `enterprise_id`) — requis pour certains appels manager. */
+    enterpriseId?: string;
     role: Role | null;
     status: UserStatus;
     /** Si true, le front peut afficher une bannière ou rediriger vers changement de mot de passe. */

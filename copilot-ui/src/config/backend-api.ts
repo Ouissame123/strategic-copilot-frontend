@@ -33,6 +33,10 @@ export const backendApi = {
     get me(): string {
         return resolveUrl(readEnv("VITE_API_ME"), "/me");
     },
+    /** POST changement de mot de passe (compte connecté). Corps typique : `{ currentPassword, newPassword }`. */
+    get changePassword(): string {
+        return resolveUrl(readEnv("VITE_API_CHANGE_PASSWORD"), "/me/password");
+    },
     /** GET liste (+ query) */
     get rhUsersList(): string {
         return resolveUrl(readEnv("VITE_API_RH_USERS_LIST"), "/rh/users");

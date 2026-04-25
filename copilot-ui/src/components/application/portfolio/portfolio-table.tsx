@@ -6,25 +6,28 @@ import { LoadingIndicator } from "@/components/application/loading-indicator/loa
 import { PaginationCardMinimal } from "@/components/application/pagination/pagination";
 import { Table, TableCard, TableRowActionsDropdown } from "@/components/application/table/table";
 import { Avatar } from "@/components/base/avatar/avatar";
-import { Badge, BadgeWithDot } from "@/components/base/badges/badges";
+import { Badge } from "@/components/base/badges/badges";
+import { ProjectStatusBadge } from "@/components/project/project-status-badge";
 import { Button } from "@/components/base/buttons/button";
-import type { PortfolioProject, PortfolioStatus } from "@/hooks/use-portfolio";
+import type { PortfolioProject } from "@/hooks/use-portfolio";
 
 const PAGE_SIZE = 6;
-
-const statusToBadgeColor: Record<PortfolioStatus, "success" | "warning" | "gray" | "brand"> = {
-    active: "success",
-    "at-risk": "warning",
-    paused: "gray",
-    planned: "brand",
-    completed: "success",
-};
 
 const riskToBadgeColor: Record<PortfolioProject["riskLevel"], "success" | "warning" | "error"> = {
     low: "success",
     medium: "warning",
     high: "error",
 };
+
+function decisionBadgeTone(decision: string | undefined): "success" | "warning" | "error" | "gray" {
+    const n = String(decision ?? "")
+        .trim()
+        .toLowerCase();
+    if (n === "continue") return "success";
+    if (n === "adjust") return "warning";
+    if (n === "stop") return "error";
+    return "gray";
+}
 
 const getInitials = (value: string) =>
     value
@@ -79,7 +82,7 @@ export const PortfolioTable = ({ title, description, projects, isLoading, error,
         );
     }
 
-    if (error) {
+    if (error && projects.length === 0) {
         return (
             <TableCard.Root size="md">
                 <TableCard.Header title={title} description={description} />
@@ -122,13 +125,31 @@ export const PortfolioTable = ({ title, description, projects, isLoading, error,
         );
     }
 
+    const showStaleWarning = Boolean(error && projects.length > 0);
+
     return (
         <TableCard.Root size="md">
             <TableCard.Header title={title} description={description} badge={badge} />
+            {showStaleWarning && (
+                <div
+                    className="flex flex-col gap-3 border-b border-secondary bg-secondary/40 px-4 py-3 md:flex-row md:items-center md:justify-between md:px-6"
+                    role="status"
+                >
+                    <p className="text-sm text-secondary">
+                        <span className="font-medium text-primary">{t("table.errorTitle")}</span>
+                        {" — "}
+                        {error}
+                    </p>
+                    <Button color="secondary" size="sm" onClick={onRetry}>
+                        {t("table.errorRetry")}
+                    </Button>
+                </div>
+            )}
             <Table aria-label={t("table.ariaLabel")} className="min-w-full">
                 <Table.Header className="sticky top-0 z-10">
                     <Table.Head id="project" label={t("table.columns.project")} />
                     <Table.Head id="status" label={t("table.columns.status")} />
+                    <Table.Head id="decision" label={t("table.columns.decision")} />
                     <Table.Head id="risk" label={t("table.columns.risk")} />
                     <Table.Head id="budget" label={t("table.columns.budget")} />
                     <Table.Head id="updatedAt" label={t("table.columns.updated")} />
@@ -149,9 +170,16 @@ export const PortfolioTable = ({ title, description, projects, isLoading, error,
                                 </div>
                             </Table.Cell>
                             <Table.Cell>
-                                <BadgeWithDot color={statusToBadgeColor[project.status]} type="pill-color" size="sm">
-                                    {t(`status.${project.status}`)}
-                                </BadgeWithDot>
+                                <ProjectStatusBadge status={project.status} />
+                            </Table.Cell>
+                            <Table.Cell>
+                                {project.aiDecision ? (
+                                    <Badge color={decisionBadgeTone(project.aiDecision)} type="pill-color" size="sm">
+                                        {project.aiDecision}
+                                    </Badge>
+                                ) : (
+                                    <span className="text-sm text-tertiary">—</span>
+                                )}
                             </Table.Cell>
                             <Table.Cell>
                                 <Badge color={riskToBadgeColor[project.riskLevel]} type="pill-color" size="sm">

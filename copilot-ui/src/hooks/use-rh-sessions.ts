@@ -22,10 +22,11 @@ export interface RhSessionRow {
     status: SessionStatus;
 }
 
-function mapSession(raw: unknown, index: number): RhSessionRow {
+function mapSession(raw: unknown): RhSessionRow | null {
     const r = raw && typeof raw === "object" ? (raw as Record<string, unknown>) : {};
+    if (r.id == null || r.status == null) return null;
     return {
-        id: String(r.id ?? `s-${index}`),
+        id: String(r.id),
         userName: String(
             r.userFullName ?? r.user_full_name ?? r.user_name ?? r.userName ?? r.full_name ?? "",
         ),
@@ -34,7 +35,7 @@ function mapSession(raw: unknown, index: number): RhSessionRow {
         loginAt: String(r.login_at ?? r.loginAt ?? ""),
         lastActivityAt: String(r.last_activity_at ?? r.lastActivityAt ?? ""),
         expiresAt: String(r.expires_at ?? r.expiresAt ?? ""),
-        status: String(r.status ?? "active") as SessionStatus,
+        status: String(r.status) as SessionStatus,
     };
 }
 
@@ -60,7 +61,7 @@ export function useRhSessions(options?: UseRhSessionsOptions) {
         setError(null);
         try {
             const response = await listRhSessions(page, pageSize);
-            const list = extractSessions(response).map(mapSession);
+            const list = extractSessions(response).map(mapSession).filter((s): s is RhSessionRow => s != null);
             setItems(list);
         } catch (err) {
             setError(err instanceof ApiError ? err.message : "Erreur de chargement des sessions");

@@ -1,13 +1,14 @@
 import type { FC, HTMLAttributes, KeyboardEvent } from "react";
-import { useCallback, useRef } from "react";
+import { useCallback, useRef, useState } from "react";
 import type { Placement } from "@react-types/overlays";
-import { ChevronSelectorVertical, LogOut01, Settings01, User01 } from "@untitledui/icons";
+import { ChevronSelectorVertical, LogOut01, User01 } from "@untitledui/icons";
 import { useNavigate } from "react-router";
-import { useTranslation } from "react-i18next";
 import { useAuth } from "@/providers/auth-provider";
+import { useWorkspacePaths } from "@/hooks/use-workspace-paths";
 import { useFocusManager } from "react-aria";
 import type { DialogProps as AriaDialogProps } from "react-aria-components";
 import { Button as AriaButton, Dialog as AriaDialog, DialogTrigger as AriaDialogTrigger, Popover as AriaPopover } from "react-aria-components";
+import { Avatar } from "@/components/base/avatar/avatar";
 import { AvatarLabelGroup } from "@/components/base/avatar/avatar-label-group";
 import { Button } from "@/components/base/buttons/button";
 import { useBreakpoint } from "@/hooks/use-breakpoint";
@@ -31,20 +32,20 @@ type NavAccountMenuProps = AriaDialogProps & {
     className?: string;
     accounts?: NavAccountType[];
     selectedAccountId?: string;
-    /** Affiche les entrées réservées au rôle RH (ex. paramètres compte). */
-    isRh?: boolean;
     onKeyDown?: (e: KeyboardEvent<HTMLDivElement>) => void;
+    showProfileAction?: boolean;
 };
 
 export const NavAccountMenu = ({
     className,
-    isRh = false,
     onKeyDown: upstreamOnKeyDown,
+    showProfileAction = true,
     ...dialogProps
 }: NavAccountMenuProps) => {
-    const { t } = useTranslation("nav");
     const navigate = useNavigate();
     const { logout } = useAuth();
+    const [isLoggingOut, setIsLoggingOut] = useState(false);
+    const { profile: profileHref } = useWorkspacePaths();
     const focusManager = useFocusManager();
     const dialogRef = useRef<HTMLDivElement>(null);
 
@@ -75,21 +76,22 @@ export const NavAccountMenu = ({
             className={cx("w-66 rounded-xl bg-secondary_alt shadow-lg ring ring-secondary_alt outline-hidden", className)}
         >
             <div onKeyDown={handleKeyDown}>
-                <div className="rounded-xl bg-primary ring-1 ring-secondary">
-                    <div className="flex flex-col gap-0.5 py-1.5">
-                        <NavAccountCardMenuItem label="View profile" icon={User01} shortcut="⌘K->P" href="/profile" />
-                        {isRh && (
-                            <NavAccountCardMenuItem label={t("accountSettings")} icon={Settings01} shortcut="⌘S" href="/account-settings" />
-                        )}
+                {showProfileAction ? (
+                    <div className="rounded-xl bg-primary ring-1 ring-secondary">
+                        <div className="flex flex-col gap-0.5 py-1.5">
+                            <NavAccountCardMenuItem label="View profile" icon={User01} shortcut="⌘K->P" href={profileHref} />
+                        </div>
                     </div>
-                </div>
+                ) : null}
 
                 <div className="pt-1 pb-1.5">
                     <NavAccountCardMenuItem
                         label="Sign out"
                         icon={LogOut01}
                         shortcut="⌥⇧Q"
+                        destructive={isLoggingOut}
                         onClick={() => {
+                            setIsLoggingOut(true);
                             void logout().finally(() => navigate("/login", { replace: true }));
                         }}
                     />
@@ -105,6 +107,7 @@ const NavAccountCardMenuItem = ({
     shortcut,
     href,
     onClick,
+    destructive,
     ...rest
 }: {
     icon?: FC<{ className?: string }>;
@@ -112,16 +115,18 @@ const NavAccountCardMenuItem = ({
     shortcut?: string;
     href?: string;
     onClick?: () => void;
+    destructive?: boolean;
 } & HTMLAttributes<HTMLButtonElement>) => {
     const content = (
         <div
             className={cx(
                 "flex w-full items-center justify-between gap-3 rounded-md p-2 group-hover/item:bg-primary_hover",
                 "outline-focus-ring group-focus-visible/item:outline-2 group-focus-visible/item:outline-offset-2",
+                destructive && "bg-[#ef4444]/10 text-[#ef4444] ring-1 ring-[#ef4444]/25 group-hover/item:bg-[#ef4444]/10",
             )}
         >
-            <div className="flex gap-2 text-sm font-semibold text-secondary group-hover/item:text-secondary_hover">
-                {Icon && <Icon className="size-5 text-fg-quaternary" />} {label}
+            <div className={cx("flex gap-2 text-sm font-semibold text-secondary group-hover/item:text-secondary_hover", destructive && "text-[#ef4444]")}>
+                {Icon && <Icon className={cx("size-5 text-fg-quaternary", destructive && "text-[#ef4444]")} />} {label}
             </div>
             {shortcut && (
                 <kbd className="flex rounded px-1 py-px font-body text-xs font-medium text-tertiary ring-1 ring-secondary ring-inset">{shortcut}</kbd>
@@ -159,8 +164,12 @@ const NavAccountCardMenuItem = ({
 
 export const NavAccountCard = ({
     popoverPlacement,
+    compact = false,
+    showProfileAction = true,
 }: {
     popoverPlacement?: Placement;
+    compact?: boolean;
+    showProfileAction?: boolean;
     selectedAccountId?: string;
     items?: NavAccountType[];
 }) => {
@@ -169,9 +178,28 @@ export const NavAccountCard = ({
     const { user } = useAuth();
 
     const displayName = user?.fullName?.trim() ?? "";
-    const isRhUser = user?.role === "rh";
+    const initials = displayName
+        .split(/\s+/)
+        .filter(Boolean)
+        .slice(0, 2)
+        .map((part) => part[0]?.toUpperCase() ?? "")
+        .join("");
 
     if (!user?.email) return null;
+
+    if (compact) {
+        return (
+            <div ref={triggerRef} className="relative">
+                <Avatar
+                    size="sm"
+                    src={null}
+                    initials={initials || undefined}
+                    alt={displayName || user.email}
+                    status="online"
+                />
+            </div>
+        );
+    }
 
     return (
         <div ref={triggerRef} className="relative flex items-center gap-3 rounded-xl p-3 ring-1 ring-secondary ring-inset">
@@ -202,7 +230,7 @@ export const NavAccountCard = ({
                             )
                         }
                     >
-                        <NavAccountMenu isRh={isRhUser} />
+                        <NavAccountMenu showProfileAction={showProfileAction} />
                     </AriaPopover>
                 </AriaDialogTrigger>
             </div>

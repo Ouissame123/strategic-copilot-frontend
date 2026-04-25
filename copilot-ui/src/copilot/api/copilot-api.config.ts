@@ -26,9 +26,9 @@ function joinBaseAndPath(base: string, path: string): string {
 /** Chemins par défaut (relatifs à `VITE_COPILOT_API_BASE`). */
 export const COPILOT_DEFAULT_PATHS = {
     /** POST — génération d’insights (CopilotInsightsRequestDto → CopilotInsightsResponseDto) */
-    insights: "/v1/copilot/insights",
+    insights: "/webhook/v1/copilot/insights",
     /** POST — enregistrement d’une décision utilisateur */
-    decisions: "/v1/copilot/decisions",
+    decisions: "/webhook/v1/copilot/decisions",
 } as const;
 
 /** e.g. import.meta.env.VITE_COPILOT_API_BASE */
@@ -60,8 +60,9 @@ export function copilotInsightsUrl(): string {
     const full = trimUrl(import.meta.env.VITE_COPILOT_INSIGHTS_URL as string | undefined);
     if (full) return full;
     const base = getCopilotApiBase();
-    if (!base) return "";
-    return joinBaseAndPath(base, resolveInsightsPath());
+    const path = resolveInsightsPath();
+    if (!base) return path.startsWith("/") ? path : `/${path}`;
+    return joinBaseAndPath(base, path);
 }
 
 /** URL finale pour POST décision (URL absolue optionnelle, sinon base + chemin). */

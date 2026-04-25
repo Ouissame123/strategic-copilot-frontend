@@ -10,7 +10,7 @@ import {
 import { ApiError } from "@/utils/apiClient";
 
 export type UserRole = "rh" | "manager" | "talent";
-export type UserStatus = "pending" | "active" | "disabled";
+export type UserStatus = "pending" | "active" | "disabled" | "expired";
 
 /** Rôles autorisés pour POST /rh/users (contrat API : pas de création RH via cette route). */
 export type CreateUserRole = "manager" | "talent";
@@ -22,6 +22,12 @@ export interface User {
     email: string;
     role: UserRole;
     status: UserStatus;
+    enterpriseId?: string;
+    enterpriseName?: string;
+    onlineStatus?: "online" | "offline" | "unknown";
+    lastActivityAt?: string;
+    expiresAt?: string;
+    invitationPending?: boolean;
     createdAt?: string;
     updatedAt?: string;
 }
@@ -52,29 +58,80 @@ export type UseUsersOptions = {
 const normalizeRole = (v: unknown): UserRole => {
     const s = String(v ?? "").toLowerCase();
     if (s === "rh") return "rh";
+    if (s === "hr") return "rh";
     if (s === "manager") return "manager";
-    return "talent";
+    if (s === "talent") return "talent";
+    throw new ApiError("Role utilisateur manquant ou invalide.");
 };
 
 const normalizeStatus = (v: unknown): UserStatus => {
     const s = String(v ?? "").toLowerCase();
     if (s === "pending") return "pending";
     if (s === "disabled" || s === "inactive") return "disabled";
-    return "active";
+    if (s === "active") return "active";
+    if (s === "expired") return "expired";
+    throw new ApiError("Status utilisateur manquant ou invalide.");
 };
 
-const mapUser = (raw: unknown, index: number): User => {
+const mapUser = (raw: unknown): User | null => {
     const r = raw && typeof raw === "object" ? (raw as Record<string, unknown>) : {};
-    const id = r.id != null ? String(r.id) : `user-${index}`;
+    if (r.id == null || r.email == null) return null;
     const full = String(r.fullName ?? r.full_name ?? "").trim();
     const parts = full ? full.split(/\s+/) : [];
+    const roleCandidate = r.role ?? r.claims_role ?? r.scope_role ?? r.user_role ?? r.account_role;
+    const statusCandidate = r.status ?? r.account_status ?? r.user_status;
+    const onlineCandidate = r.online ?? r.is_online ?? r.connection_status ?? r.session_state;
+    const onlineStr = String(onlineCandidate ?? "").toLowerCase();
+    const onlineStatus: User["onlineStatus"] =
+        onlineStr === "online" || onlineStr === "true" || onlineStr === "1" || onlineCandidate === true
+            ? "online"
+            : onlineStr === "offline" || onlineStr === "false" || onlineStr === "0" || onlineCandidate === false
+              ? "offline"
+              : "unknown";
     return {
-        id,
+        id: String(r.id),
         firstName: String(r.firstName ?? r.first_name ?? (parts.length > 1 ? parts.slice(0, -1).join(" ") : parts[0] ?? "")),
         lastName: String(r.lastName ?? r.last_name ?? (parts.length > 1 ? parts[parts.length - 1]! : "")),
-        email: String(r.email ?? ""),
-        role: normalizeRole(r.role),
-        status: normalizeStatus(r.status),
+        email: String(r.email),
+        role: normalizeRole(roleCandidate),
+        status: normalizeStatus(statusCandidate),
+        enterpriseId:
+            r.enterprise_id != null
+                ? String(r.enterprise_id)
+                : r.enterpriseId != null
+                  ? String(r.enterpriseId)
+                  : undefined,
+        enterpriseName:
+            r.enterprise_name != null
+                ? String(r.enterprise_name)
+                : r.enterpriseName != null
+                  ? String(r.enterpriseName)
+                  : r.company_name != null
+                    ? String(r.company_name)
+                    : undefined,
+        onlineStatus,
+        lastActivityAt:
+            r.last_seen_at != null
+                ? String(r.last_seen_at)
+                : r.last_activity_at != null
+                  ? String(r.last_activity_at)
+                  : r.lastSeenAt != null
+                    ? String(r.lastSeenAt)
+                    : undefined,
+        expiresAt:
+            r.expires_at != null
+                ? String(r.expires_at)
+                : r.expiration_date != null
+                  ? String(r.expiration_date)
+                  : r.account_expires_at != null
+                    ? String(r.account_expires_at)
+                    : undefined,
+        invitationPending:
+            typeof r.invitation_pending === "boolean"
+                ? r.invitation_pending
+                : typeof r.invitationPending === "boolean"
+                  ? r.invitationPending
+                  : undefined,
         createdAt: r.createdAt != null ? String(r.createdAt) : r.created_at != null ? String(r.created_at) : undefined,
         updatedAt: r.updatedAt != null ? String(r.updatedAt) : r.updated_at != null ? String(r.updated_at) : undefined,
     };
@@ -115,13 +172,18 @@ const extractList = (payload: unknown): unknown[] => {
         if (Array.isArray(d.items)) return d.items;
         if (Array.isArray(d.users)) return d.users;
     }
+    if (Array.isArray(o.results)) return o.results;
     return [];
 };
 
 const extractTotal = (payload: unknown, fallback: number): number => {
     if (!payload || typeof payload !== "object") return fallback;
     const o = payload as Record<string, unknown>;
-    const t = o.total ?? o.totalCount ?? (o.meta && typeof o.meta === "object" ? (o.meta as Record<string, unknown>).total : undefined);
+    const t =
+        o.total ??
+        o.totalCount ??
+        o.count ??
+        (o.meta && typeof o.meta === "object" ? (o.meta as Record<string, unknown>).total : undefined);
     const n = Number(t);
     return Number.isFinite(n) ? n : fallback;
 };
@@ -163,7 +225,7 @@ export function useUsers(options?: UseUsersOptions) {
                     },
                     { timeout: DEFAULT_TIMEOUT, signal },
                 );
-                const list = extractList(payload).map(mapUser);
+                const list = extractList(payload).map(mapUser).filter((u): u is User => u != null);
                 setUsers(list);
                 setTotal(extractTotal(payload, list.length));
             } catch (err) {

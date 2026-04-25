@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link, useNavigate, useLocation } from "react-router";
 import { Button } from "@/components/base/buttons/button";
 import { Input } from "@/components/base/input/input";
@@ -6,23 +6,32 @@ import { AuthCardLayout } from "@/components/auth/auth-card-layout";
 import { useAuth } from "@/providers/auth-provider";
 import { ApiError } from "@/utils/apiClient";
 import { cx } from "@/utils/cx";
+import { getDefaultWorkspacePath, isPathAllowedForRole } from "@/utils/workspace-routes";
 
 export default function LoginPage() {
     const navigate = useNavigate();
     const location = useLocation();
-    const { login, isAuthenticated } = useAuth();
+    const { login, isAuthenticated, user } = useAuth();
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
     const [error, setError] = useState<string | null>(null);
+    const [loading, setLoading] = useState(false);
 
     const from = (location.state as { from?: { pathname: string } })?.from?.pathname ?? "/";
 
+    /** Ne jamais appeler navigate() pendant le rendu — évite « fewer hooks than expected » et l’avertissement BrowserRouter. */
+    useEffect(() => {
+        if (!isAuthenticated) return;
+        const target =
+            from !== "/" && user?.role && isPathAllowedForRole(from, user.role)
+                ? from
+                : getDefaultWorkspacePath(user?.role);
+        navigate(target, { replace: true });
+    }, [isAuthenticated, navigate, from, user?.role]);
+
     if (isAuthenticated) {
-        navigate(from, { replace: true });
         return null;
     }
-
-    const [loading, setLoading] = useState(false);
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -34,7 +43,7 @@ export default function LoginPage() {
         setLoading(true);
         try {
             await login(email.trim(), password);
-            navigate(from, { replace: true });
+            // La navigation post-login est gérée par l’effet une fois `user` hydraté (JWT + rôle).
         } catch (err) {
             if (err instanceof ApiError) {
                 const fromPayload =

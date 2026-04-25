@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import { Navigate, useLocation } from "react-router";
 import { useAuth } from "@/providers/auth-provider";
 import type { Permission, Role } from "@/types/auth";
+import { getDefaultWorkspacePath } from "@/utils/workspace-routes";
 
 interface ProtectedRouteProps {
     children: ReactNode;
@@ -10,7 +11,7 @@ interface ProtectedRouteProps {
 }
 
 export function ProtectedRoute({ children, roles = [], permissions = [] }: ProtectedRouteProps) {
-    const { isAuthenticated, isPendingApproval, isDisabled, hasRole, hasPermission } = useAuth();
+    const { isAuthenticated, isPendingApproval, isDisabled, hasRole, hasPermission, user } = useAuth();
     const location = useLocation();
 
     if (!isAuthenticated) {
@@ -26,11 +27,11 @@ export function ProtectedRoute({ children, roles = [], permissions = [] }: Prote
     }
 
     if (roles.length > 0 && !hasRole(...roles)) {
-        return <Navigate to="/" replace />;
+        return <Navigate to={getDefaultWorkspacePath(user?.role)} replace />;
     }
 
     if (permissions.length > 0 && !hasPermission(...permissions)) {
-        return <Navigate to="/" replace />;
+        return <Navigate to={getDefaultWorkspacePath(user?.role)} replace />;
     }
 
     return <>{children}</>;

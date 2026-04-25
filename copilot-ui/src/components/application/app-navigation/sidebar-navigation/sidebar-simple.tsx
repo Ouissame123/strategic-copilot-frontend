@@ -1,11 +1,14 @@
 import type { ReactNode } from "react";
-import { SearchLg } from "@untitledui/icons";
+import { useState } from "react";
+import { LogOut01, SearchLg } from "@untitledui/icons";
 import { useTranslation } from "react-i18next";
+import { useNavigate } from "react-router";
 import { Input } from "@/components/base/input/input";
+import { Button } from "@/components/base/buttons/button";
 import { ProjectLogo } from "@/components/foundations/logo/project-logo";
+import { useAuth } from "@/providers/auth-provider";
 import { cx } from "@/utils/cx";
 import { MobileNavigationHeader } from "../base-components/mobile-header";
-import { NavAccountCard } from "../base-components/nav-account-card";
 import { NavItemBase } from "../base-components/nav-item";
 import { NavList } from "../base-components/nav-list";
 import type { NavItemType } from "../config";
@@ -37,6 +40,9 @@ export const SidebarNavigationSimple = ({
     className,
 }: SidebarNavigationProps) => {
     const { t } = useTranslation("common");
+    const navigate = useNavigate();
+    const { logout } = useAuth();
+    const [isLoggingOut, setIsLoggingOut] = useState(false);
     const MAIN_SIDEBAR_WIDTH = 296;
 
     const content = (
@@ -74,7 +80,24 @@ export const SidebarNavigationSimple = ({
 
                 {featureCard}
 
-                {showAccountCard && <NavAccountCard />}
+                {showAccountCard ? (
+                    <Button
+                        color="tertiary"
+                        size="sm"
+                        iconLeading={LogOut01}
+                        className={cx(
+                            "w-full justify-start transition hover:bg-[#ef4444]/10 hover:text-[#ef4444] active:bg-[#ef4444]/10 active:text-[#ef4444]",
+                            isLoggingOut && "bg-[#ef4444]/10 text-[#ef4444] ring-1 ring-[#ef4444]/25 hover:bg-[#ef4444]/10 hover:text-[#ef4444]",
+                        )}
+                        onMouseDown={() => setIsLoggingOut(true)}
+                        onClick={() => {
+                            setIsLoggingOut(true);
+                            void logout().finally(() => navigate("/login", { replace: true }));
+                        }}
+                    >
+                        Déconnecter
+                    </Button>
+                ) : null}
             </div>
         </aside>
     );

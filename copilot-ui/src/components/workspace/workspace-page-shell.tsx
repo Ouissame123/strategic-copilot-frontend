@@ -11,7 +11,7 @@ type WorkspacePageShellProps = {
     role: WorkspaceRole;
     eyebrow: string;
     title: string;
-    description?: string;
+    description?: ReactNode;
     tabs?: WorkspaceTab[];
     actions?: ReactNode;
     children: ReactNode;
@@ -24,11 +24,14 @@ export function WorkspacePageShell({ role, eyebrow, title, description, tabs, ac
         <div className="space-y-6">
             <div
                 className={cx(
-                    "rounded-2xl border bg-primary p-5 shadow-xs ring-1 md:p-6",
+                    "relative overflow-hidden rounded-3xl border border-secondary/90 bg-gradient-to-br from-primary via-primary to-brand-primary_alt/15 p-4 shadow-sm ring-1 ring-secondary/70 md:p-5",
                     workspaceRoleAccentClasses(role),
                 )}
             >
-                <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+                <div className="pointer-events-none absolute -right-16 -top-16 size-56 rounded-full bg-brand-primary_alt/30 blur-3xl" />
+                <div className="pointer-events-none absolute -left-20 bottom-0 size-52 rounded-full bg-brand-secondary/10 blur-3xl" />
+                <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_18%_30%,rgba(255,255,255,0.35),transparent_46%)]" />
+                <div className="relative flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
                     <div>
                         <p className="text-xs font-semibold uppercase tracking-wide text-quaternary">{eyebrow}</p>
                         <div className="mt-1 flex flex-wrap items-center gap-2">
@@ -42,11 +45,13 @@ export function WorkspacePageShell({ role, eyebrow, title, description, tabs, ac
                                 {t(`workspaceRoles.${role}`)}
                             </span>
                         </div>
-                        {description && <p className="mt-2 text-sm text-secondary md:text-md">{description}</p>}
+                        {description != null && description !== false && (
+                            <div className="mt-2 text-sm text-secondary md:text-md">{description}</div>
+                        )}
                     </div>
                     {actions}
                 </div>
-                <div className={cx("mt-4 h-1 w-full rounded-full bg-gradient-to-r", workspaceRoleHeaderStripeClass(role))} />
+                <div className={cx("relative mt-4 h-1 w-full rounded-full bg-gradient-to-r", workspaceRoleHeaderStripeClass(role))} />
             </div>
 
             {tabs && tabs.length > 0 && (

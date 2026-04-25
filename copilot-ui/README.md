@@ -2,8 +2,6 @@
 
 Application **React / TypeScript** pour suivre un portefeuille de projets, tracer des décisions stratégiques (Continue / Adjust / Stop) et proposer des **parcours métier** (RH, Manager, Talent), avec **assistant contextuel** (Copilot), **internationalisation** (FR / EN / AR) et **thème** clair ou sombre.
 
-> **À l’attention de l’encadrant / du jury** : une **fiche projet intégrée** est disponible dans l’application (menu latéral : **« Fiche projet »** / route `/projet`). Elle résume les objectifs, la valeur ajoutée, la stack et l’architecture.
-
 ---
 
 ## Objectifs du livrable
@@ -62,7 +60,7 @@ L’authentification (**JWT** ou session selon votre API), les rôles et les sta
 
 | Dossier / fichier | Rôle |
 |-------------------|------|
-| `src/pages/` | Écrans (dashboard, projets, workspaces, décisions, utilisateurs, **fiche projet** …) |
+| `src/pages/` | Écrans (dashboard, projets, workspaces, décisions, utilisateurs …) |
 | `src/layouts/` | Layout principal, **configuration de navigation** par rôle workspace |
 | `src/providers/` | Auth, thème, toasts, copilot |
 | `src/hooks/` | Données (portfolio, utilisateurs), médias, workspace |

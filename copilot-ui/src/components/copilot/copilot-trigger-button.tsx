@@ -9,10 +9,10 @@ export function CopilotTriggerButton() {
 
     return (
         <Button
-            color="secondary"
+            color="primary"
             size="sm"
             iconLeading={Stars01}
-            className="shrink-0 shadow-xs ring-1 ring-secondary/80"
+            className="shrink-0 shadow-md ring-1 ring-brand-600/25"
             aria-expanded={isOpen}
             aria-controls="ai-copilot-panel"
             onClick={() => setIsOpen(!isOpen)}

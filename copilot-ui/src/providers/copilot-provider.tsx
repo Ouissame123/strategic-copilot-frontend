@@ -1,346 +1,397 @@
-import type { ReactNode } from "react";
+import type { MutableRefObject, ReactNode } from "react";
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { copilotDecisionsUrl, copilotInsightsUrl } from "@/copilot/api/copilot-api.config";
-import { fetchCopilotInsights, getCopilotFetchErrorMessage, submitCopilotDecision } from "@/copilot/api/copilot-api.service";
-import { writeCopilotMemory } from "@/copilot/copilot-memory";
+import { isCopilotDecisionSubmitEnabled, postStrategicDecision } from "@/api/copilot.api";
+import { fetchCopilotByScope } from "@/hooks/use-copilot-query";
 import type {
-    CopilotDecisionId,
-    CopilotHistoryBatch,
-    CopilotInsight,
+    CopilotAssistantStructured,
+    CopilotChatPageContext,
+    CopilotMessage,
     CopilotPageContext,
-    CopilotTimelineEntry,
-} from "@/copilot/copilot-types";
+    CopilotResponse,
+    SaveCopilotDecisionPayload,
+} from "@/types/copilot";
+import { ApiError, apiPost } from "@/utils/apiClient";
+import { useToast } from "@/providers/toast-provider";
 
-function batchId() {
-    return `batch-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
+function pickStr(obj: Record<string, unknown>, keys: string[]): string | undefined {
+    for (const k of keys) {
+        const v = obj[k];
+        if (typeof v === "string" && v.trim()) return v.trim();
+    }
+    return undefined;
 }
 
-function timelineId() {
-    return `tl-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 5)}`;
+function getCopilotInsightsUrl(): string {
+    const explicit = (import.meta.env.VITE_COPILOT_INSIGHTS_URL as string | undefined)?.trim();
+    return explicit && explicit.length > 0 ? explicit : "/webhook/v1/copilot/insights";
 }
 
-const SCORE_DELTA: Record<CopilotDecisionId, number> = {
-    approve: 0.4,
-    adjust: 0.12,
-    reject: -0.38,
-};
+function createMessageId(): string {
+    const c = globalThis.crypto as Crypto | undefined;
+    if (c && typeof c.randomUUID === "function") {
+        return c.randomUUID();
+    }
+    return `msg_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
+}
 
-export type WhatIfRowUi = { risk: string; time: string; conf: string };
+/** Body `context` pour POST insights — clés stables côté Manager. */
+function buildInsightsContextPayload(raw: Record<string, unknown>): Record<string, unknown> {
+    const portfolio_summary = raw.portfolio_summary ?? raw.summary ?? {};
+    const projects = raw.projects ?? raw.items ?? [];
+    const kpi = raw.kpi ?? {};
+    const alerts = raw.alerts ?? [];
+    return { portfolio_summary, projects, kpi, alerts };
+}
 
-interface CopilotContextValue {
+function parseAssistantFromResponse(raw: unknown): { structured?: CopilotAssistantStructured; display: string } {
+    const root = raw && typeof raw === "object" && !Array.isArray(raw) ? (raw as Record<string, unknown>) : {};
+    const payload =
+        root.data && typeof root.data === "object" && !Array.isArray(root.data)
+            ? (root.data as Record<string, unknown>)
+            : root;
+
+    const summary = typeof payload.summary === "string" ? payload.summary.trim() : "";
+    const explanation = typeof payload.explanation === "string" ? payload.explanation.trim() : "";
+    const recommendations_text = Array.isArray(payload.recommendations_text)
+        ? payload.recommendations_text.filter((x): x is string => typeof x === "string" && x.trim().length > 0)
+        : [];
+
+    const structured: CopilotAssistantStructured = {
+        summary,
+        explanation,
+        recommendations_text,
+    };
+
+    const parts: string[] = [];
+    if (summary) parts.push(summary);
+    if (explanation) parts.push(explanation);
+    if (recommendations_text.length > 0) parts.push(recommendations_text.join("\n"));
+    const fallback = pickStr(payload, ["message"]) || pickStr(root, ["message"]) || "—";
+    const display = parts.length > 0 ? parts.join("\n\n") : fallback;
+
+    return {
+        structured: summary || explanation || recommendations_text.length > 0 ? structured : undefined,
+        display,
+    };
+}
+
+export interface CopilotContextValue {
     isOpen: boolean;
     setIsOpen: (open: boolean) => void;
+    toggleOpen: () => void;
     pageContext: CopilotPageContext | null;
     setPageContext: (ctx: CopilotPageContext | null) => void;
-    insights: CopilotInsight[];
-    batches: CopilotHistoryBatch[];
-    activeBatchIndex: number;
-    selectHistoryBatch: (index: number) => void;
+    /** Données brutes du dernier GET réussi pour le contexte courant. */
+    data: CopilotResponse | null;
     loading: boolean;
-    insightsError: string | null;
-    /** Successful fetch returned zero insights (empty array). */
-    insightsEmpty: boolean;
-    clearInsightsError: () => void;
-    lastSuggestionId: string | null;
-    lastCompletedSuggestionId: string | null;
-    runSuggestion: (suggestionId: string) => void;
-    clearInsights: () => void;
-    pinnedId: string | null;
-    setPinnedId: (id: string | null) => void;
-    contextStamp: number;
-    actionFeedback: string | null;
-    setActionFeedback: (msg: string | null) => void;
-    whatIfIndex: number;
-    setWhatIfIndex: (i: number) => void;
-    /** Server-driven what-if rows; null = use built-in demo deltas in the panel */
-    whatIfRows: WhatIfRowUi[] | null;
-    liveViabilityScore: number;
-    lastViabilityDelta: string | null;
-    decisionTimeline: CopilotTimelineEntry[];
-    recordDecision: (decisionId: CopilotDecisionId, insightTitle: string) => void;
+    error: string | null;
+    empty: boolean;
+    refreshCopilot: () => void;
+    decisionSubmitLoading: boolean;
+    decisionSubmitError: string | null;
+    decisionSubmitSuccess: boolean;
+    saveDecision: (payload: Omit<SaveCopilotDecisionPayload, "scope" | "project_id" | "enterprise_id" | "manager_id"> & { reason?: string }) => Promise<void>;
+    clearDecisionFeedback: () => void;
+    decisionSubmitEnabled: boolean;
+    /** Chat Copilot (POST — même URL que les insights). */
+    messages: CopilotMessage[];
+    sendMessage: (userMessage: string) => Promise<CopilotAssistantStructured | null>;
+    chatLoading: boolean;
+    currentContext: CopilotChatPageContext;
+    setCopilotChatContext: (page: string, dataRef: MutableRefObject<Record<string, unknown>> | null) => void;
 }
 
 const CopilotContext = createContext<CopilotContextValue | undefined>(undefined);
 
+function isEmptyPayload(data: CopilotResponse | null): boolean {
+    if (!data || typeof data !== "object") return true;
+    const has =
+        (data.summary != null && String(data.summary).trim() !== "") ||
+        (data.explanation != null && String(data.explanation).trim() !== "") ||
+        (data.viability_score != null && !Number.isNaN(Number(data.viability_score))) ||
+        (data.decision != null && String(data.decision).trim() !== "") ||
+        (data.confidence != null && !Number.isNaN(Number(data.confidence))) ||
+        (Array.isArray(data.risks) && data.risks.length > 0) ||
+        (Array.isArray(data.insights) && data.insights.length > 0) ||
+        (Array.isArray(data.recommendations) && data.recommendations.length > 0) ||
+        (Array.isArray(data.recommendations_text) && data.recommendations_text.length > 0);
+    return !has;
+}
+
 export function CopilotProvider({ children }: { children: ReactNode }) {
     const { t } = useTranslation("copilot");
+    const { push: pushToast } = useToast();
     const [isOpen, setIsOpen] = useState(false);
-    const [pageContext, setPageContext] = useState<CopilotPageContext | null>(null);
-    const [batches, setBatches] = useState<CopilotHistoryBatch[]>([]);
-    const [activeBatchIndex, setActiveBatchIndex] = useState(0);
+    const [pageContext, setPageContextState] = useState<CopilotPageContext | null>(null);
+    const [data, setData] = useState<CopilotResponse | null>(null);
     const [loading, setLoading] = useState(false);
-    const [insightsError, setInsightsError] = useState<string | null>(null);
-    const [lastSuggestionId, setLastSuggestionId] = useState<string | null>(null);
-    const [lastCompletedSuggestionId, setLastCompletedSuggestionId] = useState<string | null>(null);
-    const [pinnedId, setPinnedId] = useState<string | null>(null);
-    const [contextStamp, setContextStamp] = useState(0);
-    const [actionFeedback, setActionFeedback] = useState<string | null>(null);
-    const [whatIfIndex, setWhatIfIndex] = useState(0);
-    const [whatIfRows, setWhatIfRows] = useState<WhatIfRowUi[] | null>(null);
-    const [liveViabilityScore, setLiveViabilityScore] = useState(7.2);
-    const [lastViabilityDelta, setLastViabilityDelta] = useState<string | null>(null);
-    const [decisionTimeline, setDecisionTimeline] = useState<CopilotTimelineEntry[]>([]);
+    const [error, setError] = useState<string | null>(null);
+    const [decisionSubmitLoading, setDecisionSubmitLoading] = useState(false);
+    const [decisionSubmitError, setDecisionSubmitError] = useState<string | null>(null);
+    const [decisionSubmitSuccess, setDecisionSubmitSuccess] = useState(false);
 
-    const suggestionAbortRef = useRef<AbortController | null>(null);
-    const runSeqRef = useRef(0);
+    const [messages, setMessages] = useState<CopilotMessage[]>([]);
+    const messagesRef = useRef<CopilotMessage[]>([]);
+    const [currentContext, setCurrentContextState] = useState<CopilotChatPageContext>({ page: "", data: {} });
+    const copilotPageDataRef = useRef<MutableRefObject<Record<string, unknown>> | null>(null);
+    const [chatLoading, setChatLoading] = useState(false);
+    useEffect(() => {
+        messagesRef.current = messages;
+    }, [messages]);
 
-    const insights = useMemo(
-        () => batches[activeBatchIndex]?.insights ?? [],
-        [batches, activeBatchIndex],
-    );
+    const fetchSeq = useRef(0);
+    const abortRef = useRef<AbortController | null>(null);
 
-    const insightsEmpty = useMemo(
-        () => !loading && !insightsError && batches.length > 0 && insights.length === 0,
-        [loading, insightsError, batches.length, insights.length],
-    );
+    const fetchable = pageContext && pageContext.scope !== "none";
 
-    const clearInsightsError = useCallback(() => setInsightsError(null), []);
+    const runFetch = useCallback(async () => {
+        if (!pageContext || pageContext.scope === "none") {
+            setData(null);
+            setError(null);
+            setLoading(false);
+            return;
+        }
+        if (pageContext.scope === "project_detail" && !pageContext.projectId?.trim()) {
+            setData(null);
+            setError(t("panelProjectIdMissing"));
+            setLoading(false);
+            return;
+        }
 
-    const setPageContextWrapped = useCallback((ctx: CopilotPageContext | null) => {
-        setPageContext(ctx);
-        setContextStamp((s) => s + 1);
-        setBatches([]);
-        setActiveBatchIndex(0);
-        setLastSuggestionId(null);
-        setLastCompletedSuggestionId(null);
-        setPinnedId(null);
-        setLastViabilityDelta(null);
-        setInsightsError(null);
-        setWhatIfRows(null);
-        setWhatIfIndex(0);
-    }, []);
+        const seq = ++fetchSeq.current;
+        abortRef.current?.abort();
+        const ac = new AbortController();
+        abortRef.current = ac;
 
-    const selectHistoryBatch = useCallback((index: number) => {
-        setActiveBatchIndex(index);
+        setLoading(true);
+        setError(null);
+        setDecisionSubmitSuccess(false);
+        setDecisionSubmitError(null);
+
+        try {
+            const res = await fetchCopilotByScope(pageContext.scope, pageContext.projectId, {}, { signal: ac.signal });
+            if (seq !== fetchSeq.current) return;
+            setData(res);
+        } catch (e) {
+            if (e instanceof Error && e.name === "AbortError") return;
+            if (seq !== fetchSeq.current) return;
+            const msg =
+                e instanceof ApiError
+                    ? e.message
+                    : e instanceof Error
+                      ? e.message
+                      : t("panelLoadError");
+            setData(null);
+            setError(msg);
+        } finally {
+            if (seq === fetchSeq.current) setLoading(false);
+        }
+    }, [pageContext, t]);
+
+    const setPageContext = useCallback((ctx: CopilotPageContext | null) => {
+        setPageContextState(ctx);
+        setData(null);
+        setError(null);
+        setDecisionSubmitSuccess(false);
+        setDecisionSubmitError(null);
     }, []);
 
     useEffect(() => {
-        if (batches.length === 0) {
-            setActiveBatchIndex(0);
-            return;
-        }
-        setActiveBatchIndex((i) => (i >= batches.length ? batches.length - 1 : i));
-    }, [batches.length]);
+        if (!isOpen || !fetchable) return;
+        void runFetch();
+    }, [isOpen, fetchable, pageContext?.scope, pageContext?.projectId, pageContext?.pageLabel, runFetch]);
 
-    useEffect(() => () => suggestionAbortRef.current?.abort(), []);
+    const refreshCopilot = useCallback(() => {
+        void runFetch();
+    }, [runFetch]);
 
-    const recordDecision = useCallback(
-        (decisionId: CopilotDecisionId, insightTitle: string) => {
-            const d = SCORE_DELTA[decisionId];
-            const deltaStr = `${d >= 0 ? "+" : ""}${d.toFixed(2)}`;
-            setLastViabilityDelta(deltaStr);
+    const clearDecisionFeedback = useCallback(() => {
+        setDecisionSubmitError(null);
+        setDecisionSubmitSuccess(false);
+    }, []);
 
-            setLiveViabilityScore((prev) => {
-                const next = Math.min(10, Math.max(0, Math.round((prev + d) * 10) / 10));
-                const entry: CopilotTimelineEntry = {
-                    id: timelineId(),
-                    decisionId,
-                    insightTitle,
-                    deltaDisplay: deltaStr,
-                    viabilityAfter: next,
-                    at: Date.now(),
-                };
-                setDecisionTimeline((tl) => [entry, ...tl].slice(0, 8));
-                return next;
-            });
-
-            if (pageContext) {
-                writeCopilotMemory({
-                    routeKey: pageContext.routeKey,
-                    entityId: pageContext.entityId ?? null,
-                    suggestionId: lastCompletedSuggestionId,
-                    insightTitle,
-                });
+    const saveDecision = useCallback(
+        async (partial: Omit<SaveCopilotDecisionPayload, "scope" | "project_id" | "enterprise_id" | "manager_id"> & { reason?: string }) => {
+            if (!pageContext || pageContext.scope === "none") return;
+            const projectId = pageContext.projectId?.trim();
+            if (!projectId) {
+                const msg = t("panelProjectIdMissing");
+                setDecisionSubmitError(msg);
+                pushToast(msg, "error", 6000);
+                return;
             }
-
-            if (copilotDecisionsUrl()) {
-                void (async () => {
-                    try {
-                        const applied = await submitCopilotDecision(
-                            {
-                                decisionId,
-                                insightTitle,
-                                suggestionId: lastCompletedSuggestionId,
-                                context: pageContext
-                                    ? { routeKey: pageContext.routeKey, entityId: pageContext.entityId ?? null }
-                                    : undefined,
-                            },
-                            {},
-                        );
-                        if (applied?.viabilityScore != null) {
-                            setLiveViabilityScore(Math.min(10, Math.max(0, applied.viabilityScore)));
-                        }
-                        if (applied?.deltaDisplay) {
-                            setLastViabilityDelta(applied.deltaDisplay);
-                        }
-                        if (applied?.timelineEntry) {
-                            const entry = applied.timelineEntry;
-                            setDecisionTimeline((tl) => [entry, ...tl].slice(0, 8));
-                        }
-                    } catch {
-                        /* optimistic UI already applied */
-                    }
-                })();
+            setDecisionSubmitLoading(true);
+            setDecisionSubmitError(null);
+            setDecisionSubmitSuccess(false);
+            try {
+                await postStrategicDecision(
+                    {
+                        project_id: projectId,
+                        decision: String(partial.decision),
+                        source: "copilot",
+                    },
+                    {},
+                );
+                setDecisionSubmitSuccess(true);
+                pushToast(t("decisionSaved"), "success", 5000);
+                await runFetch();
+            } catch (e) {
+                const status = e instanceof ApiError ? e.status : undefined;
+                const msg =
+                    e instanceof ApiError
+                        ? status === 400
+                            ? t("chatError400")
+                            : status === 401
+                              ? t("chatError401")
+                              : status === 403
+                                ? t("chatError403")
+                                : e.message
+                        : e instanceof Error
+                          ? e.message
+                          : t("decisionSaveError");
+                setDecisionSubmitError(msg);
+                pushToast(msg, "error", 6000);
+            } finally {
+                setDecisionSubmitLoading(false);
             }
         },
-        [pageContext, lastCompletedSuggestionId],
+        [pageContext, pushToast, runFetch, t],
     );
 
-    const runSuggestion = useCallback(
-        (suggestionId: string) => {
-            if (!pageContext) return;
-            suggestionAbortRef.current?.abort();
-            const ac = new AbortController();
-            suggestionAbortRef.current = ac;
-            const runToken = ++runSeqRef.current;
+    const empty = !loading && !error && isEmptyPayload(data);
 
-            setLoading(true);
-            setInsightsError(null);
-            setLastSuggestionId(suggestionId);
-            setActionFeedback(null);
-            setWhatIfIndex(0);
+    const toggleOpen = useCallback(() => setIsOpen((o) => !o), []);
 
-            const finishBatch = (
-                sorted: CopilotInsight[],
-                suggestion: string,
-                opts?: { viabilityScore?: number; serverTimeline?: CopilotTimelineEntry[]; nextWhatIf?: WhatIfRowUi[] | null },
-            ) => {
-                const batch: CopilotHistoryBatch = {
-                    id: batchId(),
-                    insights: sorted,
-                    suggestionId: suggestion,
-                };
-                setBatches((prev) => [batch, ...prev].slice(0, 3));
-                setActiveBatchIndex(0);
-                setLastCompletedSuggestionId(suggestion);
-                if (opts?.viabilityScore != null) {
-                    setLiveViabilityScore(Math.min(10, Math.max(0, opts.viabilityScore)));
-                }
-                if (opts?.serverTimeline?.length) {
-                    setDecisionTimeline(opts.serverTimeline);
-                }
-                setWhatIfRows(opts?.nextWhatIf ?? null);
-                const firstTitle = sorted[0]?.title ?? "";
-                writeCopilotMemory({
-                    routeKey: pageContext.routeKey,
-                    entityId: pageContext.entityId ?? null,
-                    suggestionId: suggestion,
-                    insightTitle: firstTitle,
-                });
+    const decisionSubmitEnabled = isCopilotDecisionSubmitEnabled();
+
+    const setCopilotChatContext = useCallback((page: string, dataRef: MutableRefObject<Record<string, unknown>> | null) => {
+        copilotPageDataRef.current = dataRef;
+        setCurrentContextState({ page, data: dataRef?.current ?? {} });
+    }, []);
+
+    const sendMessage = useCallback(
+        async (userMessage: string): Promise<CopilotAssistantStructured | null> => {
+            const trimmed = userMessage.trim();
+            if (!trimmed || chatLoading) return null;
+
+            const userMsg: CopilotMessage = {
+                id: createMessageId(),
+                role: "user",
+                content: trimmed,
+                timestamp: Date.now(),
             };
 
-            const sortInsights = (list: CopilotInsight[]) =>
-                [...list].sort((a, b) => {
-                    const order = { must: 0, should: 1, optional: 2 };
-                    return order[a.tier] - order[b.tier];
+            setMessages((prev) => {
+                const next = [...prev, userMsg];
+                messagesRef.current = next;
+                return next;
+            });
+            setChatLoading(true);
+
+            const url = getCopilotInsightsUrl();
+            const freshData = copilotPageDataRef.current?.current ?? {};
+            const currentPage = (currentContext.page || "manager_dashboard").trim() || "manager_dashboard";
+
+            try {
+                const payload = {
+                    message: trimmed,
+                    page: currentPage,
+                    context: buildInsightsContextPayload(freshData),
+                    meta: {
+                        source: "copilot_panel",
+                        role: "manager",
+                        scope: currentPage,
+                    },
+                };
+
+                const raw = await apiPost<unknown>(url, payload);
+                const parsed = parseAssistantFromResponse(raw);
+
+                const assistantMsg: CopilotMessage = {
+                    id: createMessageId(),
+                    role: "assistant",
+                    content: parsed.display,
+                    timestamp: Date.now(),
+                    structured: parsed.structured,
+                };
+
+                setMessages((prev) => {
+                    const updated = [...prev, assistantMsg];
+                    messagesRef.current = updated;
+                    return updated;
                 });
-
-            void (async () => {
-                try {
-                    if (copilotInsightsUrl()) {
-                        const mapped = await fetchCopilotInsights(
-                            {
-                                suggestionId,
-                                context: {
-                                    routeKey: pageContext.routeKey,
-                                    pageLabel: pageContext.pageLabel,
-                                    entityLabel: pageContext.entityLabel,
-                                    entityId: pageContext.entityId,
-                                },
-                            },
-                            { signal: ac.signal },
-                        );
-                        const sorted = sortInsights(mapped.insights);
-                        finishBatch(sorted, mapped.suggestionId || suggestionId, {
-                            viabilityScore: mapped.viabilityScore,
-                            serverTimeline: mapped.timeline,
-                            nextWhatIf: mapped.whatIfRows ?? null,
-                        });
-                        if (mapped.viabilityDelta != null) {
-                            setLastViabilityDelta(mapped.viabilityDelta);
-                        }
-                    } else {
-                        setInsightsError(t("copilotApiNotConfigured"));
-                    }
-                } catch (err) {
-                    if (ac.signal.aborted) return;
-                    setInsightsError(getCopilotFetchErrorMessage(err));
-                } finally {
-                    if (runToken === runSeqRef.current) setLoading(false);
-                }
-            })();
+                return parsed.structured ?? null;
+            } catch (err) {
+                const status = err instanceof ApiError ? err.status : undefined;
+                const fallback =
+                    status === 400 ? t("chatError400") : status === 401 ? t("chatError401") : status === 403 ? t("chatError403") : t("chatErrorFallback");
+                const errorMsg: CopilotMessage = {
+                    id: createMessageId(),
+                    role: "assistant",
+                    content: err instanceof ApiError ? fallback : t("chatErrorFallback"),
+                    timestamp: Date.now(),
+                    error: true,
+                };
+                setMessages((prev) => {
+                    const updated = [...prev, errorMsg];
+                    messagesRef.current = updated;
+                    return updated;
+                });
+                // eslint-disable-next-line no-console
+                console.error("Copilot API error:", err);
+                return null;
+            } finally {
+                setChatLoading(false);
+            }
         },
-        [pageContext, t],
+        [chatLoading, currentContext.page, t],
     );
-
-    const clearInsights = useCallback(() => {
-        setBatches([]);
-        setActiveBatchIndex(0);
-        setLastSuggestionId(null);
-        setLastCompletedSuggestionId(null);
-        setPinnedId(null);
-        setInsightsError(null);
-        setWhatIfRows(null);
-        setWhatIfIndex(0);
-    }, []);
 
     const value = useMemo(
         () => ({
             isOpen,
             setIsOpen,
+            toggleOpen,
             pageContext,
-            setPageContext: setPageContextWrapped,
-            insights,
-            batches,
-            activeBatchIndex,
-            selectHistoryBatch,
+            setPageContext,
+            data,
             loading,
-            insightsError,
-            insightsEmpty,
-            clearInsightsError,
-            lastSuggestionId,
-            lastCompletedSuggestionId,
-            runSuggestion,
-            clearInsights,
-            pinnedId,
-            setPinnedId,
-            contextStamp,
-            actionFeedback,
-            setActionFeedback,
-            whatIfIndex,
-            setWhatIfIndex,
-            whatIfRows,
-            liveViabilityScore,
-            lastViabilityDelta,
-            decisionTimeline,
-            recordDecision,
+            error,
+            empty,
+            refreshCopilot,
+            decisionSubmitLoading,
+            decisionSubmitError,
+            decisionSubmitSuccess,
+            saveDecision,
+            clearDecisionFeedback,
+            decisionSubmitEnabled,
+            messages,
+            sendMessage,
+            chatLoading,
+            currentContext,
+            setCopilotChatContext,
         }),
         [
             isOpen,
             pageContext,
-            setPageContextWrapped,
-            insights,
-            batches,
-            activeBatchIndex,
-            selectHistoryBatch,
+            data,
             loading,
-            insightsError,
-            insightsEmpty,
-            clearInsightsError,
-            lastSuggestionId,
-            lastCompletedSuggestionId,
-            runSuggestion,
-            clearInsights,
-            pinnedId,
-            contextStamp,
-            actionFeedback,
-            whatIfIndex,
-            whatIfRows,
-            liveViabilityScore,
-            lastViabilityDelta,
-            decisionTimeline,
-            recordDecision,
+            error,
+            empty,
+            refreshCopilot,
+            decisionSubmitLoading,
+            decisionSubmitError,
+            decisionSubmitSuccess,
+            saveDecision,
+            clearDecisionFeedback,
+            decisionSubmitEnabled,
+            toggleOpen,
+            messages,
+            sendMessage,
+            chatLoading,
+            currentContext,
+            setCopilotChatContext,
         ],
     );
 

@@ -1,5 +1,7 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { ApiError, apiGet } from "@/utils/apiClient";
+import { useQuery } from "@tanstack/react-query";
+import { getCopilotDashboard, getCopilotProjects } from "@/api/copilot.api";
+import { queryKeys } from "@/lib/query-keys";
+import { ApiError, getHttpTimeoutMs } from "@/utils/apiClient";
 
 export type PortfolioStatus = "active" | "at-risk" | "planned" | "paused" | "completed";
 
@@ -11,6 +13,9 @@ export interface PortfolioProject {
     riskLevel: "low" | "medium" | "high";
     budgetUsage: number;
     updatedAt: string;
+    /** Libellé brut décision Copilot (Continue / Adjust / Stop) si présent dans la charge utile. */
+    aiDecision?: string;
+    raw?: Record<string, unknown>;
 }
 
 export interface PortfolioSummary {
@@ -25,134 +30,140 @@ const toNumber = (value: unknown, fallback = 0) => {
     return Number.isFinite(parsed) ? parsed : fallback;
 };
 
-const normalizeStatus = (value: unknown): PortfolioStatus => {
-    if (typeof value !== "string") return "planned";
+const normalizeStatus = (value: unknown): PortfolioStatus | null => {
+    if (typeof value !== "string") return null;
     const normalized = value.trim().toLowerCase();
     if (normalized === "active") return "active";
     if (normalized === "at-risk" || normalized === "at_risk" || normalized === "atrisk") return "at-risk";
     if (normalized === "paused") return "paused";
     if (normalized === "completed") return "completed";
-    return "planned";
+    return null;
 };
 
-const normalizeRisk = (value: unknown): "low" | "medium" | "high" => {
-    if (typeof value !== "string") return "medium";
+const normalizeRisk = (value: unknown): "low" | "medium" | "high" | null => {
+    if (typeof value !== "string") return null;
     const normalized = value.trim().toLowerCase();
     if (normalized === "low") return "low";
     if (normalized === "high") return "high";
-    return "medium";
+    if (normalized === "medium" || normalized === "med") return "medium";
+    return null;
 };
 
-const extractProjects = (payload: unknown): unknown[] => {
-    if (Array.isArray(payload)) return payload;
-    if (!payload || typeof payload !== "object") return [];
-    const record = payload as Record<string, unknown>;
-    if (Array.isArray(record.projects)) return record.projects;
-    if (Array.isArray(record.items)) return record.items;
-    const data = record.data;
-    if (data && typeof data === "object") {
-        const dataRecord = data as Record<string, unknown>;
-        if (Array.isArray(dataRecord.projects)) return dataRecord.projects;
-        if (Array.isArray(dataRecord.items)) return dataRecord.items;
-    }
-    return [];
-};
-
-const mapProject = (entry: unknown, index: number): PortfolioProject => {
+const mapProject = (entry: unknown): PortfolioProject | null => {
     const value = entry && typeof entry === "object" ? (entry as Record<string, unknown>) : {};
-    const idCandidate = value.id ?? value.projectId ?? value.slug;
-    const id = idCandidate ? String(idCandidate) : `project-${index + 1}`;
-    const name = value.name ? String(value.name) : `Project ${index + 1}`;
-    const owner = value.owner ? String(value.owner) : "Unassigned";
-    const status = normalizeStatus(value.status);
-    const riskLevel = normalizeRisk(value.riskLevel ?? value.risk);
-    const budgetUsage = Math.max(0, Math.min(100, toNumber(value.budgetUsage ?? value.budget ?? value.budgetPercent, 0)));
-    const updatedAt = value.updatedAt ? String(value.updatedAt) : new Date().toISOString();
-    return { id, name, owner, status, riskLevel, budgetUsage, updatedAt };
+    const idCandidate = value.project_id ?? value.id ?? value.projectId ?? value.slug;
+    if (!idCandidate || value.name == null) return null;
+    const id = String(idCandidate);
+    const name = String(value.name);
+    const owner = value.owner ? String(value.owner) : "";
+    const status = normalizeStatus(value.status) ?? "planned";
+    const riskLevel = normalizeRisk(value.riskLevel ?? value.risk) ?? "medium";
+    const scoreRaw = value.viability_score ?? value.score;
+    const score = typeof scoreRaw === "number" ? scoreRaw : null;
+    const budgetUsage = score == null ? 0 : Math.max(0, Math.min(100, Math.round((score / 10) * 100)));
+    const updatedAt = value.updatedAt ? String(value.updatedAt) : "";
+    const decRaw = value.decision ?? value.ai_decision;
+    const aiDecision =
+        decRaw != null && String(decRaw).trim() !== "" ? String(decRaw).trim() : undefined;
+    return { id, name, owner, status, riskLevel, budgetUsage, updatedAt, aiDecision, raw: value };
 };
 
-const computeSummary = (projects: PortfolioProject[]): PortfolioSummary => {
-    const totalProjects = projects.length;
-    const activeProjects = projects.filter((p) => p.status === "active").length;
-    const highRiskProjects = projects.filter((p) => p.riskLevel === "high").length;
-    const averageBudgetUsage =
-        totalProjects === 0 ? 0 : Math.round(projects.reduce((sum, p) => sum + p.budgetUsage, 0) / totalProjects);
-    return { totalProjects, activeProjects, averageBudgetUsage, highRiskProjects };
-};
-
-const extractSummary = (payload: unknown, projects: PortfolioProject[]): PortfolioSummary => {
-    if (!payload || typeof payload !== "object") return computeSummary(projects);
+const extractSummaryFromDashboard = (payload: unknown): PortfolioSummary => {
+    if (!payload || typeof payload !== "object") {
+        return { totalProjects: 0, activeProjects: 0, averageBudgetUsage: 0, highRiskProjects: 0 };
+    }
     const record = payload as Record<string, unknown>;
-    const summaryValue = (record.summary ?? (record.data && typeof record.data === "object" ? (record.data as Record<string, unknown>).summary : undefined)) as
-        | Record<string, unknown>
-        | undefined;
-    if (!summaryValue || typeof summaryValue !== "object") return computeSummary(projects);
+    const summary = (record.portfolio_summary ?? {}) as Record<string, unknown>;
+    const avgViability = toNumber(summary.avg_viability_score, 0);
     return {
-        totalProjects: toNumber(summaryValue.totalProjects, projects.length),
-        activeProjects: toNumber(summaryValue.activeProjects, projects.filter((p) => p.status === "active").length),
-        averageBudgetUsage: toNumber(summaryValue.averageBudgetUsage, computeSummary(projects).averageBudgetUsage),
-        highRiskProjects: toNumber(summaryValue.highRiskProjects, projects.filter((p) => p.riskLevel === "high").length),
+        totalProjects: toNumber(summary.total_projects, 0),
+        activeProjects: toNumber(summary.active_projects, 0),
+        averageBudgetUsage: Math.max(0, Math.min(100, Math.round((avgViability / 10) * 100))),
+        highRiskProjects: toNumber(summary.high_risk_projects, 0) + toNumber(summary.attention_projects, 0),
     };
 };
 
-const DEFAULT_TIMEOUT_MS = 15000;
+export interface PortfolioDashboardInsights {
+    summary: string | null;
+    explanation: string | null;
+    recommendations_text: string[];
+}
+
+function extractInsightsFromDashboard(payload: unknown): PortfolioDashboardInsights {
+    if (!payload || typeof payload !== "object") {
+        return { summary: null, explanation: null, recommendations_text: [] };
+    }
+    const d = payload as Record<string, unknown>;
+    const rec = d.recommendations_text;
+    return {
+        summary: typeof d.summary === "string" ? d.summary : null,
+        explanation: typeof d.explanation === "string" ? d.explanation : null,
+        recommendations_text: Array.isArray(rec) ? rec.filter((x): x is string => typeof x === "string") : [],
+    };
+}
+
+function resolvePortfolioTimeoutMs(override?: number): number {
+    if (override != null && override > 0) return override;
+    const env = Number((import.meta.env as Record<string, string | undefined>).VITE_PORTFOLIO_TIMEOUT_MS);
+    if (Number.isFinite(env) && env >= 5000) return env;
+    return Math.max(getHttpTimeoutMs(), 60000);
+}
+
+function mapPortfolioError(err: unknown): string {
+    if (err instanceof ApiError) return err.message;
+    if (err instanceof Error) return err.message;
+    return "Erreur de connexion";
+}
 
 export interface UsePortfolioOptions {
     timeout?: number;
 }
 
 export function usePortfolio(options: UsePortfolioOptions = {}) {
-    const { timeout = DEFAULT_TIMEOUT_MS } = options;
-    const [projects, setProjects] = useState<PortfolioProject[]>([]);
-    const [summary, setSummary] = useState<PortfolioSummary>({
-        totalProjects: 0,
-        activeProjects: 0,
-        averageBudgetUsage: 0,
-        highRiskProjects: 0,
-    });
-    const [isLoading, setIsLoading] = useState(true);
-    const [error, setError] = useState<string | null>(null);
+    const timeout = resolvePortfolioTimeoutMs(options.timeout);
+    const enterpriseId = ((import.meta.env as Record<string, string | undefined>).VITE_MANAGER_ENTERPRISE_ID ?? "").trim();
 
-    const fetchOverview = useCallback(
-        async (signal?: AbortSignal) => {
-            setIsLoading(true);
-            setError(null);
-            try {
-                const payload = await apiGet<unknown>("/api/portfolio/overview", { timeout, signal });
-                const normalizedProjects = extractProjects(payload).map(mapProject);
-                const normalizedSummary = extractSummary(payload, normalizedProjects);
-                setProjects(normalizedProjects);
-                setSummary(normalizedSummary);
-            } catch (err) {
-                if (err instanceof Error && err.name === "AbortError") return;
-                setProjects([]);
-                setSummary({ totalProjects: 0, activeProjects: 0, averageBudgetUsage: 0, highRiskProjects: 0 });
-                setError(err instanceof ApiError ? err.message : "Erreur de connexion");
-            } finally {
-                setIsLoading(false);
-            }
+    const query = useQuery({
+        queryKey: queryKeys.portfolio.overview(),
+        queryFn: async ({ signal }) => {
+            const opts = { signal, timeout };
+            if (!enterpriseId) throw new Error("enterprise_id manquant pour le portfolio manager.");
+            const [dashboard, projectsPayload] = await Promise.all([
+                getCopilotDashboard({ enterprise_id: enterpriseId }, opts),
+                getCopilotProjects({ enterprise_id: enterpriseId }, opts),
+            ]);
+            const projectItems = Array.isArray(projectsPayload.items) ? projectsPayload.items : [];
+            const normalizedProjects = projectItems.map(mapProject).filter((p): p is PortfolioProject => p != null);
+            const normalizedSummary = extractSummaryFromDashboard(dashboard);
+            const insights = extractInsightsFromDashboard(dashboard);
+            return {
+                copilotDashboardRaw: dashboard,
+                copilotProjectsRaw: projectsPayload,
+                projects: normalizedProjects,
+                summary: normalizedSummary,
+                insights,
+            };
         },
-        [timeout],
-    );
+        staleTime: 30_000,
+    });
 
-    useEffect(() => {
-        const controller = new AbortController();
-        void fetchOverview(controller.signal);
-        return () => controller.abort();
-    }, [fetchOverview]);
-
-    const retry = useCallback(() => {
-        void fetchOverview();
-    }, [fetchOverview]);
-
-    return useMemo(
-        () => ({
-            projects,
-            summary,
-            isLoading,
-            error,
-            retry,
-        }),
-        [projects, summary, isLoading, error, retry],
-    );
+    return {
+        projects: query.data?.projects ?? [],
+        summary: query.data?.summary ?? {
+            totalProjects: 0,
+            activeProjects: 0,
+            averageBudgetUsage: 0,
+            highRiskProjects: 0,
+        },
+        copilotDashboardRaw: query.data?.copilotDashboardRaw ?? null,
+        copilotProjectsRaw: query.data?.copilotProjectsRaw ?? null,
+        insights: query.data?.insights ?? {
+            summary: null,
+            explanation: null,
+            recommendations_text: [],
+        },
+        isLoading: query.isPending,
+        error: query.error ? mapPortfolioError(query.error) : null,
+        retry: () => query.refetch(),
+    };
 }

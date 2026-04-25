@@ -2,15 +2,48 @@ import type { ReactNode } from "react";
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import { setOnAuthFailure } from "@/api/api";
 import {
+    changePassword as authChangePassword,
     login as authLogin,
     logout as authLogout,
     me as authMe,
     persistTokensFromPayload,
     refresh as authRefresh,
+    updateProfile as authUpdateProfile,
+    type ChangePasswordBody,
+    type UpdateProfileBody,
 } from "@/api/authService";
 import { ApiError, setApiAuthToken } from "@/utils/apiClient";
 import { getStoredRefreshToken, setStoredRefreshToken } from "@/utils/session-tokens";
 import type { AuthUser, Permission, Role, UserStatus } from "@/types/auth";
+
+/** Identifiant entreprise tel que renvoyé par le backend (plusieurs formes possibles). */
+function pickEnterpriseIdFromRecord(r: Record<string, unknown>): string | undefined {
+    const candidates: unknown[] = [
+        r.enterprise_id,
+        r.enterpriseId,
+        r.organization_id,
+        r.organizationId,
+        r.org_id,
+        r.company_id,
+        r.tenant_id,
+    ];
+    for (const v of candidates) {
+        if (v != null && String(v).trim() !== "") return String(v).trim();
+    }
+    const ent = r.enterprise;
+    if (ent && typeof ent === "object" && !Array.isArray(ent)) {
+        const e = ent as Record<string, unknown>;
+        const nid = e.id ?? e.enterprise_id ?? e.uuid;
+        if (nid != null && String(nid).trim() !== "") return String(nid).trim();
+    }
+    const scope = r.scope;
+    if (scope && typeof scope === "object") {
+        const s = scope as Record<string, unknown>;
+        const sid = s.enterprise_id ?? s.enterpriseId ?? s.organization_id;
+        if (sid != null && String(sid).trim() !== "") return String(sid).trim();
+    }
+    return undefined;
+}
 
 const PERMISSIONS_BY_ROLE: Record<Role, Permission[]> = {
     rh: [
@@ -22,6 +55,8 @@ const PERMISSIONS_BY_ROLE: Record<Role, Permission[]> = {
         "view_all_sessions",
         "revoke_session",
         "view_system_activity",
+        "view_own_profile",
+        "update_own_profile",
     ],
     manager: ["view_manager_dashboard", "view_scope_data", "manage_scope_actions"],
     talent: ["view_own_dashboard", "view_own_profile", "update_own_profile", "view_own_assignments"],
@@ -33,7 +68,10 @@ function mapRawToAuthUser(raw: unknown): AuthUser | null {
     const id = String(r.id ?? r.user_id ?? "");
     const email = String(r.email ?? "");
     if (!id && !email) return null;
-    const fullName = String(r.fullName ?? r.full_name ?? r.name ?? "").trim();
+    const firstName = String(r.firstName ?? r.first_name ?? "").trim();
+    const lastName = String(r.lastName ?? r.last_name ?? "").trim();
+    let fullName = String(r.fullName ?? r.full_name ?? r.name ?? "").trim();
+    if (!fullName && (firstName || lastName)) fullName = `${firstName} ${lastName}`.trim();
     const roleStr = String(r.role ?? "").toLowerCase();
     let role: AuthUser["role"] = null;
     if (roleStr === "rh" || roleStr === "hr") role = "rh";
@@ -55,10 +93,14 @@ function mapRawToAuthUser(raw: unknown): AuthUser | null {
             : r.password_expires_at != null
               ? String(r.password_expires_at)
               : undefined;
+    const enterpriseId = pickEnterpriseIdFromRecord(r);
     return {
         id: id || email,
         fullName,
+        firstName: firstName || undefined,
+        lastName: lastName || undefined,
         email,
+        enterpriseId,
         role,
         status,
         mustChangePassword,
@@ -77,8 +119,20 @@ function pickUserFromAuthPayload(payload: unknown): AuthUser | null {
     const raw = unwrapData(payload);
     if (!raw || typeof raw !== "object") return null;
     const o = raw as Record<string, unknown>;
-    if (o.user) return mapRawToAuthUser(o.user);
-    return mapRawToAuthUser(raw);
+    const enterpriseFromRoot = pickEnterpriseIdFromRecord(o);
+    if (o.user) {
+        const userObj = o.user;
+        const userRecord = userObj && typeof userObj === "object" ? (userObj as Record<string, unknown>) : {};
+        const enterpriseFromUser = pickEnterpriseIdFromRecord(userRecord);
+        const u = mapRawToAuthUser(o.user);
+        if (!u) return null;
+        const merged = enterpriseFromUser ?? enterpriseFromRoot;
+        if (!u.enterpriseId && merged) return { ...u, enterpriseId: merged };
+        return u;
+    }
+    const u = mapRawToAuthUser(raw);
+    if (u && !u.enterpriseId && enterpriseFromRoot) return { ...u, enterpriseId: enterpriseFromRoot };
+    return u;
 }
 
 interface AuthContextType {
@@ -92,6 +146,8 @@ interface AuthContextType {
     logout: () => Promise<void>;
     syncSession: () => Promise<void>;
     refreshSession: () => Promise<void>;
+    updateProfile: (body: UpdateProfileBody) => Promise<void>;
+    changePassword: (body: ChangePasswordBody) => Promise<void>;
     hasRole: (...roles: Role[]) => boolean;
     hasPermission: (...permissions: Permission[]) => boolean;
 }
@@ -187,6 +243,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
     }, []);
 
+    const updateProfile = useCallback(async (body: UpdateProfileBody) => {
+        await authUpdateProfile(body);
+        await syncSession();
+    }, [syncSession]);
+
+    const changePassword = useCallback(async (body: ChangePasswordBody) => {
+        await authChangePassword(body);
+        await syncSession();
+    }, [syncSession]);
+
     const permissions = useMemo<Permission[]>(() => {
         if (!user?.role || user.status !== "active") return [];
         return PERMISSIONS_BY_ROLE[user.role];
@@ -221,6 +287,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         logout,
         syncSession,
         refreshSession,
+        updateProfile,
+        changePassword,
         hasRole,
         hasPermission,
     };

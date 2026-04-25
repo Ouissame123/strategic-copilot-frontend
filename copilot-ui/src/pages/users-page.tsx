@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Edit01, UserPlus01 } from "@untitledui/icons";
 import { Heading } from "react-aria-components";
 import { useTranslation } from "react-i18next";
@@ -13,6 +13,8 @@ import { BadgeWithDot } from "@/components/base/badges/badges";
 import { Button } from "@/components/base/buttons/button";
 import { Input } from "@/components/base/input/input";
 import { Select } from "@/components/base/select/select";
+import { useSearchParams } from "react-router";
+import { ErrorState } from "@/components/ui/ErrorState";
 import { useCopilotPage } from "@/hooks/use-copilot-page";
 import type { CreateUserInput, CreateUserRole, User, UserInput, UserRole, UserStatus } from "@/hooks/use-users";
 import { useUsers } from "@/hooks/use-users";
@@ -32,9 +34,22 @@ const STATUSES: UserStatus[] = ["pending", "active", "disabled"];
 const getInitials = (first: string, last: string) =>
     `${first.trim().charAt(0) || ""}${last.trim().charAt(0) || ""}`.toUpperCase() || "?";
 
-export function UsersPage() {
+const userDisplayName = (user: User) => `${user.firstName} ${user.lastName}`.trim() || user.email;
+
+const userHasStructuredName = (user: User) =>
+    Boolean(user.firstName?.trim() || user.lastName?.trim());
+
+export type UsersPageProps = {
+    /** Masque le bouton « Ajouter » (affiché dans la topbar du shell Comptes RH). */
+    hidePrimaryAction?: boolean;
+    /** Filtres rôle + statut sur une seule rangée. */
+    compactFilters?: boolean;
+};
+
+export function UsersPage({ hidePrimaryAction = false, compactFilters = false }: UsersPageProps) {
     const { t } = useTranslation(["users", "common"]);
-    useCopilotPage("users", t("users:title"));
+    useCopilotPage("none", t("users:title"));
+    const [searchParams, setSearchParams] = useSearchParams();
     const {
         users,
         total: userCount,
@@ -88,6 +103,14 @@ export function UsersPage() {
         });
         setFormOpen(true);
     }, []);
+
+    useEffect(() => {
+        if (searchParams.get("create") !== "1") return;
+        openCreate();
+        const next = new URLSearchParams(searchParams);
+        next.delete("create");
+        setSearchParams(next, { replace: true });
+    }, [searchParams, setSearchParams, openCreate]);
 
     const openEdit = useCallback((user: User) => {
         setFormMode("edit");
@@ -180,9 +203,11 @@ export function UsersPage() {
                         <h1 className="mt-1 text-display-xs font-semibold text-primary md:text-display-sm">{t("title")}</h1>
                         <p className="mt-2 text-md text-tertiary">{t("subtitle")}</p>
                     </div>
-                    <Button color="primary" iconLeading={UserPlus01} onClick={openCreate}>
-                        {t("addUser")}
-                    </Button>
+                    {hidePrimaryAction ? null : (
+                        <Button color="primary" iconLeading={UserPlus01} onClick={openCreate}>
+                            {t("addUser")}
+                        </Button>
+                    )}
                 </div>
 
                 <div className="mt-4 flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
@@ -196,31 +221,43 @@ export function UsersPage() {
                     <span className="text-sm text-tertiary">{t("count", { count: userCount })}</span>
                 </div>
 
-                <div className="mt-4 flex flex-wrap gap-2">
-                    {roleFilterButtons.map((b) => (
-                        <Button
-                            key={`role-${b.value}`}
-                            size="sm"
-                            color={roleFilter === b.value ? "primary" : "secondary"}
-                            className={cx(roleFilter === b.value && "pointer-events-none")}
-                            onClick={() => setRoleFilter(b.value)}
-                        >
-                            {b.label}
-                        </Button>
-                    ))}
-                </div>
-                <div className="mt-2 flex flex-wrap gap-2">
-                    {statusFilterButtons.map((b) => (
-                        <Button
-                            key={`status-${b.value}`}
-                            size="sm"
-                            color={statusFilter === b.value ? "primary" : "secondary"}
-                            className={cx(statusFilter === b.value && "pointer-events-none")}
-                            onClick={() => setStatusFilter(b.value)}
-                        >
-                            {b.label}
-                        </Button>
-                    ))}
+                <div
+                    className={cx(
+                        "mt-4 flex flex-wrap gap-2",
+                        compactFilters && "items-center gap-x-1 gap-y-2 md:flex-nowrap",
+                    )}
+                >
+                    <div className="flex flex-wrap gap-2">
+                        {roleFilterButtons.map((b) => (
+                            <Button
+                                key={`role-${b.value}`}
+                                size="sm"
+                                color={roleFilter === b.value ? "primary" : "secondary"}
+                                className={cx(roleFilter === b.value && "pointer-events-none")}
+                                onClick={() => setRoleFilter(b.value)}
+                            >
+                                {b.label}
+                            </Button>
+                        ))}
+                    </div>
+                    {compactFilters ? (
+                        <span className="hidden select-none px-1 text-quaternary sm:inline" aria-hidden>
+                            |
+                        </span>
+                    ) : null}
+                    <div className="flex flex-wrap gap-2">
+                        {statusFilterButtons.map((b) => (
+                            <Button
+                                key={`status-${b.value}`}
+                                size="sm"
+                                color={statusFilter === b.value ? "primary" : "secondary"}
+                                className={cx(statusFilter === b.value && "pointer-events-none")}
+                                onClick={() => setStatusFilter(b.value)}
+                            >
+                                {b.label}
+                            </Button>
+                        ))}
+                    </div>
                 </div>
             </header>
 
@@ -411,18 +448,14 @@ function UsersTableSection({
         return (
             <TableCard.Root size="md">
                 <TableCard.Header title={t("title")} description={t("subtitle")} />
-                <div className="bg-primary px-4 py-10 md:px-6">
-                    <EmptyState size="md">
-                        <EmptyState.Content>
-                            <EmptyState.Title>{t("errors.load")}</EmptyState.Title>
-                            <EmptyState.Description>{error}</EmptyState.Description>
-                        </EmptyState.Content>
-                        <EmptyState.Footer>
-                            <Button color="secondary" onClick={onRetry}>
-                                {t("common:retry")}
-                            </Button>
-                        </EmptyState.Footer>
-                    </EmptyState>
+                <div className="bg-primary px-4 py-8 md:px-6">
+                    <ErrorState
+                        title={t("errors.load")}
+                        message={t("common:rhUsersPage.apiFallback")}
+                        detail={error}
+                        onRetry={onRetry}
+                        retryLabel={t("common:retry")}
+                    />
                 </div>
             </TableCard.Root>
         );
@@ -452,7 +485,6 @@ function UsersTableSection({
             <Table aria-label={t("table.ariaLabel")} className="min-w-full">
                 <Table.Header className="sticky top-0 z-10">
                     <Table.Head id="name" label={t("table.name")} />
-                    <Table.Head id="email" label={t("table.email")} />
                     <Table.Head id="role" label={t("table.role")} />
                     <Table.Head id="status" label={t("table.status")} />
                     <Table.Head id="actions" label={t("table.actions")} />
@@ -461,15 +493,15 @@ function UsersTableSection({
                     {(user) => (
                         <Table.Row id={user.id}>
                             <Table.Cell>
-                                <div className="flex items-center gap-3">
+                                <div className="flex min-w-0 items-center gap-3">
                                     <Avatar size="sm" initials={getInitials(user.firstName, user.lastName)} />
-                                    <span className="font-medium text-primary">
-                                        {`${user.firstName} ${user.lastName}`.trim() || user.email}
-                                    </span>
+                                    <div className="min-w-0">
+                                        <p className="truncate font-medium text-primary">{userDisplayName(user)}</p>
+                                        {userHasStructuredName(user) ? (
+                                            <p className="truncate text-xs text-tertiary">{user.email}</p>
+                                        ) : null}
+                                    </div>
                                 </div>
-                            </Table.Cell>
-                            <Table.Cell>
-                                <span className="text-sm text-secondary">{user.email}</span>
                             </Table.Cell>
                             <Table.Cell>
                                 <span className="text-sm text-secondary">{t(`roles.${user.role}`)}</span>

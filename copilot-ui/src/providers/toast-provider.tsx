@@ -13,10 +13,11 @@ import { cx } from "@/utils/cx";
 
 export type ToastVariant = "success" | "error" | "neutral";
 
-type ToastItem = { id: string; message: string; variant: ToastVariant };
+type ToastItem = { id: string; message: string; variant: ToastVariant; durationMs: number };
 
 type ToastContextValue = {
-    push: (message: string, variant?: ToastVariant) => void;
+    /** Durée optionnelle (ms) — ex. 5000 pour un succès à retenir. */
+    push: (message: string, variant?: ToastVariant, durationMs?: number) => void;
 };
 
 const ToastContext = createContext<ToastContextValue | undefined>(undefined);
@@ -35,13 +36,14 @@ export function ToastProvider({ children }: { children: ReactNode }) {
     const dismissTimersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
 
     const push = useCallback(
-        (message: string, variant: ToastVariant = "neutral") => {
+        (message: string, variant: ToastVariant = "neutral", durationMs?: number) => {
             const id = `${baseId}-${Date.now()}`;
-            setItems((prev) => [...prev, { id, message, variant }]);
+            const ms = durationMs != null && durationMs > 0 ? durationMs : TOAST_DURATION_MS;
+            setItems((prev) => [...prev, { id, message, variant, durationMs: ms }]);
             const timerId = setTimeout(() => {
                 dismissTimersRef.current.delete(id);
                 setItems((prev) => prev.filter((item) => item.id !== id));
-            }, TOAST_DURATION_MS);
+            }, ms);
             dismissTimersRef.current.set(id, timerId);
         },
         [baseId],

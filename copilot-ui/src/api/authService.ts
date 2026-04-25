@@ -5,7 +5,7 @@ import { backendApi } from "@/config/backend-api";
 import { ApiError } from "@/api/errors";
 import { setApiAuthToken } from "@/utils/apiClient";
 import { getStoredRefreshToken, setStoredRefreshToken } from "@/utils/session-tokens";
-import { httpGet, httpPost, type HttpRequestOptions } from "@/api/api";
+import { httpGet, httpPatch, httpPost, type HttpRequestOptions } from "@/api/api";
 
 export interface AuthLoginBody {
     email: string;
@@ -62,4 +62,25 @@ export async function logout(opts?: HttpRequestOptions): Promise<unknown> {
 
 export async function me(opts?: HttpRequestOptions): Promise<unknown> {
     return httpGet<unknown>(backendApi.me, opts);
+}
+
+/** PATCH profil (prénom, nom, etc.) — même URL que GET /me. */
+export interface UpdateProfileBody {
+    firstName?: string;
+    lastName?: string;
+    /** Si le backend ne gère que le nom complet : */
+    fullName?: string;
+}
+
+export async function updateProfile(body: UpdateProfileBody, opts?: HttpRequestOptions): Promise<unknown> {
+    return httpPatch<unknown>(backendApi.me, body, opts);
+}
+
+export interface ChangePasswordBody {
+    currentPassword: string;
+    newPassword: string;
+}
+
+export async function changePassword(body: ChangePasswordBody, opts?: HttpRequestOptions): Promise<unknown> {
+    return httpPost<unknown>(backendApi.changePassword, body, opts);
 }

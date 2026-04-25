@@ -13,9 +13,8 @@ const LANGUAGES = [
 export const LanguageSwitcher = () => {
     const { i18n, t } = useTranslation("common");
 
-    const activeCode = useMemo(() => {
-        const found = LANGUAGES.find((l) => i18n.language.startsWith(l.code));
-        return found?.code ?? "fr";
+    const activeLanguage = useMemo(() => {
+        return LANGUAGES.find((l) => i18n.language.startsWith(l.code)) ?? LANGUAGES[0];
     }, [i18n.language]);
 
     return (
@@ -28,11 +27,11 @@ export const LanguageSwitcher = () => {
                 aria-label={t("languagesMenu")}
                 aria-haspopup="menu"
             >
-                {t("languagesMenu")}
+                {t(activeLanguage.labelKey)}
             </Button>
             <Dropdown.Popover className="min-w-[13rem] rounded-xl p-1 shadow-lg ring-1 ring-secondary/80">
                 <Dropdown.Menu
-                    selectedKeys={new Set([activeCode])}
+                    selectedKeys={new Set([activeLanguage.code])}
                     onSelectionChange={(keys) => {
                         if (keys === "all") return;
                         const key = [...keys][0];
@@ -45,7 +44,7 @@ export const LanguageSwitcher = () => {
                             id={lang.code}
                             textValue={t(lang.labelKey)}
                             label={t(lang.labelKey)}
-                            addon={activeCode === lang.code ? "✓" : undefined}
+                            addon={activeLanguage.code === lang.code ? "✓" : undefined}
                         />
                     ))}
                 </Dropdown.Menu>

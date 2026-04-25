@@ -6,6 +6,10 @@ import { Button } from "@/components/base/buttons/button";
 export interface ErrorStateProps {
     title?: string;
     message?: string;
+    /** Détail technique (ex. méthode + code HTTP) — court, lisible. */
+    detail?: string;
+    /** Sous-texte d’aide (ex. prérequis webhook). */
+    hint?: string;
     onRetry?: () => void;
     retryLabel?: string;
     className?: string;
@@ -15,6 +19,8 @@ export interface ErrorStateProps {
 export function ErrorState({
     title = "Erreur",
     message = "Une erreur est survenue. Vérifiez votre connexion ou réessayez.",
+    detail,
+    hint,
     onRetry,
     retryLabel = "Réessayer",
     className,
@@ -28,7 +34,13 @@ export function ErrorState({
                 </EmptyState.Header>
                 <EmptyState.Content>
                     <EmptyState.Title>{title}</EmptyState.Title>
-                    <EmptyState.Description>{message}</EmptyState.Description>
+                    <EmptyState.Description>
+                        <span className="block">{message}</span>
+                        {detail ? (
+                            <code className="mt-2 block rounded-lg bg-secondary/60 px-3 py-2 font-mono text-xs text-secondary">{detail}</code>
+                        ) : null}
+                        {hint ? <p className="mt-3 text-sm text-tertiary">{hint}</p> : null}
+                    </EmptyState.Description>
                 </EmptyState.Content>
                 <EmptyState.Footer>
                     {onRetry && (

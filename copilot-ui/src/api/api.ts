@@ -3,10 +3,10 @@
  */
 import { backendApi } from "@/config/backend-api";
 import { getStoredRefreshToken, setStoredRefreshToken } from "@/utils/session-tokens";
-import { getApiAuthToken, setApiAuthToken } from "@/utils/apiClient";
+import { getApiAuthToken, getHttpTimeoutMs, setApiAuthToken } from "@/utils/apiClient";
 import { ApiError } from "@/api/errors";
 
-const DEFAULT_TIMEOUT_MS = 15000;
+const DEFAULT_TIMEOUT_MS = getHttpTimeoutMs();
 
 export { ApiError } from "@/api/errors";
 
@@ -161,11 +161,12 @@ export async function httpRequest<T>(
         }
 
         if (!response.ok) {
-            let payload: unknown;
+            const text = await response.text();
+            let payload: unknown = text;
             try {
-                payload = await response.json();
+                if (text.trim()) payload = JSON.parse(text) as unknown;
             } catch {
-                payload = await response.text();
+                /* garder texte brut */
             }
             throw new ApiError(`Request failed: ${response.status} ${response.statusText}`, response.status, payload);
         }

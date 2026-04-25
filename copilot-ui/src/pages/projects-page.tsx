@@ -1,76 +1,104 @@
-import { useMemo, useState } from "react";
+import { useEffect } from "react";
 import { useTranslation } from "react-i18next";
-import { Badge } from "@/components/base/badges/badges";
-import { Button } from "@/components/base/buttons/button";
-import { PortfolioTable } from "@/components/application/portfolio/portfolio-table";
-import type { PortfolioStatus } from "@/hooks/use-portfolio";
+import { useSearchParams } from "react-router";
+import { AnalysisRefreshPanel } from "@/features/crud-common/analysis-refresh-panel";
 import { useCopilotPage } from "@/hooks/use-copilot-page";
-import { usePortfolio } from "@/hooks/use-portfolio";
-import { cx } from "@/utils/cx";
+import { useProjectsPage } from "@/hooks/use-projects-page";
+import { useWhatIf } from "@/providers/what-if-provider";
+import { ProjectDetailDrawer } from "@/pages/projects/project-detail-drawer";
+import { ProjectsPageHeader } from "@/pages/projects/projects-page-header";
+import { DeleteProjectModal, ProjectFormModal } from "@/pages/projects/projects-page-modals";
+import { ProjectsTableSection } from "@/pages/projects/projects-table-section";
 
 export const ProjectsPage = () => {
-    const { t } = useTranslation(["projects", "portfolio"]);
-    useCopilotPage("projects", t("projects:title"));
-    const [filter, setFilter] = useState<"all" | PortfolioStatus>("all");
-    const { projects, isLoading, error, retry } = usePortfolio();
+    const { t } = useTranslation(["projects"]);
+    useCopilotPage("projects_list", t("projects:title"));
 
-    const statusFilters: { label: string; value: "all" | PortfolioStatus }[] = [
-        { label: t("projects:filters.all"), value: "all" },
-        { label: t("projects:filters.active"), value: "active" },
-        { label: t("projects:filters.at-risk"), value: "at-risk" },
-        { label: t("projects:filters.planned"), value: "planned" },
-        { label: t("projects:filters.paused"), value: "paused" },
-        { label: t("projects:filters.completed"), value: "completed" },
-    ];
+    const p = useProjectsPage();
+    const { open: openWhatIf } = useWhatIf();
+    const [searchParams, setSearchParams] = useSearchParams();
 
-    const filteredProjects = useMemo(() => {
-        if (filter === "all") return projects;
-        return projects.filter((project) => project.status === filter);
-    }, [filter, projects]);
+    useEffect(() => {
+        if (searchParams.get("action") !== "new") return;
+        p.openCreate();
+        const next = new URLSearchParams(searchParams);
+        next.delete("action");
+        setSearchParams(next, { replace: true });
+    }, [searchParams, setSearchParams, p.openCreate]);
 
     return (
-        <div className="space-y-8">
-            <header className="rounded-2xl border border-secondary bg-primary p-5 shadow-xs ring-1 ring-secondary/80 md:p-6">
-                <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
-                    <div>
-                        <p className="text-xs font-semibold uppercase tracking-wide text-quaternary">{t("projects:eyebrow")}</p>
-                        <h1 className="mt-1 text-display-xs font-semibold text-primary md:text-display-sm">
-                            {t("projects:title")}
-                        </h1>
-                        <p className="mt-2 text-md text-tertiary">{t("projects:subtitle")}</p>
-                    </div>
-                    <Badge size="md" type="pill-color" color="gray">
-                        {t("projects:lines", { count: filteredProjects.length })}
-                    </Badge>
-                </div>
+        <div className="space-y-6">
+            <ProjectsPageHeader
+                tab={p.tab}
+                onTabChange={p.setTab}
+                tabs={p.tabs}
+                linesCount={p.filteredProjects.length}
+                stopDecisionCount={p.stopDecisionCount}
+                heroSubtitle={p.heroSubtitle}
+                kpis={p.kpis}
+                searchQuery={p.searchQuery}
+                onSearchChange={p.setSearchQuery}
+                decisionFilter={p.decisionFilter}
+                onDecisionFilterChange={p.setDecisionFilter}
+                onExport={() => {
+                    /* Export CSV à brancher via API dédiée */
+                    window.print();
+                }}
+                onWhatIfGlobal={() => {
+                    // Ouvre le simulateur What-if en modal avec sélection de projet libre.
+                    openWhatIf();
+                }}
+            />
 
-                <div className="mt-4 flex flex-wrap gap-2">
-                    {statusFilters.map((statusFilter) => (
-                        <Button
-                            key={statusFilter.value}
-                            size="sm"
-                            color={filter === statusFilter.value ? "primary" : "secondary"}
-                            className={cx("capitalize", filter === statusFilter.value && "pointer-events-none")}
-                            onClick={() => setFilter(statusFilter.value)}
-                        >
-                            {statusFilter.label}
-                        </Button>
-                    ))}
-                </div>
-            </header>
+            <section className="space-y-4">
+                {p.analysisRefresh ? <AnalysisRefreshPanel payload={p.analysisRefresh} /> : null}
+                <ProjectsTableSection
+                    loading={p.isPending}
+                    error={p.loadError}
+                    empty={!p.isPending && !p.loadError && p.filteredProjects.length === 0}
+                    emptyDueToFilter={p.emptyDueToFilter}
+                    filteredProjects={p.filteredProjects}
+                    pagination={p.pagination}
+                    perPage={p.perPage}
+                    pageSizeOptions={p.pageSizeOptions}
+                    onPerPageChange={p.setPerPage}
+                    onRetry={() => void p.refetch()}
+                    onPageChange={(page) => p.setPage(page)}
+                    onOpenDrawer={p.openDrawer}
+                    onOpenDrawerAndScrollInsights={p.openDrawerAndScrollInsights}
+                    onEdit={p.openEdit}
+                    onDelete={p.setPendingDelete}
+                    fetchDisabled={p.isFetching}
+                />
+            </section>
 
-            <PortfolioTable
-                title={t("projects:table.title")}
-                description={t("projects:table.description")}
-                projects={filteredProjects}
-                isLoading={isLoading}
-                error={error}
-                onRetry={retry}
-                badge={
-                    filter === "all"
-                        ? t("projects:table.badgeAll")
-                        : t(`portfolio:status.${filter as PortfolioStatus}`)
-                }
+            <ProjectDetailDrawer
+                project={p.drawerProject}
+                insightsRef={p.drawerInsightsRef}
+                onOpenChange={(open) => {
+                    if (!open) p.setDrawerProject(null);
+                }}
+                onScrollToInsights={p.scrollToInsights}
+                onAnalyze={p.openAnalyzeFromDrawer}
+                onEdit={p.openEdit}
+            />
+
+            <ProjectFormModal
+                isOpen={p.formOpen}
+                onOpenChange={p.setFormOpen}
+                editing={p.editing}
+                defaultStatusOptions={p.defaultStatusOptions}
+                analysisRefresh={p.analysisRefresh}
+                creating={p.creating}
+                updating={p.updating}
+                onSubmit={p.submitProject}
+            />
+
+            <DeleteProjectModal
+                isOpen={p.pendingDelete != null}
+                onOpenChange={(open) => !open && p.setPendingDelete(null)}
+                deleting={p.deleting}
+                onConfirm={p.confirmDelete}
             />
         </div>
     );
