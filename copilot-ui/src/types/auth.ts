@@ -22,6 +22,8 @@ export type Permission =
 export interface AuthUser {
     id: string;
     fullName: string;
+    /** URL de la photo de profil (GET /me ou équivalent). */
+    avatarUrl?: string | null;
     /** Si le backend les expose (sinon dérivés du nom complet à l’affichage). */
     firstName?: string;
     lastName?: string;

@@ -22,7 +22,18 @@ export function workspaceProjectsListPath(role: Role | null | undefined): string
     return `${WORKSPACE_PREFIX[assertRole(role)]}/projects`;
 }
 
+/**
+ * Manager : détail projet = liste « Mes projets » + modal Strategic Mission Control (`?openProjectId=`).
+ * Remplace l’ancien chemin `/workspace/manager/projects/:id`.
+ */
+export function managerProjectsOpenModalPath(projectId: string): string {
+    const id = encodeURIComponent(projectId);
+    return `${WORKSPACE_PREFIX.manager}/projects?openProjectId=${id}`;
+}
+
 export function workspaceProjectDetailPath(role: Role | null | undefined, projectId: string): string {
+    const r = assertRole(role);
+    if (r === "manager") return managerProjectsOpenModalPath(projectId);
     return `${workspaceProjectsListPath(role)}/${encodeURIComponent(projectId)}`;
 }
 

@@ -1,0 +1,1 @@
+export { useProjectDetail } from "./useProjects";

@@ -12,9 +12,10 @@ import {
     type ChangePasswordBody,
     type UpdateProfileBody,
 } from "@/api/authService";
-import { ApiError, setApiAuthToken } from "@/utils/apiClient";
+import { ApiError, getApiAuthToken, setApiAuthToken } from "@/utils/apiClient";
 import { getStoredRefreshToken, setStoredRefreshToken } from "@/utils/session-tokens";
 import type { AuthUser, Permission, Role, UserStatus } from "@/types/auth";
+import { authStorage } from "@/lib/auth-storage";
 
 /** Identifiant entreprise tel que renvoyé par le backend (plusieurs formes possibles). */
 function pickEnterpriseIdFromRecord(r: Record<string, unknown>): string | undefined {
@@ -94,9 +95,17 @@ function mapRawToAuthUser(raw: unknown): AuthUser | null {
               ? String(r.password_expires_at)
               : undefined;
     const enterpriseId = pickEnterpriseIdFromRecord(r);
+    const avatarRaw = r.avatar_url ?? r.avatarUrl;
+    const avatarUrl =
+        typeof avatarRaw === "string" && avatarRaw.trim() !== ""
+            ? avatarRaw.trim()
+            : avatarRaw === null
+              ? null
+              : undefined;
     return {
         id: id || email,
         fullName,
+        avatarUrl: avatarUrl === undefined ? undefined : avatarUrl,
         firstName: firstName || undefined,
         lastName: lastName || undefined,
         email,
@@ -157,6 +166,7 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 function clearSessionState(setUser: (value: AuthUser | null) => void) {
     setApiAuthToken(null);
     setStoredRefreshToken(null);
+    authStorage.clear();
     setUser(null);
 }
 
@@ -168,6 +178,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setOnAuthFailure(() => {
             setApiAuthToken(null);
             setStoredRefreshToken(null);
+            authStorage.clear();
             setUser(null);
         });
         return () => setOnAuthFailure(null);
@@ -179,8 +190,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             const u = pickUserFromAuthPayload(payload);
             if (u) setUser(u);
             else clearSessionState(setUser);
-        } catch {
-            clearSessionState(setUser);
+        } catch (e) {
+            /** Ne pas déconnecter sur erreur réseau / 5xx : évite « déconnexion » au changement de page si /me est instable. */
+            if (e instanceof ApiError && e.status === 401) {
+                clearSessionState(setUser);
+                return;
+            }
+            if (import.meta.env.DEV) {
+                // eslint-disable-next-line no-console
+                console.warn("[auth] syncSession échoué — session locale conservée", e);
+            }
         }
     }, []);
 
@@ -194,26 +213,47 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             const payload = await authRefresh();
             persistTokensFromPayload(payload);
             await syncSession();
-        } catch {
-            clearSessionState(setUser);
+        } catch (e) {
+            if (e instanceof ApiError && e.status === 401) {
+                clearSessionState(setUser);
+            }
         }
     }, [syncSession]);
 
     useEffect(() => {
+        let alive = true;
         void (async () => {
             try {
+                const accessFromStorage = authStorage.getAccessToken();
+                if (accessFromStorage?.trim()) {
+                    setApiAuthToken(accessFromStorage.trim());
+                }
                 const rt = getStoredRefreshToken();
                 if (rt) {
                     const payload = await authRefresh();
                     persistTokensFromPayload(payload);
                 }
-                await syncSession();
-            } catch {
-                clearSessionState(setUser);
+                /** Sans access ni refresh valide, ne pas appeler `/webhook/auth/me` (401 bruyant sur `/login`, dev StrictMode). */
+                const hasAccessProbe =
+                    Boolean(authStorage.getAccessToken()?.trim()) || Boolean(getApiAuthToken()?.trim());
+                if (alive && hasAccessProbe) {
+                    await syncSession();
+                }
+            } catch (e) {
+                if (!alive) return;
+                if (e instanceof ApiError && e.status === 401) {
+                    clearSessionState(setUser);
+                } else if (import.meta.env.DEV) {
+                    // eslint-disable-next-line no-console
+                    console.warn("[auth] bootstrap session — erreur non fatale, tokens conservés", e);
+                }
             } finally {
-                setHydrated(true);
+                if (alive) setHydrated(true);
             }
         })();
+        return () => {
+            alive = false;
+        };
     }, [syncSession]);
 
     const login = useCallback(async (email: string, password: string) => {

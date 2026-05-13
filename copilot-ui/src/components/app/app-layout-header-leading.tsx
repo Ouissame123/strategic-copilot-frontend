@@ -1,3 +1,4 @@
+import { ChevronRight } from "@untitledui/icons";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useLocation, useMatch, useParams } from "react-router";
 import { useTranslation } from "react-i18next";
@@ -13,10 +14,10 @@ export function AppLayoutHeaderLeading() {
     const { pathname } = useLocation();
     const { t } = useTranslation(["common", "nav", "dataCrud"]);
     const { projectId } = useParams();
-    const projectRouteMatch =
-        useMatch("/workspace/:workspaceRole/projects/:projectId") ??
-        useMatch("/projects/:projectId") ??
-        useMatch("/project/:projectId");
+    const workspaceProjectRouteMatch = useMatch("/workspace/:workspaceRole/projects/:projectId");
+    const projectsRouteMatch = useMatch("/projects/:projectId");
+    const projectRouteLegacyMatch = useMatch("/project/:projectId");
+    const projectRouteMatch = workspaceProjectRouteMatch ?? projectsRouteMatch ?? projectRouteLegacyMatch;
     const isManagerProjectRoute = Boolean(useMatch("/workspace/manager/projects/:projectId"));
     const queryClient = useQueryClient();
     const detailKey = queryKeys.projects.detail(projectId ?? "");
@@ -30,7 +31,9 @@ export function AppLayoutHeaderLeading() {
                 signal,
                 timeout: getHttpTimeoutMs(),
             }),
-        enabled: Boolean(projectId && projectRouteMatch && (getApiAuthToken() || enterpriseId)),
+        // Avoid duplicate detail calls on manager route while manager detail endpoint rollout is ongoing.
+        enabled: Boolean(projectId && projectRouteMatch && !isManagerProjectRoute && (getApiAuthToken() || enterpriseId)),
+        retry: false,
         staleTime: 60_000,
         placeholderData: () => (projectId ? queryClient.getQueryData(detailKey) : undefined),
     });
@@ -48,18 +51,24 @@ export function AppLayoutHeaderLeading() {
     });
 
     return (
-        <nav className="min-w-0 flex-1 pr-2 text-start md:pr-4" aria-label={t("common:layout.breadcrumbNav")}>
-            <ol className="flex flex-wrap items-center gap-x-1.5 gap-y-1 text-sm">
+        <nav className="min-w-0 flex-1 pr-2 text-start md:pr-3" aria-label={t("common:layout.breadcrumbNav")}>
+            <ol className="flex flex-wrap items-center gap-x-0.5 gap-y-1 text-[13px] leading-tight">
                 {segments.map((seg, i) => {
                     const isLast = i === segments.length - 1;
                     const content =
                         seg.to && !isLast ? (
-                            <Link to={seg.to} className="text-secondary underline-offset-4 hover:text-primary hover:underline">
+                            <Link
+                                to={seg.to}
+                                className="rounded-md px-1 py-0.5 text-secondary underline-offset-2 transition hover:bg-secondary_subtle hover:text-primary hover:underline"
+                            >
                                 {seg.label}
                             </Link>
                         ) : (
                             <span
-                                className={cx(isLast ? "max-w-[min(100%,12rem)] truncate font-medium text-primary sm:max-w-md" : "text-secondary")}
+                                className={cx(
+                                    "block max-w-[min(100%,12rem)] truncate px-0.5 py-0.5 sm:max-w-md",
+                                    isLast ? "font-semibold text-primary" : "text-secondary",
+                                )}
                                 title={isLast ? seg.label : undefined}
                                 aria-current={isLast ? "page" : undefined}
                             >
@@ -67,12 +76,10 @@ export function AppLayoutHeaderLeading() {
                             </span>
                         );
                     return (
-                        <li key={`${seg.label}-${i}`} className="flex items-center gap-1.5">
-                            {i > 0 && (
-                                <span className="text-quaternary select-none" aria-hidden>
-                                    /
-                                </span>
-                            )}
+                        <li key={`${seg.label}-${i}`} className="flex max-w-full items-center gap-0.5">
+                            {i > 0 ? (
+                                <ChevronRight className="size-3.5 shrink-0 text-quaternary/80" aria-hidden />
+                            ) : null}
                             {content}
                         </li>
                     );

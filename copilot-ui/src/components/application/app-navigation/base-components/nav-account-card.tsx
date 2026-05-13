@@ -79,14 +79,14 @@ export const NavAccountMenu = ({
                 {showProfileAction ? (
                     <div className="rounded-xl bg-primary ring-1 ring-secondary">
                         <div className="flex flex-col gap-0.5 py-1.5">
-                            <NavAccountCardMenuItem label="View profile" icon={User01} shortcut="⌘K->P" href={profileHref} />
+                            <NavAccountCardMenuItem label="Voir le profil" icon={User01} shortcut="⌘K->P" href={profileHref} />
                         </div>
                     </div>
                 ) : null}
 
                 <div className="pt-1 pb-1.5">
                     <NavAccountCardMenuItem
-                        label="Sign out"
+                        label="Se déconnecter"
                         icon={LogOut01}
                         shortcut="⌥⇧Q"
                         destructive={isLoggingOut}
@@ -185,14 +185,17 @@ export const NavAccountCard = ({
         .map((part) => part[0]?.toUpperCase() ?? "")
         .join("");
 
+    const avatarSrc = user.avatarUrl?.trim() || undefined;
+
     if (!user?.email) return null;
 
     if (compact) {
         return (
             <div ref={triggerRef} className="relative">
                 <Avatar
+                    key={avatarSrc ?? "no-avatar"}
                     size="sm"
-                    src={null}
+                    src={avatarSrc}
                     initials={initials || undefined}
                     alt={displayName || user.email}
                     status="online"
@@ -204,8 +207,9 @@ export const NavAccountCard = ({
     return (
         <div ref={triggerRef} className="relative flex items-center gap-3 rounded-xl p-3 ring-1 ring-secondary ring-inset">
             <AvatarLabelGroup
+                key={avatarSrc ?? "no-avatar"}
                 size="md"
-                src=""
+                src={avatarSrc}
                 title={displayName || user.email}
                 subtitle={user.email}
                 status="online"

@@ -11,7 +11,6 @@ import { Button } from "@/components/base/buttons/button";
 import { NativeSelect } from "@/components/base/select/select-native";
 import { Dialog, Modal, ModalOverlay } from "@/components/application/modals/modal";
 import { ProjectWhatIfSimulator, type WhatIfResult } from "@/components/project/project-what-if-simulator";
-import { useAuth } from "@/providers/auth-provider";
 import { unwrapDataPayload } from "@/utils/unwrap-api-payload";
 
 type OpenArgs = {
@@ -56,19 +55,12 @@ function extractTalentOptions(talents: unknown): { id: string; label: string }[]
 }
 
 export function WhatIfProvider({ children }: { children: ReactNode }) {
-    const { user } = useAuth();
     const [isOpen, setIsOpen] = useState(false);
     const [projectId, setProjectId] = useState("");
     const [projectName, setProjectName] = useState("");
     const [options, setOptions] = useState<Array<{ id: string; name: string }>>([]);
     const [loadingList, setLoadingList] = useState(false);
     const [talentOptions, setTalentOptions] = useState<{ id: string; label: string }[]>([]);
-
-    const enterpriseId = useMemo(() => {
-        const fromUser = user?.enterpriseId?.trim();
-        const fromEnv = (import.meta.env.VITE_MANAGER_ENTERPRISE_ID as string | undefined)?.trim();
-        return fromUser || fromEnv || "";
-    }, [user?.enterpriseId]);
 
     const open = useCallback((args?: OpenArgs) => {
         setProjectId(args?.projectId?.trim() ?? "");
@@ -91,7 +83,6 @@ export function WhatIfProvider({ children }: { children: ReactNode }) {
                 const raw = await getManagerWorkspaceProjects({
                     page: 1,
                     limit: 200,
-                    enterprise_id: enterpriseId,
                 });
                 const parsed = parseManagerWorkspaceProjectsResponse(raw);
                 const opts = parsed.items.map((row, i) => ({
@@ -108,7 +99,7 @@ export function WhatIfProvider({ children }: { children: ReactNode }) {
         return () => {
             cancelled = true;
         };
-    }, [isOpen, projectId, enterpriseId]);
+    }, [isOpen, projectId]);
 
     // Charge les talents du projet sélectionné pour alimenter le simulator.
     useEffect(() => {

@@ -1,9 +1,5 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { getDecisionLogUrl } from "@/config/project-api";
-import { ApiError } from "@/api/errors";
-import { apiGet, getHttpTimeoutMs } from "@/utils/apiClient";
-import { normalizeDecision } from "@/utils/decisionConfig";
-import { useAuth } from "@/providers/auth-provider";
+import { useMemo } from "react";
+import { useDecisionLog as useDecisionLogV2 } from "./useNotifications";
 
 export type DecisionType = "Continue" | "Adjust" | "Stop";
 
@@ -81,61 +77,27 @@ function extractEntries(payload: unknown): DecisionLogEntry[] {
     return [];
 }
 
-function decisionLogPathForRole(role: string | undefined): string {
-    if (role === "manager") return "/api/workspace/manager/decision-log";
-    return getDecisionLogUrl();
-}
-
-export function useDecisionLog(options: { timeout?: number } = {}) {
-    const { timeout = getHttpTimeoutMs() } = options;
-    const { user } = useAuth();
-    const [entries, setEntries] = useState<DecisionLogEntry[]>([]);
-    const [isLoading, setIsLoading] = useState(true);
-    const [error, setError] = useState<string | null>(null);
-    const [errorStatus, setErrorStatus] = useState<number | null>(null);
-
-    const fetchLog = useCallback(
-        async (signal?: AbortSignal) => {
-            setIsLoading(true);
-            setError(null);
-            setErrorStatus(null);
-            try {
-                const path = decisionLogPathForRole(user?.role);
-                const payload = await apiGet<unknown>(path, { timeout, signal });
-                setEntries(extractEntries(payload));
-            } catch (err) {
-                if (err instanceof Error && err.name === "AbortError") return;
-                setEntries([]);
-                if (err instanceof ApiError) {
-                    setError(err.message);
-                    setErrorStatus(typeof err.status === "number" ? err.status : null);
-                } else {
-                    setError("Erreur de connexion");
-                    setErrorStatus(null);
-                }
-            } finally {
-                setIsLoading(false);
-            }
-        },
-        [timeout, user?.role],
-    );
-
-    useEffect(() => {
-        const c = new AbortController();
-        void fetchLog(c.signal);
-        return () => c.abort();
-    }, [fetchLog]);
-
-    const retry = useCallback(() => void fetchLog(), [fetchLog]);
-
-    return useMemo(
-        () => ({
+export function useDecisionLog() {
+    const query = useDecisionLogV2({ limit: 50 });
+    return useMemo(() => {
+        const entries = (query.data?.decisions ?? []).map((decision) => ({
+            id: decision.id,
+            date: decision.created_at,
+            project_id: undefined,
+            project_name: decision.project_name,
+            score: decision.score,
+            decision: (["Continue", "Adjust", "Stop"].includes(decision.decision) ? decision.decision : "Adjust") as DecisionType,
+            justification: decision.reason,
+            confidence: decision.confidence,
+            health_score: null,
+            author: decision.scope,
+        })) as DecisionLogEntry[];
+        return {
             entries,
-            isLoading,
-            error,
-            errorStatus,
-            retry,
-        }),
-        [entries, isLoading, error, errorStatus, retry],
-    );
+            isLoading: query.isLoading,
+            error: query.error ? "Erreur de connexion" : null,
+            errorStatus: null,
+            retry: query.refetch,
+        };
+    }, [query.data?.decisions, query.error, query.isLoading, query.refetch]);
 }

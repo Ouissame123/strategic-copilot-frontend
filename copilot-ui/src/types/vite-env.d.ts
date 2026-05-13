@@ -40,7 +40,43 @@ interface ImportMetaEnv {
     /** GET liste talents enrichie n8n (sinon `/webhook/api/talents`). Ex. prod : `https://host/webhook/api/talents`. */
     readonly VITE_TALENTS_WEBHOOK_URL?: string;
 
-    /** Mode simple : préfixe unique (ex. `https://host/webhook`) pour chemins relatifs. */
+    /**
+     * GET détail talent manager — chemin ou URL avec `:talentId` / `:id` (encodé par le client).
+     * Défaut : `/webhook/wmt-detail-v1/manager/team/:talentId` (workflow n8n WF_Manager_Team v1).
+     */
+    readonly VITE_MANAGER_TEAM_DETAIL_URL?: string;
+    /**
+     * PATCH mise à jour projet `WF_Manager_Projects`. Chemin ou URL avec `:id` (prioritaire).
+     * Par défaut (sans cette variable) : `{VITE_API_BASE_URL}/manager/projects/:id` si `VITE_API_BASE_URL` est défini, sinon `/webhook/manager/projects/:id`.
+     */
+    readonly VITE_MANAGER_PROJECTS_UPDATE_URL?: string;
+
+    /**
+     * Hôte racine n8n (sans `/webhook`). En `npm run dev`, sert surtout de **cible du proxy** Vite (évite CORS) ;
+     * en build / preview, base axios si définie. Voir `getN8nBaseUrl` dans `lib/build-n8n-url.ts`.
+     */
+    readonly VITE_N8N_BASE_URL?: string;
+    /** Surcharge cible du proxy Vite `/webhook` (dev, si absent : `n8nprod.aphelionxinnovations.com` dans `vite.config`). */
+    readonly VITE_N8N_PROXY_TARGET?: string;
+    /** Si `1` : proxy vérifie la chaîne TLS même en dev (défaut dev : vérification assouplie). */
+    readonly VITE_N8N_PROXY_STRICT_TLS?: string;
+    /**
+     * PATCH archivage conversation : chemin complet avec placeholder `{id}` ou `:id` (prioritaire sur le défaut
+     * `wmc-archive-v1` puis fallback legacy). Ex. `/webhook/mon-workflow-v1/manager/conversations/{id}/archive`.
+     */
+    readonly VITE_N8N_WEBHOOK_CONV_ARCHIVE?: string;
+    /**
+     * Si `1` en dev : le client utilise `VITE_N8N_BASE_URL` comme origine réelle (appels cross-origin).
+     * Par défaut (absent) : chemins relatifs + proxy — requis sauf si n8n expose les bons en-têtes CORS.
+     */
+    readonly VITE_N8N_DIRECT_IN_DEV?: string;
+    /**
+     * Dev uniquement : origine n8n pour **axios** (`httpClient`) seulement (ex. `https://host/webhook`).
+     * Laisse `getN8nBaseUrl()` vide pour le login en `fetch` relatif + proxy. CORS requis sur `/webhook/*`.
+     */
+    readonly VITE_HTTP_CLIENT_N8N_BASE?: string;
+    /** Mode simple : préfixe unique (ex. `https://n8nprod.aphelionxinnovations.com/webhook`) pour les appels manager-projects
+     * (`{VITE_API_BASE_URL}/manager/projects/...`) et autres chemins relatifs ; sans slash final. */
     readonly VITE_API_BASE_URL?: string;
     /**
      * Chemin GET liste projets (prioritaire), relatif à `VITE_API_BASE_URL`. Ex. `/webhook/api/projects/list`.

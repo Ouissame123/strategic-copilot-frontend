@@ -6,6 +6,7 @@ import { ApiError } from "@/api/errors";
 import { setApiAuthToken } from "@/utils/apiClient";
 import { getStoredRefreshToken, setStoredRefreshToken } from "@/utils/session-tokens";
 import { httpGet, httpPatch, httpPost, type HttpRequestOptions } from "@/api/api";
+import { authStorage } from "@/lib/auth-storage";
 
 export interface AuthLoginBody {
     email: string;
@@ -39,8 +40,21 @@ export function persistTokensFromPayload(payload: unknown): boolean {
               ? o.refresh_token
               : null;
     if (!access?.trim()) return false;
-    setApiAuthToken(access.trim());
-    if (refresh?.trim()) setStoredRefreshToken(refresh.trim());
+    const a = access.trim();
+    setApiAuthToken(a);
+    if (refresh?.trim()) {
+        const r = refresh.trim();
+        setStoredRefreshToken(r);
+        authStorage.setTokens(a, r);
+    } else {
+        const existingRefresh = getStoredRefreshToken() ?? authStorage.getRefreshToken();
+        if (existingRefresh?.trim()) {
+            authStorage.setTokens(a, existingRefresh.trim());
+        } else {
+            /** Toujours persister l’access en localStorage : `httpClient` lit `authStorage` ; sans cela, `/webhook/auth/me` part sans Bearer après reload ou via `useMe`. */
+            authStorage.setAccessToken(a);
+        }
+    }
     return true;
 }
 

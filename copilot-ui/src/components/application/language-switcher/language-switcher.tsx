@@ -3,6 +3,7 @@ import { ChevronDown } from "@untitledui/icons";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/base/buttons/button";
 import { Dropdown } from "@/components/base/dropdown/dropdown";
+import { writeStoredUiLang, type UiLang } from "@/lib/ui-locale";
 
 const LANGUAGES = [
     { code: "fr", labelKey: "language.fr" },
@@ -35,7 +36,12 @@ export const LanguageSwitcher = () => {
                     onSelectionChange={(keys) => {
                         if (keys === "all") return;
                         const key = [...keys][0];
-                        if (key) void i18n.changeLanguage(String(key));
+                        if (!key) return;
+                        const code = String(key);
+                        if (code === "fr" || code === "en" || code === "ar") {
+                            writeStoredUiLang(code as UiLang);
+                            void i18n.changeLanguage(code);
+                        }
                     }}
                 >
                     {LANGUAGES.map((lang) => (

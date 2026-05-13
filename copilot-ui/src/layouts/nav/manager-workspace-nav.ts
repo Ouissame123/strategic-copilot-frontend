@@ -6,7 +6,9 @@ import {
     Folder,
     LayersTwo02,
     User01,
+    UserPlus01,
     Users01,
+    UsersEdit,
 } from "@untitledui/icons";
 import type { NavItemType } from "@/components/application/app-navigation/config";
 
@@ -16,6 +18,8 @@ export function getManagerWorkspaceNavItems(t: TFunction<"nav", undefined>): Nav
         { label: t("managerNavDashboard"), href: "/workspace/manager/dashboard", icon: LayersTwo02 },
         { label: t("managerNavProjects"), href: "/workspace/manager/projects", icon: Folder },
         { label: t("managerNavTeam"), href: "/workspace/manager/team", icon: Users01 },
+        { label: t("managerNavTalentRequests"), href: "/workspace/manager/talent-requests", icon: UsersEdit },
+        { label: t("managerNavRhRequests"), href: "/workspace/manager/rh-requests", icon: UserPlus01 },
         { label: t("managerNavRisks"), href: "/workspace/manager/risks", icon: AlertTriangle },
         { label: t("decisionLog"), href: "/workspace/manager/decision-log", icon: Clock },
         { label: t("managerNavReports"), href: "/workspace/manager/reports", icon: BarChart01 },

@@ -8,6 +8,7 @@ import { useWorkspacePaths } from "@/hooks/use-workspace-paths";
 import { useTalentsWebhookList } from "@/hooks/use-talents-webhook-list";
 import { pickCell } from "@/utils/rh-api-parse";
 import { ErrorState } from "@/components/ui/ErrorState";
+import { formatUserFacingExplanation } from "@/lib/business-explanation";
 import { asRecord, firstArray, firstScalar, unwrapDataPayload } from "@/utils/unwrap-api-payload";
 
 type PriorityLevel = "critical" | "watch" | "ok";
@@ -358,13 +359,17 @@ export default function RhEmployeesPage() {
                 <h2 className="text-sm font-semibold text-primary">Copilot RH</h2>
                 {aiSummary.summary || aiSummary.explanation || aiSummary.recommendations.length ? (
                     <div className="mt-3 space-y-2">
-                        {aiSummary.summary ? <p className="text-sm font-medium text-primary">{aiSummary.summary}</p> : null}
-                        {aiSummary.explanation ? <p className="text-sm text-secondary">{aiSummary.explanation}</p> : null}
+                        {aiSummary.summary ? (
+                            <p className="text-sm font-medium text-primary">{formatUserFacingExplanation(aiSummary.summary)}</p>
+                        ) : null}
+                        {aiSummary.explanation ? (
+                            <p className="text-sm text-secondary">{formatUserFacingExplanation(aiSummary.explanation)}</p>
+                        ) : null}
                         {aiSummary.recommendations.length ? (
                             <ul className="space-y-1 text-sm text-secondary">
                                 {aiSummary.recommendations.map((line, idx) => (
                                     <li key={`rec-${idx}`} className="rounded-lg bg-secondary/40 px-3 py-2">
-                                        {line}
+                                        {formatUserFacingExplanation(line)}
                                     </li>
                                 ))}
                             </ul>

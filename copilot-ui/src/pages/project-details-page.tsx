@@ -24,6 +24,7 @@ import { useProjectDetail } from "@/hooks/use-project-detail";
 import { useAuth } from "@/providers/auth-provider";
 import { useWorkspacePaths } from "@/hooks/use-workspace-paths";
 import { useToast } from "@/providers/toast-provider";
+import { formatTalentFitNarrative, formatUserFacingExplanation } from "@/lib/business-explanation";
 import { unwrapDataPayload } from "@/utils/unwrap-api-payload";
 
 type LoadState = "loading" | "success" | "error";
@@ -97,17 +98,6 @@ function extractTalentOptions(talents: ProjectTalentsResponse | null): { id: str
         return out;
     }
     return [];
-}
-
-function formatExplanationText(explanation: unknown): string {
-    const text = String(explanation ?? "").trim();
-    if (!text) return "Analyse IA indisponible pour le moment.";
-    const cleaned = text
-        .replace(/score\s*=\s*[^.]+/gi, "")
-        .replace(/\|\s*/g, ", ")
-        .replace(/\s{2,}/g, " ")
-        .trim();
-    return cleaned.length > 0 ? cleaned : "Analyse IA disponible, mais necessite une interpretation metier.";
 }
 
 export function ProjectDetailsPage() {
@@ -409,11 +399,9 @@ export function ProjectDetailsPage() {
                 {noTalentInsights ? (
                     <p className="mt-4 text-sm font-medium text-warning-primary">Données insuffisantes pour analyse</p>
                 ) : (
-                    <dl className="mt-4 grid gap-3 text-sm md:grid-cols-2">
-                        <div><dt className="text-quaternary">Adequation competences</dt><dd className="text-primary">{readNumber(talentsKpi.skills_fit_score)}</dd></div>
-                        <div><dt className="text-quaternary">Disponibilite talents</dt><dd className="text-primary">{readNumber(talentsKpi.availability_score)}</dd></div>
-                        <div><dt className="text-quaternary">Score global talent</dt><dd className="text-primary">{readNumber(talentsKpi.overall_score)}</dd></div>
-                    </dl>
+                    <p className="mt-4 text-sm leading-relaxed text-secondary">
+                        {formatTalentFitNarrative(overallScore, skillsFitScore, availabilityScore)}
+                    </p>
                 )}
                 <div className="mt-4">
                     <p className="text-sm font-medium text-primary">Actions recommandees</p>
@@ -434,7 +422,15 @@ export function ProjectDetailsPage() {
                 <div className="mt-4 grid gap-3 text-sm md:grid-cols-2">
                     <div className="rounded-xl border border-secondary bg-primary_alt/30 p-4">
                         <p className="text-xs font-semibold uppercase tracking-wide text-quaternary">Analyse IA</p>
-                        <p className="mt-2 text-secondary">{formatExplanationText(viabilityData.explanation)}</p>
+                        <p className="mt-2 text-secondary">
+                            {formatUserFacingExplanation(viabilityData.explanation, {
+                                score:
+                                    typeof viabilityData.viability_score === "number" && Number.isFinite(viabilityData.viability_score)
+                                        ? viabilityData.viability_score
+                                        : null,
+                                decision: typeof viabilityData.decision === "string" ? viabilityData.decision : null,
+                            })}
+                        </p>
                     </div>
                     <div className="rounded-xl border border-secondary bg-primary_alt/30 p-4">
                         <p className="text-xs font-semibold uppercase tracking-wide text-quaternary">Actions</p>

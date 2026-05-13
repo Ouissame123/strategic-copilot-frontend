@@ -306,7 +306,7 @@ export function RhTalentOverviewTab() {
                     <div className="w-full overflow-x-auto">
                         <Table aria-label="Liste des talents (workflow)" className="min-w-[1280px] [&_td]:align-top">
                             <Table.Header className="sticky top-0 z-10 bg-primary">
-                                <Table.Head id="talent_id" label="talent_id" />
+                                <Table.Head id="talent_id" label="Talent" />
                                 <Table.Head id="name" label="Nom" />
                                 <Table.Head id="email" label="Email" />
                                 <Table.Head id="role" label="Rôle" />
@@ -531,7 +531,7 @@ export function RhTalentProfilesTab() {
                 ) : (
                     <Table aria-label={t("workspace.rhProfilesTitle")} className="min-w-[1100px]">
                         <Table.Header className="sticky top-0 z-10">
-                            <Table.Head id="talent_id" label="talent_id" />
+                            <Table.Head id="talent_id" label="Talent" />
                             <Table.Head id="name" label="Talent" />
                             <Table.Head id="email" label={t("dataCrud:email")} />
                             <Table.Head id="role" label={t("dataCrud:role")} />

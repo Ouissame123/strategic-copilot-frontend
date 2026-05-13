@@ -2,7 +2,7 @@ import { HelpCircle, SearchLg, Stars01 } from "@untitledui/icons";
 import { useCallback, useMemo, useState } from "react";
 import { useHotkeys } from "react-hotkeys-hook";
 import { useTranslation } from "react-i18next";
-import { Link } from "react-router";
+import { Link, useLocation } from "react-router";
 import { Dialog, Modal, ModalOverlay } from "@/components/application/modals/modal";
 import { Button } from "@/components/base/buttons/button";
 import { useCopilot } from "@/providers/copilot-provider";
@@ -21,8 +21,10 @@ function isInsideDialog(target: EventTarget | null): boolean {
 
 export function AppGlobalShortcuts() {
     const { t } = useTranslation("common");
+    const { pathname } = useLocation();
     const paths = useWorkspacePaths();
     const { setIsOpen: setCopilotOpen } = useCopilot();
+    const isManagerWorkspace = pathname.startsWith("/workspace/manager");
     const [commandOpen, setCommandOpen] = useState(false);
     const [helpOpen, setHelpOpen] = useState(false);
     const [query, setQuery] = useState("");
@@ -48,12 +50,13 @@ export function AppGlobalShortcuts() {
     useHotkeys(
         ["mod+/", "ctrl+/"],
         (e) => {
+            if (isManagerWorkspace) return;
             if (isInsideDialog(e.target)) return;
             e.preventDefault();
             setCopilotOpen(true);
         },
         { enableOnFormTags: false },
-        [setCopilotOpen],
+        [setCopilotOpen, isManagerWorkspace],
     );
 
     const links = useMemo(
@@ -93,12 +96,14 @@ export function AppGlobalShortcuts() {
                                         {mod}K
                                     </kbd>
                                 </li>
-                                <li className="flex justify-between gap-4">
-                                    <span>{t("shortcuts.openCopilot")}</span>
-                                    <kbd className="rounded border border-secondary bg-secondary_subtle px-2 py-0.5 font-mono text-xs text-primary">
-                                        {mod}/
-                                    </kbd>
-                                </li>
+                                {!isManagerWorkspace ? (
+                                    <li className="flex justify-between gap-4">
+                                        <span>{t("shortcuts.openCopilot")}</span>
+                                        <kbd className="rounded border border-secondary bg-secondary_subtle px-2 py-0.5 font-mono text-xs text-primary">
+                                            {mod}/
+                                        </kbd>
+                                    </li>
+                                ) : null}
                             </ul>
                             <div className="mt-6 flex justify-end">
                                 <Button color="secondary" slot="close">

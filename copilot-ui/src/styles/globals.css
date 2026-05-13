@@ -38,9 +38,19 @@
     font-feature-settings: "tnum" 1, "lnum" 1;
 }
 
+html {
+    color-scheme: light;
+}
+
+html.dark-mode {
+    color-scheme: dark;
+}
+
 html,
 body {
     font-family: var(--font-body);
+    background-color: var(--color-bg-primary);
+    color: var(--color-text-primary);
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     -webkit-font-variant-ligatures: contextual;
@@ -104,4 +114,28 @@ input[type="search"]::-webkit-search-cancel-button {
     );
     background-size: 200% 100%;
     animation: copilot-shimmer 1.25s ease-in-out infinite;
+}
+
+/* Recharts : libellés/légendes par défaut en noir → illisibles en mode sombre */
+.recharts-wrapper .recharts-cartesian-axis-tick-value {
+    fill: var(--color-text-tertiary);
+}
+.recharts-wrapper .recharts-pie-label-line {
+    stroke: var(--color-border-secondary);
+}
+.recharts-wrapper .recharts-pie .recharts-layer.recharts-pie-labels text {
+    fill: var(--color-text-primary);
+}
+.recharts-default-tooltip {
+    color: var(--color-text-primary);
+}
+.recharts-tooltip-label {
+    color: var(--color-text-primary);
+}
+.recharts-tooltip-item-list .recharts-tooltip-item-value,
+.recharts-tooltip-item-list .recharts-tooltip-item-name {
+    color: var(--color-text-secondary);
+}
+.recharts-legend-wrapper {
+    color: var(--color-text-secondary);
 }

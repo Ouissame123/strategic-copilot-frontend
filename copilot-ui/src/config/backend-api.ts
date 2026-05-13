@@ -1,6 +1,8 @@
+import { getN8nBaseUrl } from "../lib/build-n8n-url";
+
 /**
  * Résolution des URLs API : webhooks n8n (URL complète par env) ou
- * `VITE_API_BASE_URL` + chemin relatif (mode simple).
+ * `getN8nBaseUrl()` (`VITE_N8N_BASE_URL` / `VITE_API_BASE_URL`) + chemin relatif.
  */
 
 function trimUrl(u: string | undefined): string {
@@ -9,10 +11,11 @@ function trimUrl(u: string | undefined): string {
 
 function resolveUrl(explicit: string | undefined, relativePath: string): string {
     const e = trimUrl(explicit);
-    if (e) return e;
-    const base = trimUrl(import.meta.env.VITE_API_BASE_URL as string | undefined);
-    const p = relativePath.startsWith("/") ? relativePath : `/${relativePath}`;
-    return base ? `${base}${p}` : relativePath;
+    const path = e && !/^https?:\/\//i.test(e) ? e : relativePath;
+    const p = path.startsWith("/") ? path : `/${path}`;
+    if (e && /^https?:\/\//i.test(e)) return e;
+    const base = getN8nBaseUrl();
+    return base ? `${base}${p}` : p;
 }
 
 function readEnv(name: string): string | undefined {
@@ -22,20 +25,20 @@ function readEnv(name: string): string | undefined {
 
 export const backendApi = {
     get login(): string {
-        return resolveUrl(readEnv("VITE_API_LOGIN"), "/login");
+        return resolveUrl(readEnv("VITE_API_LOGIN"), "/webhook/login");
     },
     get refresh(): string {
-        return resolveUrl(readEnv("VITE_API_REFRESH"), "/refresh");
+        return resolveUrl(readEnv("VITE_API_REFRESH"), "/webhook/refresh");
     },
     get logout(): string {
-        return resolveUrl(readEnv("VITE_API_LOGOUT"), "/logout");
+        return resolveUrl(readEnv("VITE_API_LOGOUT"), "/webhook/logout");
     },
     get me(): string {
-        return resolveUrl(readEnv("VITE_API_ME"), "/me");
+        return resolveUrl(readEnv("VITE_API_ME"), "/webhook/auth/me");
     },
     /** POST changement de mot de passe (compte connecté). Corps typique : `{ currentPassword, newPassword }`. */
     get changePassword(): string {
-        return resolveUrl(readEnv("VITE_API_CHANGE_PASSWORD"), "/me/password");
+        return resolveUrl(readEnv("VITE_API_CHANGE_PASSWORD"), "/webhook/auth/me/password");
     },
     /** GET liste (+ query) */
     get rhUsersList(): string {

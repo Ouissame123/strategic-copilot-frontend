@@ -8,6 +8,7 @@ import { Badge } from "@/components/base/badges/badges";
 import { Button } from "@/components/base/buttons/button";
 import { useCopilot } from "@/providers/copilot-provider";
 import type { CopilotAssistantStructured, CopilotScope } from "@/types/copilot";
+import { formatUserFacingExplanation } from "@/lib/business-explanation";
 import { getSuggestedQuestions } from "@/utils/copilot-chat-suggestions";
 import { cx } from "@/utils/cx";
 
@@ -186,10 +187,14 @@ export function CopilotPanel() {
                                                         {msg.role === "assistant" && msg.structured ? (
                                                             <div className="space-y-2">
                                                                 {msg.structured.summary ? (
-                                                                    <p className="text-sm font-medium leading-relaxed text-primary">{msg.structured.summary}</p>
+                                                                    <p className="text-sm font-medium leading-relaxed text-primary">
+                                                                        {formatUserFacingExplanation(msg.structured.summary)}
+                                                                    </p>
                                                                 ) : null}
                                                                 {msg.structured.explanation ? (
-                                                                    <p className="text-sm leading-relaxed text-secondary">{msg.structured.explanation}</p>
+                                                                    <p className="text-sm leading-relaxed text-secondary">
+                                                                        {formatUserFacingExplanation(msg.structured.explanation)}
+                                                                    </p>
                                                                 ) : null}
                                                                 {msg.structured.recommendations_text && msg.structured.recommendations_text.length > 0 ? (
                                                                     <div className="space-y-1 border-t border-secondary/60 pt-2">
@@ -198,7 +203,7 @@ export function CopilotPanel() {
                                                                         </p>
                                                                         <ul className="list-inside list-disc space-y-1 text-sm text-secondary">
                                                                             {msg.structured.recommendations_text.map((line, i) => (
-                                                                                <li key={i}>{line}</li>
+                                                                                <li key={i}>{formatUserFacingExplanation(line)}</li>
                                                                             ))}
                                                                         </ul>
                                                                     </div>
@@ -273,14 +278,24 @@ export function CopilotPanel() {
                                     {analysisData.summary ? (
                                         <section className="rounded-xl border border-secondary/70 bg-secondary/20 p-4 dark:bg-secondary/10">
                                             <h3 className="text-xs font-semibold uppercase tracking-wide text-quaternary">{t("panelSummary")}</h3>
-                                            <p className="mt-2 text-sm font-medium leading-relaxed text-primary">{analysisData.summary}</p>
+                                            <p className="mt-2 text-sm font-medium leading-relaxed text-primary">
+                                                {formatUserFacingExplanation(analysisData.summary, {
+                                                    score: analysisData.viability_score ?? null,
+                                                    decision: analysisData.decision ?? null,
+                                                })}
+                                            </p>
                                         </section>
                                     ) : null}
 
                                     {analysisData.explanation ? (
                                         <section className="rounded-xl border border-secondary/70 bg-secondary/15 p-4 shadow-sm dark:bg-secondary/10">
                                             <h3 className="text-xs font-semibold uppercase tracking-wide text-quaternary">{t("panelExplanation")}</h3>
-                                            <p className="mt-2 text-sm leading-relaxed text-secondary">{analysisData.explanation}</p>
+                                            <p className="mt-2 text-sm leading-relaxed text-secondary">
+                                                {formatUserFacingExplanation(analysisData.explanation, {
+                                                    score: analysisData.viability_score ?? null,
+                                                    decision: analysisData.decision ?? null,
+                                                })}
+                                            </p>
                                         </section>
                                     ) : null}
 
@@ -289,7 +304,12 @@ export function CopilotPanel() {
                                             <h3 className="text-xs font-semibold uppercase tracking-wide text-quaternary">{t("panelRecommendations")}</h3>
                                             <ul className="mt-2 list-inside list-disc space-y-1.5 text-sm text-secondary">
                                                 {analysisData.recommendations_text.map((line, i) => (
-                                                    <li key={i}>{line}</li>
+                                                    <li key={i}>
+                                                        {formatUserFacingExplanation(line, {
+                                                            score: analysisData.viability_score ?? null,
+                                                            decision: analysisData.decision ?? null,
+                                                        })}
+                                                    </li>
                                                 ))}
                                             </ul>
                                         </section>

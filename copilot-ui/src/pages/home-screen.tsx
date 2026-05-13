@@ -4,6 +4,7 @@ import { KpiCards } from "@/components/application/portfolio/kpi-cards";
 import { PortfolioActivityList } from "@/components/application/portfolio/portfolio-activity-list";
 import { PortfolioTable } from "@/components/application/portfolio/portfolio-table";
 import { useCopilotPage } from "@/hooks/use-copilot-page";
+import { formatUserFacingExplanation } from "@/lib/business-explanation";
 import { usePortfolio } from "@/hooks/use-portfolio";
 import { useAuth } from "@/providers/auth-provider";
 
@@ -51,14 +52,18 @@ export default function HomeScreen() {
                                 <section>
                                     <h3 className="text-xs font-semibold uppercase tracking-wide text-quaternary">Résumé</h3>
                                     <p className="mt-2 whitespace-pre-wrap text-sm text-secondary">
-                                        {insights.summary?.trim() ? insights.summary : "—"}
+                                        {insights.summary?.trim()
+                                            ? formatUserFacingExplanation(insights.summary)
+                                            : "—"}
                                     </p>
                                 </section>
 
                                 <section>
                                     <h3 className="text-xs font-semibold uppercase tracking-wide text-quaternary">Analyse</h3>
                                     <p className="mt-2 whitespace-pre-wrap text-sm text-secondary">
-                                        {insights.explanation?.trim() ? insights.explanation : "—"}
+                                        {insights.explanation?.trim()
+                                            ? formatUserFacingExplanation(insights.explanation)
+                                            : "—"}
                                     </p>
                                 </section>
 
@@ -70,7 +75,7 @@ export default function HomeScreen() {
                                         <ul className="mt-3 list-disc space-y-2 pl-5 text-sm text-secondary">
                                             {insights.recommendations_text.map((item, idx) => (
                                                 <li key={idx} className="whitespace-pre-wrap">
-                                                    {item}
+                                                    {formatUserFacingExplanation(item)}
                                                 </li>
                                             ))}
                                         </ul>

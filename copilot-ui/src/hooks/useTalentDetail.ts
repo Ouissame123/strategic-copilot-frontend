@@ -1,0 +1,1 @@
+export { useTalentDetail } from "./useTeam";

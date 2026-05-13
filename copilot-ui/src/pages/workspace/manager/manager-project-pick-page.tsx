@@ -25,7 +25,6 @@ type DetailState = ProjectDetail | null;
 
 export function ManagerProjectPickPage() {
     const { t } = useTranslation(["common", "nav", "copilot"]);
-    const { user } = useAuth();
     const paths = useWorkspacePaths();
     const navigate = useNavigate();
     const { setIsOpen: _setIsOpen } = useCopilot();
@@ -44,11 +43,6 @@ export function ManagerProjectPickPage() {
 
     const [rhActionOpen, setRhActionOpen] = useState(false);
 
-    const enterpriseId =
-        user?.enterpriseId?.trim() ??
-        (import.meta.env.VITE_MANAGER_ENTERPRISE_ID as string | undefined)?.trim() ??
-        "";
-
     // Charge la liste des projets (une fois).
     useEffect(() => {
         let c = false;
@@ -59,7 +53,6 @@ export function ManagerProjectPickPage() {
                 const raw = await getManagerWorkspaceProjects({
                     page: 1,
                     limit: 200,
-                    enterprise_id: enterpriseId,
                 });
                 const parsed = parseManagerWorkspaceProjectsResponse(raw);
                 const opts = parsed.items.map((row, i) => ({
@@ -84,7 +77,7 @@ export function ManagerProjectPickPage() {
             c = true;
         };
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [enterpriseId]);
+    }, []);
 
     // Charge le détail quand un projet est sélectionné.
     useEffect(() => {
@@ -113,7 +106,7 @@ export function ManagerProjectPickPage() {
         return () => {
             c = true;
         };
-    }, [enterpriseId, projectId]);
+    }, [projectId]);
 
     // Ligne brute du projet sélectionné dans la liste — utilisée comme fallback quand le détail échoue.
     const selectedRow = useMemo(() => {

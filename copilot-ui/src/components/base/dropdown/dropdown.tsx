@@ -93,8 +93,8 @@ interface DropdownMenuProps<T extends object> extends AriaMenuProps<T> {}
 const DropdownMenu = <T extends object>(props: DropdownMenuProps<T>) => {
     return (
         <AriaMenu
-            disallowEmptySelection
-            selectionMode="single"
+            /* Menus « kebab » = actions : pas de sélection, sinon onAction / clics sont capricieux. */
+            selectionMode="none"
             {...props}
             className={(state) =>
                 cx("h-min overflow-y-auto py-1 outline-hidden select-none", typeof props.className === "function" ? props.className(state) : props.className)

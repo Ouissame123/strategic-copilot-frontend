@@ -1,10 +1,12 @@
 import i18n from "i18next";
 import { initReactI18next } from "react-i18next";
+import { readStoredUiLang } from "./lib/ui-locale";
+import { managerWorkspaceLocales } from "./i18n/manager-workspace-locales";
 
 const fallbackLng = "fr";
 
 i18n.use(initReactI18next).init({
-    lng: fallbackLng,
+    lng: readStoredUiLang("fr"),
     fallbackLng,
     ns: ["common", "nav", "portfolio", "dashboard", "projects", "decisionLog", "users", "copilot", "dataCrud"],
     defaultNS: "common",
@@ -238,6 +240,7 @@ i18n.use(initReactI18next).init({
                     underusedHint:
                         "Règle métier : le talent ne voit pas cette alerte directement. Réaffectation, formation ou escalade possible.",
                 },
+                managerWorkspace: managerWorkspaceLocales.fr,
             },
             nav: {
                 dashboard: "Tableau de bord",
@@ -263,11 +266,12 @@ i18n.use(initReactI18next).init({
                 managerNavDashboard: "Dashboard Manager",
                 managerNavProjects: "Mes projets",
                 managerNavProjectDetail: "Détail projet",
-                managerNavTeam: "Équipe & allocations",
+                managerNavTeam: "Mon équipe",
                 managerNavRisks: "Risques & alertes",
                 managerNavAi: "Recommandations IA",
                 managerNavWhatIf: "What-if Simulator",
                 managerNavRhRequests: "Demandes RH",
+                managerNavTalentRequests: "Demandes talents",
                 managerNavReports: "Rapports",
                 managerMonitoring: "Suivi & affectations",
                 talentMissions: "Mes missions",
@@ -1000,6 +1004,7 @@ i18n.use(initReactI18next).init({
                     underusedHint:
                         "Business rule: the talent does not see this alert directly. Reassign, train, or escalate.",
                 },
+                managerWorkspace: managerWorkspaceLocales.en,
             },
             nav: {
                 dashboard: "Dashboard",
@@ -1025,11 +1030,12 @@ i18n.use(initReactI18next).init({
                 managerNavDashboard: "Manager dashboard",
                 managerNavProjects: "My projects",
                 managerNavProjectDetail: "Project detail",
-                managerNavTeam: "Team & allocations",
+                managerNavTeam: "My team",
                 managerNavRisks: "Risks & alerts",
                 managerNavAi: "AI recommendations",
                 managerNavWhatIf: "What-if simulator",
                 managerNavRhRequests: "HR requests",
+                managerNavTalentRequests: "Talent requests",
                 managerNavReports: "Reports",
                 managerMonitoring: "Monitoring & assignments",
                 talentMissions: "My missions",
@@ -1759,6 +1765,7 @@ i18n.use(initReactI18next).init({
                     underusedHint:
                         "قاعدة العمل: لا ترى الموهبة هذا التنبيه مباشرة. إعادة تعيين أو تدريب أو تصعيد.",
                 },
+                managerWorkspace: managerWorkspaceLocales.ar,
             },
             nav: {
                 dashboard: "لوحة التحكم",
@@ -1784,11 +1791,12 @@ i18n.use(initReactI18next).init({
                 managerNavDashboard: "لوحة المدير",
                 managerNavProjects: "مشاريعي",
                 managerNavProjectDetail: "تفاصيل المشروع",
-                managerNavTeam: "الفريق والتخصيصات",
+                managerNavTeam: "فريقي",
                 managerNavRisks: "المخاطر والتنبيهات",
                 managerNavAi: "توصيات الذكاء الاصطناعي",
                 managerNavWhatIf: "محاكاة What-if",
                 managerNavRhRequests: "طلبات الموارد البشرية",
+                managerNavTalentRequests: "طلبات المواهب",
                 managerNavReports: "التقارير",
                 managerMonitoring: "المتابعة والتعيينات",
                 talentMissions: "مهامي",

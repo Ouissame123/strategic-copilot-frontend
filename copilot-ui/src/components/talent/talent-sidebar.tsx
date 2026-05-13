@@ -1,4 +1,4 @@
-import { BookOpen01, Bell01, Briefcase01, ChartBreakoutCircle, CheckCircle, LayoutAlt02, LogOut01, SearchLg, User01, ZapFast } from "@untitledui/icons";
+import { BookOpen01, Bell01, Briefcase01, ChartBreakoutCircle, CheckCircle, LayoutAlt02, LogOut01, User01, ZapFast } from "@untitledui/icons";
 import type { ComponentType } from "react";
 import { useState } from "react";
 import { NavLink } from "react-router";
@@ -61,12 +61,6 @@ export function TalentSidebar() {
                         <p className="text-sm font-semibold text-white">Strategic Copilot</p>
                     </div>
                 </div>
-            </div>
-
-            <div className="mx-2 mt-3 flex items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-2 py-2 text-xs text-white/40">
-                <SearchLg className="size-3.5" />
-                <span className="flex-1">Recherche</span>
-                <span className="rounded bg-white/10 px-1.5 py-0.5 text-[10px]">Ctrl+K</span>
             </div>
 
             <div className="mt-3 space-y-4">

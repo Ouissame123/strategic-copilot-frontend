@@ -1,33 +1,27 @@
 import { useEffect, useState } from "react";
-import { Link, useNavigate, useLocation } from "react-router";
+import { Link, useNavigate } from "react-router";
 import { Button } from "@/components/base/buttons/button";
 import { Input } from "@/components/base/input/input";
 import { AuthCardLayout } from "@/components/auth/auth-card-layout";
 import { useAuth } from "@/providers/auth-provider";
 import { ApiError } from "@/utils/apiClient";
 import { cx } from "@/utils/cx";
-import { getDefaultWorkspacePath, isPathAllowedForRole } from "@/utils/workspace-routes";
+import { getDefaultWorkspacePath } from "@/utils/workspace-routes";
 
 export default function LoginPage() {
     const navigate = useNavigate();
-    const location = useLocation();
     const { login, isAuthenticated, user } = useAuth();
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
     const [error, setError] = useState<string | null>(null);
     const [loading, setLoading] = useState(false);
 
-    const from = (location.state as { from?: { pathname: string } })?.from?.pathname ?? "/";
-
     /** Ne jamais appeler navigate() pendant le rendu — évite « fewer hooks than expected » et l’avertissement BrowserRouter. */
     useEffect(() => {
         if (!isAuthenticated) return;
-        const target =
-            from !== "/" && user?.role && isPathAllowedForRole(from, user.role)
-                ? from
-                : getDefaultWorkspacePath(user?.role);
+        const target = getDefaultWorkspacePath(user?.role);
         navigate(target, { replace: true });
-    }, [isAuthenticated, navigate, from, user?.role]);
+    }, [isAuthenticated, navigate, user?.role]);
 
     if (isAuthenticated) {
         return null;
@@ -56,7 +50,9 @@ export default function LoginPage() {
                             ? "E-mail ou mot de passe incorrect."
                             : err.status === 404
                               ? "404 : URL du webhook incorrecte ou workflow n8n inactif. Dans n8n, copiez l’URL de production du nœud Webhook (sans ajouter un segment /login si le nœud n’en définit pas). Lancez « npm run dev » depuis le dossier copilot-ui pour charger .env."
-                              : err.message),
+                              : err.status === 500
+                                ? "Erreur 500 sur le login : en dev, le plus souvent le proxy Vite n’arrive pas à joindre n8n (regarde le terminal : « ENOTFOUND » ou « http proxy error » = mauvaise URL ou DNS dans copilot-ui/.env, VITE_N8N_BASE_URL / VITE_N8N_PROXY_TARGET). Sinon, le workflow n8n a renvoyé 500 (exécutions dans n8n). VITE_PROXY_DEBUG=1 affiche le détail des requêtes proxy."
+                                : err.message),
                 );
             } else if (err instanceof Error) {
                 setError(

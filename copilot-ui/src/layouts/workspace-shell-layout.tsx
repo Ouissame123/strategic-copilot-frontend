@@ -5,6 +5,7 @@ import { CopilotTriggerButton } from "@/components/copilot";
 import { AppGlobalShortcuts } from "@/components/app/app-global-shortcuts";
 import { AppLayoutHeaderActions } from "@/components/app/app-layout-header-actions";
 import { AppLayoutHeaderLeading } from "@/components/app/app-layout-header-leading";
+import { ManagerNotificationsTopbarDropdown } from "@/components/app/manager-notifications-topbar";
 import { SidebarNavigationSimple } from "@/components/app/navigation";
 import { ThemeToggle } from "@/components/app/theme";
 import { LanguageSwitcher } from "@/components/app/i18n";
@@ -31,13 +32,13 @@ export function WorkspaceShellLayout({ workspaceRole, navItems, children }: Work
         <div className="min-h-screen bg-primary lg:flex">
             <SidebarNavigationSimple activeUrl={pathname} items={navItems} />
             <div className="flex min-h-screen flex-1 flex-col bg-secondary_subtle">
-                <header className="flex min-h-14 shrink-0 flex-col items-stretch border-b border-secondary bg-primary shadow-xs md:px-8 md:py-0">
-                    <div className="flex items-center justify-between gap-3 px-5 py-3.5 md:px-0 md:py-4">
+                <header className="flex min-h-12 shrink-0 flex-col items-stretch border-b border-secondary/80 bg-primary shadow-sm md:px-6 md:py-0">
+                    <div className="flex items-center justify-between gap-3 px-4 py-2.5 md:px-0 md:py-2.5">
                         <AppLayoutHeaderLeading />
-                        <div className="flex min-w-0 shrink-0 flex-wrap items-center justify-end gap-2 md:gap-3">
+                        <div className="flex min-w-0 shrink-0 flex-wrap items-center justify-end gap-1.5 sm:gap-2">
                             <AppLayoutHeaderActions />
                             <AppGlobalShortcuts />
-                            <CopilotTriggerButton />
+                            {workspaceRole === "manager" ? <ManagerNotificationsTopbarDropdown /> : <CopilotTriggerButton />}
                             <LanguageSwitcher />
                             <ThemeToggle />
                             <NavAccountCard compact showProfileAction={false} />

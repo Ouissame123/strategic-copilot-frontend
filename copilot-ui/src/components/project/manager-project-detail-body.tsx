@@ -7,6 +7,7 @@ import { useCopilotDecision } from "@/hooks/use-copilot-decision";
 import { queryKeys } from "@/lib/query-keys";
 import { useToast } from "@/providers/toast-provider";
 import type { ProjectDetail, Severity } from "@/api/workspace-manager.api";
+import { formatUserFacingExplanation } from "@/lib/business-explanation";
 import { cx } from "@/utils/cx";
 import { AgentTracePanel } from "@/features/manager/project-detail/components/agent-trace-panel";
 import { buildAgentTraces } from "@/features/manager/project-detail/agent-trace";
@@ -138,7 +139,11 @@ export function ManagerProjectDetailBody({ project, onOpenRh }: ManagerProjectDe
         return staleRuns.length ? Math.max(...staleRuns) : null;
     }, [traces]);
 
-    const recommendation = viability?.explanation ?? project.recommendations[0]?.description ?? "—";
+    const recommendationRaw = viability?.explanation ?? project.recommendations[0]?.description ?? "";
+    const recommendation = formatUserFacingExplanation(recommendationRaw, {
+        score: viability?.viability_score ?? null,
+        decision: viability?.decision ?? null,
+    });
     const budget = budgetBadge(viability?.score_budget);
     const charge = chargeBadge(analysis?.capacity_load_pct);
     const riskScore = project.risk_score?.fragility_score ?? null;

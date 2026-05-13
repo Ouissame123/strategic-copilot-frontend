@@ -2,6 +2,7 @@ import { HelpCircle } from "@untitledui/icons";
 import { useLocation } from "react-router";
 import { CopilotTriggerButton } from "@/components/copilot/copilot-trigger-button";
 import { ThemeToggle } from "@/components/app/theme";
+import { Avatar } from "@/components/base/avatar/avatar";
 import { useAuth } from "@/providers/auth-provider";
 
 const TITLES: Record<string, string> = {
@@ -25,6 +26,7 @@ export function TalentTopbar() {
         .slice(0, 2)
         .map((chunk) => chunk[0]?.toUpperCase() ?? "")
         .join("");
+    const avatarSrc = user?.avatarUrl?.trim() || undefined;
 
     return (
         <header className="flex h-14 items-center gap-2 border-b border-black/10 bg-white px-4 md:px-7">
@@ -37,7 +39,14 @@ export function TalentTopbar() {
                 </button>
                 <CopilotTriggerButton />
                 <ThemeToggle />
-                <div className="flex size-8 items-center justify-center rounded-full bg-[#7c6ef5] text-xs font-semibold text-white">{initials || "T"}</div>
+                <Avatar
+                    key={avatarSrc ?? "no-avatar"}
+                    size="sm"
+                    className="ring-2 ring-[#7c6ef5]/30"
+                    src={avatarSrc}
+                    initials={initials || "T"}
+                    alt={user?.fullName || "Compte"}
+                />
             </div>
         </header>
     );

@@ -171,6 +171,9 @@ export function resolveBreadcrumbs(pathname: string, t: Translate, options?: Bre
     if (matchPath({ path: "/workspace/manager/risks", end: true }, pathname)) {
         return [hub(), { label: t("nav:managerNavRisks") }];
     }
+    if (matchPath({ path: "/workspace/manager/talent-requests", end: true }, pathname)) {
+        return [hub(), { label: t("nav:managerNavTalentRequests") }];
+    }
     if (matchPath({ path: "/workspace/manager/rh-requests", end: true }, pathname)) {
         return [hub(), { label: t("nav:managerNavRhRequests") }];
     }

@@ -5,6 +5,7 @@
 import type { ApiClientOptions } from "@/utils/apiClient";
 import { ApiError, apiGet, apiPost, getApiAuthToken } from "@/utils/apiClient";
 import { assertUuid } from "@/api/manager-api-contract";
+import { buildN8nUrl, getN8nBaseUrl } from "@/lib/build-n8n-url";
 
 function basePath(): string {
     const fromEnv = (import.meta.env as Record<string, string | undefined>).VITE_RH_ACTIONS_URL?.trim();
@@ -84,12 +85,13 @@ export async function patchRhAction(id: string, body: Record<string, unknown>, o
         return payload;
     };
 
-    const primaryUrl = `${window.location.origin}/webhook/api/rh/actions/${encodeURIComponent(actionId)}`;
+    const primaryUrl = buildN8nUrl(`/webhook/api/rh/actions/${encodeURIComponent(actionId)}`);
     const fallbackUrl = `${window.location.origin}/api/rh/actions/${encodeURIComponent(actionId)}`;
     try {
         return await request(primaryUrl);
     } catch (e) {
         if (!(e instanceof ApiError) || e.status !== 500) throw e;
+        if (getN8nBaseUrl()) throw e;
         return request(fallbackUrl);
     } finally {
         window.clearTimeout(timer);

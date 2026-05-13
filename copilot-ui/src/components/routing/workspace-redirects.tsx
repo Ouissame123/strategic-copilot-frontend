@@ -2,6 +2,7 @@ import { Navigate, useParams } from "react-router";
 import { useAuth } from "@/providers/auth-provider";
 import {
     getDefaultWorkspacePath,
+    managerProjectsOpenModalPath,
     workspaceDecisionLogPath,
     workspaceProfilePath,
     workspaceProjectDetailPath,
@@ -36,4 +37,11 @@ export function LegacyDecisionLogRedirect() {
 export function LegacyProfileRedirect() {
     const { user } = useAuth();
     return <Navigate to={workspaceProfilePath(user?.role)} replace />;
+}
+
+/** Compatibilité : `/workspace/manager/projects/:projectId` → liste + `openProjectId` (modal Mission Control). */
+export function ManagerWorkspaceProjectDetailRedirect() {
+    const { projectId } = useParams();
+    if (!projectId?.trim()) return <Navigate to="/workspace/manager/projects" replace />;
+    return <Navigate to={managerProjectsOpenModalPath(projectId)} replace />;
 }

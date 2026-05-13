@@ -11,7 +11,8 @@ export function AppLayoutHeaderActions() {
     const { pathname } = useLocation();
     const paths = useWorkspacePaths();
     const isManagerPortfolio = pathname === "/workspace/manager/portfolio";
-    const isProjectsList = pathname === paths.projects || isManagerPortfolio || pathname === "/projects";
+    const isManagerProjectsPage = pathname === "/workspace/manager/projects";
+    const isProjectsList = (pathname === paths.projects || isManagerPortfolio || pathname === "/projects") && !isManagerProjectsPage;
     const newProjectBase = isManagerPortfolio ? "/workspace/manager/portfolio" : paths.projects;
 
     return (

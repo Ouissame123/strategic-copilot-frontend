@@ -9,6 +9,7 @@ import { useProjects } from "@/hooks/crud/projects";
 import { useTalents } from "@/hooks/crud/talents";
 import { useRhReallocationSimulateMutation, useRhReallocationValidateMutation } from "@/hooks/use-rh-workspace-queries";
 import { unwrapDataPayload } from "@/utils/unwrap-api-payload";
+import { formatUserFacingExplanation } from "@/lib/business-explanation";
 import { pickCell } from "@/utils/rh-api-parse";
 
 function readPct(v: unknown): number | null {
@@ -69,6 +70,8 @@ export default function RhMobilityPage() {
     const viaAfter = pickCell(preview, ["project_a_viability_after", "viability_source_after"]);
     const vibBefore = pickCell(preview, ["project_b_viability_before", "viability_dest_before"]);
     const vibAfter = pickCell(preview, ["project_b_viability_after", "viability_dest_after"]);
+    const previewMobilityRaw = preview ? pickCell(preview, ["explanation", "message", "detail"]) : "";
+    const previewMobilityNote = previewMobilityRaw === "—" ? "" : previewMobilityRaw;
 
     const overload =
         workloadAfter != null && workloadAfter > 85
@@ -288,7 +291,9 @@ export default function RhMobilityPage() {
                                 </tbody>
                             </table>
                         </div>
-                        <p className="mt-4 text-sm text-secondary">{pickCell(preview, ["explanation", "message", "detail"])}</p>
+                        <p className="mt-4 text-sm text-secondary">
+                            {formatUserFacingExplanation(previewMobilityNote)}
+                        </p>
                     </div>
                 </div>
             ) : null}

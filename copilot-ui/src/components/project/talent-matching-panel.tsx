@@ -2,6 +2,7 @@ import { useMemo } from "react";
 import type { TalentMatchingRecommendedAction, TalentMatchingResult } from "@/types/talent-matching";
 import { Table, TableCard } from "@/components/application/table/table";
 import { Badge } from "@/components/base/badges/badges";
+import { formatUserFacingExplanation } from "@/lib/business-explanation";
 import { cx } from "@/utils/cx";
 
 type ActionRow = TalentMatchingRecommendedAction & { id: string };
@@ -138,27 +139,21 @@ export function TalentMatchingPanel({ data, error, className, variant = "project
                             </>
                         ) : null}
                         {isProject ? (
-                            <span className={data.meta?.computed_at != null ? "mt-1 block" : "block"}>
-                                Source analyse : WF_Talent_Matching
-                            </span>
+                            <span className={data.meta?.computed_at != null ? "mt-1 block" : "block"}>Dernière analyse disponible.</span>
                         ) : null}
                     </p>
                 )}
-
-                {data.raw != null ? (
-                    <details className="mt-4 rounded-lg border border-dashed border-secondary/80 bg-primary_alt/20 p-3">
-                        <summary className="cursor-pointer text-xs font-medium text-secondary">JSON brut (WF_Talent_Matching)</summary>
-                        <pre className="mt-2 max-h-64 overflow-auto font-mono text-xs text-tertiary">
-                            {JSON.stringify(data.raw, null, 2)}
-                        </pre>
-                    </details>
-                ) : null}
             </div>
 
             {data.explanation ? (
                 <div className="rounded-xl border border-secondary bg-primary p-5 shadow-xs md:p-6">
                     <h3 className="text-sm font-semibold text-primary">Synthèse</h3>
-                    <p className="mt-2 text-sm leading-relaxed text-tertiary">{data.explanation}</p>
+                    <p className="mt-2 text-sm leading-relaxed text-tertiary">
+                        {formatUserFacingExplanation(data.explanation, {
+                            score: data.scores?.overall ?? data.kpi?.overall_score ?? null,
+                            decision: null,
+                        })}
+                    </p>
                 </div>
             ) : null}
 

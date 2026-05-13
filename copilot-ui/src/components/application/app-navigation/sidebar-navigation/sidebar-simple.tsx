@@ -1,10 +1,7 @@
 import type { ReactNode } from "react";
 import { useState } from "react";
-import { LogOut01, SearchLg } from "@untitledui/icons";
-import { useTranslation } from "react-i18next";
+import { LogOut01 } from "@untitledui/icons";
 import { useNavigate } from "react-router";
-import { Input } from "@/components/base/input/input";
-import { Button } from "@/components/base/buttons/button";
 import { ProjectLogo } from "@/components/foundations/logo/project-logo";
 import { useAuth } from "@/providers/auth-provider";
 import { cx } from "@/utils/cx";
@@ -22,8 +19,8 @@ interface SidebarNavigationProps {
     footerItems?: NavItemType[];
     /** Feature card to display. */
     featureCard?: ReactNode;
-    /** Whether to show the account card. */
-    showAccountCard?: boolean;
+    /** Affiche le bouton « Déconnexion » en bas (desktop et drawer mobile). */
+    showSidebarLogout?: boolean;
     /** Whether to hide the right side border. */
     hideBorder?: boolean;
     /** Additional CSS classes to apply to the sidebar. */
@@ -35,11 +32,10 @@ export const SidebarNavigationSimple = ({
     items,
     footerItems = [],
     featureCard,
-    showAccountCard = true,
+    showSidebarLogout = true,
     hideBorder = false,
     className,
 }: SidebarNavigationProps) => {
-    const { t } = useTranslation("common");
     const navigate = useNavigate();
     const { logout } = useAuth();
     const [isLoggingOut, setIsLoggingOut] = useState(false);
@@ -53,21 +49,22 @@ export const SidebarNavigationSimple = ({
                 } as React.CSSProperties
             }
             className={cx(
-                "flex h-full w-full max-w-full flex-col justify-between overflow-auto bg-secondary pt-4 lg:w-(--width) lg:pt-6",
+                "flex h-full min-h-0 w-full max-w-full flex-col overflow-hidden bg-secondary pt-4 lg:w-(--width) lg:pt-6",
                 !hideBorder && "border-secondary md:border-r",
                 className,
             )}
         >
-            <div className="flex flex-col gap-5 px-4 lg:px-5">
+            <div className="shrink-0 px-4 lg:px-5">
                 <ProjectLogo className="h-8" />
-                <Input shortcut size="sm" aria-label={t("search")} placeholder={t("search")} icon={SearchLg} />
             </div>
 
-            <NavList activeUrl={activeUrl} items={items} />
+            <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
+                <NavList activeUrl={activeUrl} items={items} />
+            </div>
 
-            <div className="mt-auto flex flex-col gap-4 px-2 py-4 lg:px-4 lg:py-6">
-                {footerItems.length > 0 && (
-                    <ul className="flex flex-col">
+            <div className="shrink-0 border-t border-secondary/80 bg-secondary px-2 py-3 lg:px-4 lg:py-4">
+                {footerItems.length > 0 ? (
+                    <ul className="mb-3 flex flex-col">
                         {footerItems.map((item) => (
                             <li key={item.label} className="py-0.5">
                                 <NavItemBase badge={item.badge} icon={item.icon} href={item.href} type="link" current={item.href === activeUrl}>
@@ -76,27 +73,29 @@ export const SidebarNavigationSimple = ({
                             </li>
                         ))}
                     </ul>
-                )}
+                ) : null}
 
-                {featureCard}
+                {featureCard ? <div className={footerItems.length > 0 ? "mb-3" : ""}>{featureCard}</div> : null}
 
-                {showAccountCard ? (
-                    <Button
-                        color="tertiary"
-                        size="sm"
-                        iconLeading={LogOut01}
+                {showSidebarLogout ? (
+                    <button
+                        type="button"
+                        disabled={isLoggingOut}
                         className={cx(
-                            "w-full justify-start transition hover:bg-[#ef4444]/10 hover:text-[#ef4444] active:bg-[#ef4444]/10 active:text-[#ef4444]",
-                            isLoggingOut && "bg-[#ef4444]/10 text-[#ef4444] ring-1 ring-[#ef4444]/25 hover:bg-[#ef4444]/10 hover:text-[#ef4444]",
+                            "group relative flex w-full cursor-pointer items-center rounded-md border border-transparent px-3 py-2.5 outline-focus-ring transition duration-100 ease-linear select-none hover:bg-primary_hover focus-visible:z-10 focus-visible:outline-2 focus-visible:outline-offset-2 disabled:cursor-not-allowed disabled:opacity-60",
+                            "hover:text-[#ef4444] focus-visible:text-[#ef4444]",
+                            isLoggingOut && "bg-[#ef4444]/10 text-[#ef4444] ring-1 ring-[#ef4444]/25",
                         )}
-                        onMouseDown={() => setIsLoggingOut(true)}
                         onClick={() => {
                             setIsLoggingOut(true);
                             void logout().finally(() => navigate("/login", { replace: true }));
                         }}
                     >
-                        Déconnecter
-                    </Button>
+                        <LogOut01 aria-hidden className="mr-2 size-5 shrink-0 text-fg-quaternary transition-inherit-all group-hover:text-[#ef4444]" />
+                        <span className="flex-1 truncate text-left text-md font-semibold text-secondary transition-inherit-all group-hover:text-[#ef4444]">
+                            Déconnexion
+                        </span>
+                    </button>
                 ) : null}
             </div>
         </aside>

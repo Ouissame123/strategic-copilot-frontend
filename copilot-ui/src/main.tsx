@@ -11,6 +11,7 @@ import {
     LegacyProfileRedirect,
     LegacyProjectDetailRedirect,
     LegacyProjectsListRedirect,
+    ManagerWorkspaceProjectDetailRedirect,
     RootWorkspaceRedirect,
 } from "@/components/routing/workspace-redirects";
 import { NotFound } from "@/pages/not-found";
@@ -24,6 +25,7 @@ import PendingApprovalPage from "@/pages/pending-approval-page";
 import { AuthProvider } from "@/providers/auth-provider";
 import { QueryClientProviderWrapper } from "@/providers/query-client-provider";
 import { ToastProvider } from "@/providers/toast-provider";
+import { HttpErrorToaster } from "@/providers/http-error-toaster";
 import { CrossRoleQuerySync } from "@/providers/cross-role-query-sync";
 import { AuthRouteSync } from "@/components/auth/auth-route-sync";
 import { CopilotPanel } from "@/components/copilot/copilot-panel";
@@ -37,14 +39,21 @@ import RhEmployeesPage from "@/pages/workspace/rh/rh-employees-page";
 import RhSkillsCatalogPage from "@/pages/workspace/rh/rh-skills-catalog-page";
 import RhCriticalGapsPage from "@/pages/workspace/rh/rh-critical-gaps-page";
 import RhTrainingPlansPage from "@/pages/workspace/rh/rh-training-plans-page";
-import RhManagerRequestsPage from "@/pages/workspace/rh/rh-manager-requests-page";
 import RhMobilityPage from "@/pages/workspace/rh/rh-mobility-page";
 import RhOrgAlertsPage from "@/pages/workspace/rh/rh-org-alerts-page";
-import { ManagerProjectsWorkspacePage } from "@/pages/workspace/manager-workspace-pages";
-import { ManagerDashboardPage } from "@/pages/workspace/manager/manager-dashboard-page";
-import { ManagerTeamPage } from "@/pages/workspace/manager/manager-team-page";
-import { ManagerRisksPage } from "@/pages/workspace/manager/manager-risks-page";
-import { ManagerReportsPage } from "@/pages/workspace/manager/manager-reports-page";
+import DashboardPage from "@/pages/manager/DashboardPage";
+import ProjectsPageManager from "@/pages/manager/ProjectsPage";
+import TeamPage from "@/pages/manager/TeamPage";
+import TalentRequestsPage from "@/pages/manager/TalentRequestsPage";
+import TalentDetailPage from "@/pages/manager/TalentDetailPage";
+import RisksPage from "@/pages/manager/RisksPage";
+import ReportsPage from "@/pages/manager/ReportsPage";
+import ManagerDecisionLogPage from "@/pages/manager/DecisionLogPage";
+import ManagerProfilePage from "@/pages/manager/ProfilePage";
+import NotificationsPage from "@/pages/manager/NotificationsPage";
+import HelperChatPage from "@/pages/manager/HelperChatPage";
+import ManagerRequestsPage from "@/pages/rh/ManagerRequestsPage";
+import ManagerRhRequestsPage from "@/pages/workspace/manager/manager-rh-requests-page";
 import {
     TalentDashboardPage,
     TalentNotificationsPage,
@@ -65,6 +74,7 @@ createRoot(document.getElementById("root")!).render(
             <AuthProvider>
                 <QueryClientProviderWrapper>
                     <ToastProvider>
+                        <HttpErrorToaster />
                         <BrowserRouter>
                             <AuthRouteSync />
                             <CrossRoleQuerySync />
@@ -94,6 +104,15 @@ createRoot(document.getElementById("root")!).render(
                                     <Route path="/" element={<ProtectedRoute><RootWorkspaceRedirect /></ProtectedRoute>} />
 
                                     <Route
+                                        path="/workspace/rh/manager-requests"
+                                        element={
+                                            <ProtectedRoute roles={["manager", "rh"]}>
+                                                <ManagerRequestsPage />
+                                            </ProtectedRoute>
+                                        }
+                                    />
+
+                                    <Route
                                         path="/workspace/rh"
                                         element={
                                             <ProtectedRoute roles={["rh"]}>
@@ -107,7 +126,7 @@ createRoot(document.getElementById("root")!).render(
                                         <Route path="skills-catalog" element={<RhSkillsCatalogPage />} />
                                         <Route path="critical-gaps" element={<RhCriticalGapsPage />} />
                                         <Route path="training-plans" element={<RhTrainingPlansPage />} />
-                                        <Route path="manager-requests" element={<RhManagerRequestsPage />} />
+                                        <Route path="manager-requests" element={<ManagerRequestsPage />} />
                                         <Route path="mobility" element={<RhMobilityPage />} />
                                         <Route path="org-alerts" element={<RhOrgAlertsPage />} />
                                         <Route path="projects" element={<ProjectsPage />} />
@@ -124,23 +143,28 @@ createRoot(document.getElementById("root")!).render(
                                     <Route
                                         path="/workspace/manager"
                                         element={
-                                            <ProtectedRoute roles={["manager"]}>
+                                            <ProtectedRoute roles={["manager", "rh"]}>
                                                 <ManagerWorkspaceLayout />
                                             </ProtectedRoute>
                                         }
                                     >
                                         <Route index element={<Navigate to="dashboard" replace />} />
-                                        <Route path="dashboard" element={<ManagerDashboardPage />} />
-                                        <Route path="projects" element={<ManagerProjectsWorkspacePage />} />
+                                        <Route path="dashboard" element={<DashboardPage />} />
+                                        <Route path="projects" element={<ProjectsPageManager />} />
                                         <Route path="project" element={<Navigate to="/workspace/manager/projects" replace />} />
-                                        <Route path="projects/:projectId" element={<ProjectDetailsPage />} />
-                                        <Route path="team" element={<ManagerTeamPage />} />
-                                        <Route path="risks" element={<ManagerRisksPage />} />
+                                        <Route path="projects/:projectId" element={<ManagerWorkspaceProjectDetailRedirect />} />
+                                        <Route path="team" element={<TeamPage />} />
+                                        <Route path="team/:talentId" element={<TalentDetailPage />} />
+                                        <Route path="talent-requests" element={<TalentRequestsPage />} />
+                                        <Route path="rh-requests" element={<ManagerRhRequestsPage />} />
+                                        <Route path="risks" element={<RisksPage />} />
                                         <Route path="recommendations" element={<Navigate to="/workspace/manager/dashboard" replace />} />
                                         <Route path="what-if" element={<Navigate to="/workspace/manager/projects" replace />} />
-                                        <Route path="reports" element={<ManagerReportsPage />} />
-                                        <Route path="decision-log" element={<DecisionLogPage />} />
-                                        <Route path="profile" element={<ProfilePage />} />
+                                        <Route path="reports" element={<ReportsPage />} />
+                                        <Route path="decision-log" element={<ManagerDecisionLogPage />} />
+                                        <Route path="notifications" element={<NotificationsPage />} />
+                                        <Route path="helper" element={<HelperChatPage />} />
+                                        <Route path="profile" element={<ManagerProfilePage />} />
                                         <Route path="portfolio" element={<Navigate to="/workspace/manager/projects" replace />} />
                                         <Route path="monitoring" element={<Navigate to="/workspace/manager/team" replace />} />
                                     </Route>

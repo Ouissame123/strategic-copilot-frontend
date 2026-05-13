@@ -30,6 +30,13 @@ export function ProtectedRoute({ children, roles = [], permissions = [] }: Prote
         return <Navigate to={getDefaultWorkspacePath(user?.role)} replace />;
     }
 
+    if (location.pathname.startsWith("/workspace/manager") && user?.role === "talent") {
+        return <Navigate to={getDefaultWorkspacePath(user?.role)} replace />;
+    }
+
+    // Ne plus forcer la redirection immédiate vers le profil :
+    // l'utilisateur peut accéder d'abord à son dashboard.
+
     if (permissions.length > 0 && !hasPermission(...permissions)) {
         return <Navigate to={getDefaultWorkspacePath(user?.role)} replace />;
     }

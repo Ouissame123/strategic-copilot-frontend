@@ -2,6 +2,8 @@
  * Client HTTP central : Bearer automatique, refresh sur 401, retry une fois.
  */
 import { backendApi } from "@/config/backend-api";
+import { applyRefreshedAuthTokens } from "@/lib/apply-refreshed-auth-tokens";
+import { authStorage } from "@/lib/auth-storage";
 import { getStoredRefreshToken, setStoredRefreshToken } from "@/utils/session-tokens";
 import { getApiAuthToken, getHttpTimeoutMs, setApiAuthToken } from "@/utils/apiClient";
 import { ApiError } from "@/api/errors";
@@ -43,7 +45,7 @@ async function parseResponse<T>(response: Response): Promise<T> {
 }
 
 async function callRefresh(): Promise<boolean> {
-    const rt = getStoredRefreshToken();
+    const rt = getStoredRefreshToken()?.trim() || authStorage.getRefreshToken()?.trim();
     if (!rt) return false;
     try {
         const controller = new AbortController();
@@ -58,22 +60,7 @@ async function callRefresh(): Promise<boolean> {
         clearTimeout(timeoutId);
         if (!res.ok) return false;
         const data = (await parseResponse<Record<string, unknown>>(res)) ?? {};
-        const access =
-            typeof data.accessToken === "string"
-                ? data.accessToken
-                : typeof data.access_token === "string"
-                  ? data.access_token
-                  : null;
-        const nextRt =
-            typeof data.refreshToken === "string"
-                ? data.refreshToken
-                : typeof data.refresh_token === "string"
-                  ? data.refresh_token
-                  : null;
-        if (!access?.trim()) return false;
-        setApiAuthToken(access.trim());
-        if (nextRt?.trim()) setStoredRefreshToken(nextRt.trim());
-        return true;
+        return applyRefreshedAuthTokens(data) != null;
     } catch {
         return false;
     }
@@ -92,7 +79,7 @@ function buildHeaders(skipAuth: boolean, hasJsonBody: boolean): Record<string, s
     const headers: Record<string, string> = { Accept: "application/json" };
     if (hasJsonBody) headers["Content-Type"] = "application/json";
     if (!skipAuth) {
-        const t = getApiAuthToken();
+        const t = getApiAuthToken()?.trim() || authStorage.getAccessToken()?.trim() || null;
         if (t) headers.Authorization = `Bearer ${t}`;
     }
     return headers;

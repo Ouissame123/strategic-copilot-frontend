@@ -13,6 +13,7 @@ import { useWorkspacePaths } from "@/hooks/use-workspace-paths";
 import { useAuth } from "@/providers/auth-provider";
 import { DECISION_LOG_PREVIEW_ENTRIES } from "@/constants/decision-log-preview-data";
 import { NativeSelect } from "@/components/base/select/select-native";
+import { formatUserFacingExplanation } from "@/lib/business-explanation";
 import { cx } from "@/utils/cx";
 
 type DecisionTab = "all" | DecisionType;
@@ -41,7 +42,7 @@ function downloadCsv(filename: string, rows: DecisionLogEntry[]) {
                 esc(e.confidence != null ? String(e.confidence) : ""),
                 esc(e.health_score != null ? String(e.health_score) : ""),
                 esc(e.author?.trim() || ""),
-                esc(e.justification || ""),
+                esc(formatUserFacingExplanation(e.justification, { score: e.score, decision: e.decision })),
             ].join(","),
         );
     }
@@ -452,7 +453,12 @@ export function DecisionLogPage() {
                                                     <p className="text-xs font-semibold uppercase tracking-wide text-quaternary">
                                                         {t("decisionLog:ui.fieldExplanation")}
                                                     </p>
-                                                    <p className="mt-1 text-sm text-secondary">{entry.justification?.trim() || "—"}</p>
+                                                    <p className="mt-1 text-sm text-secondary">
+                                                        {formatUserFacingExplanation(entry.justification, {
+                                                            score: entry.score,
+                                                            decision: entry.decision,
+                                                        })}
+                                                    </p>
                                                 </div>
                                                 <div className="mt-4 flex flex-wrap gap-2">
                                                     {href ? (
