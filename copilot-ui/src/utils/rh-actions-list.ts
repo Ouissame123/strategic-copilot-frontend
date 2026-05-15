@@ -1,15 +1,40 @@
-import { asRecord } from "@/utils/unwrap-api-payload";
+import { asRecord, unwrapDataPayload } from "@/utils/unwrap-api-payload";
 
-/** Liste brute renvoyée par GET `/api/rh/actions` (forme variable). */
-export function rowsFromRhActionsPayload(raw: unknown): Array<Record<string, unknown> & { id: string }> {
+/** Extrait le tableau d’items depuis les réponses n8n (liste manager, formes variables). */
+function extractItemsArray(raw: unknown): unknown[] {
+    if (raw == null) return [];
+    if (Array.isArray(raw)) return raw;
+
     const r = asRecord(raw);
-    const items = r.items ?? r.data ?? r.actions ?? r.rows;
-    if (!Array.isArray(items)) return [];
+    let items: unknown = r.items ?? r.actions ?? r.rows ?? r.records ?? r.results;
+    if (Array.isArray(items)) return items;
+
+    const inner = unwrapDataPayload(raw);
+    const ir = asRecord(inner);
+    items = ir.items ?? ir.actions ?? ir.rows ?? ir.records ?? ir.results;
+    if (Array.isArray(items)) return items;
+
+    if (Array.isArray(r.data)) return r.data;
+
+    const dataField = r.data;
+    if (dataField && typeof dataField === "object" && !Array.isArray(dataField)) {
+        const d = asRecord(dataField);
+        const nested = d.items ?? d.actions ?? d.rows;
+        if (Array.isArray(nested)) return nested;
+    }
+
+    return [];
+}
+
+/** Liste brute renvoyée par GET actions RH (forme variable, ex. `WF_Manager_RH_Actions` → `items`). */
+export function rowsFromRhActionsPayload(raw: unknown): Array<Record<string, unknown> & { id: string }> {
+    const items = extractItemsArray(raw);
     return items.map((x, i) => {
         const row = asRecord(x);
+        const type = row.type ?? row.request_type;
         return {
             ...row,
-            // ID d'action RH uniquement (éviter tout fallback ambigu type project_id/uuid générique).
+            type,
             id: String(row.id ?? row.action_id ?? row.rh_action_id ?? row.request_id ?? ""),
             _row_index: i,
         };

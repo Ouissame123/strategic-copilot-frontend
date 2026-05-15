@@ -2,8 +2,8 @@ import { useMemo } from "react";
 import { isAxiosError } from "axios";
 import { useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate, useParams } from "react-router";
-import { PageHero } from "@/components/layout/PageHero";
 import { WorkspacePageShell } from "@/components/workspace/workspace-page-shell";
+import { useWorkspaceTopbarMeta } from "@/layouts/workspace-topbar-meta";
 import { useRiskAlertAction } from "@/hooks/useNotifications";
 import { useTalentDetail, useWatchdogScan } from "@/hooks/useTeam";
 import { useToast } from "@/providers/toast-provider";
@@ -96,33 +96,27 @@ export default function TalentDetailPage() {
         );
     };
 
+    useWorkspaceTopbarMeta(talentName, heroSubtitle);
+
     return (
         <WorkspacePageShell role="manager" eyebrow="Manager" title={talentName} description={false} omitHeader>
-            <PageHero
-                eyebrow="Mon équipe"
-                title={talentName}
-                subtitle={heroSubtitle}
-                badge="Manager"
-                actions={
-                    <div className="flex flex-wrap gap-2">
-                        <button
-                            type="button"
-                            className="rounded-lg border border-secondary bg-primary_alt px-3 py-2 text-xs font-semibold text-secondary hover:bg-secondary_subtle"
-                            onClick={() => navigate("/workspace/manager/team")}
-                        >
-                            ← Retour équipe
-                        </button>
-                        <button
-                            type="button"
-                            className="rounded-lg border border-secondary bg-primary_alt px-3 py-2 text-xs font-semibold text-secondary hover:bg-secondary_subtle disabled:opacity-60"
-                            disabled={watchdogScan.isPending}
-                            onClick={onScan}
-                        >
-                            {watchdogScan.isPending ? "Scan…" : "Watchdog"}
-                        </button>
-                    </div>
-                }
-            />
+            <div className="flex flex-wrap gap-2">
+                <button
+                    type="button"
+                    className="rounded-lg border border-secondary bg-primary_alt px-3 py-2 text-xs font-semibold text-secondary hover:bg-secondary_subtle"
+                    onClick={() => navigate("/workspace/manager/team")}
+                >
+                    ← Retour équipe
+                </button>
+                <button
+                    type="button"
+                    className="rounded-lg border border-secondary bg-primary_alt px-3 py-2 text-xs font-semibold text-secondary hover:bg-secondary_subtle disabled:opacity-60"
+                    disabled={watchdogScan.isPending}
+                    onClick={onScan}
+                >
+                    {watchdogScan.isPending ? "Scan…" : "Watchdog"}
+                </button>
+            </div>
             {detail.isLoading ? <p className="p-6">Chargement du profil talent…</p> : null}
             {detail.isError ? (
                 <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800 dark:border-red-900/50 dark:bg-red-950/30 dark:text-red-100">

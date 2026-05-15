@@ -84,6 +84,73 @@ export interface RhActionItem {
 }
 export interface CopilotDecisionItem { id: string; scope: string; decision: DecisionLabel; reason: string; score: number; confidence: number; project_name?: string; created_at: string }
 
+/** Données optionnelles renvoyées par GET /manager/dashboard — agent Matchmaker. */
+export interface DashboardMatchmakerStats {
+    projects_with_matching?: number;
+    avg_match_score?: number;
+    total_gaps?: number;
+    recruitment_needed?: number;
+    training_needed?: number;
+    redeploy_possible?: number;
+}
+
+export interface DashboardMatchmaker {
+    stats?: DashboardMatchmakerStats;
+    top_recommendations?: unknown[];
+    top_unassigned_matches?: unknown[];
+    top_skill_gaps?: unknown[];
+}
+
+/** Données optionnelles renvoyées par GET manager/dashboard — agent Analyst. */
+export interface DashboardAnalystStats {
+    team_size?: number;
+    ipi_avg?: number;
+    stable_count?: number;
+    at_risk_count?: number;
+    stars_count?: number;
+    critical_box_count?: number;
+}
+
+export interface DashboardAnalystIpiTopPerformer {
+    talent_name?: string;
+    ipi_score?: number;
+    band?: string;
+}
+
+export interface DashboardAnalystAtRiskTalent {
+    talent_name?: string;
+    mobility_flag?: string;
+    mobility_score?: number;
+    /** Facteurs de risque / leviers (optionnel, selon workflow backend). */
+    mobility_drivers?: string[];
+    drivers?: string[];
+    risk_drivers?: string[];
+}
+
+/** Cellule renvoyée par certains workflows pour `nine_box_matrix`. */
+export interface DashboardAnalystNineBoxMatrixCell {
+    count?: number;
+    label?: string;
+    key?: string;
+    box_key?: string;
+}
+
+/** Ligne de distribution 9-box renvoyée par le dashboard (tableau ou agrégat clé/valeur). */
+export interface DashboardAnalystNineBoxDistributionRow {
+    box_label?: string;
+    boxLabel?: string;
+    count?: number;
+}
+
+export interface DashboardAnalyst {
+    stats?: DashboardAnalystStats;
+    ipi_top_performers?: DashboardAnalystIpiTopPerformer[];
+    at_risk_talents?: DashboardAnalystAtRiskTalent[];
+    nine_box_distribution?: Record<string, number> | DashboardAnalystNineBoxDistributionRow[] | unknown;
+    /** Détail par case (talents par `box_label`, etc.) — utilisé côté UI au clic sur la matrice. */
+    nine_box_matrix?: unknown;
+}
+
 export interface DashboardResponse {
     status: "success";
     headline: string;
@@ -104,6 +171,10 @@ export interface DashboardResponse {
         pending_rh_actions: RhActionItem[];
         recent_decisions: CopilotDecisionItem[];
     };
+    matchmaker?: DashboardMatchmaker;
+    analyst?: DashboardAnalyst;
+    /** Données optionnelles — agent Helper (structure côté UI : `HelperData`). */
+    helper?: unknown;
     meta?: {
         computed_at?: string;
         [key: string]: unknown;
@@ -137,6 +208,13 @@ export interface ManagerProjectsListResponse {
 }
 export interface CreateProjectRequest { name: string; status: ProjectStatus; priority: number; milestone_at?: string; start_date?: string; budget_rh_planned?: number; description?: string }
 export interface UpdateProjectRequest extends Partial<CreateProjectRequest> {}
+
+/** Corps PATCH strict `wmp-update-v1` — uniquement ces trois champs (JSON). */
+export interface WmpUpdateProjectPatchBody {
+    status: ProjectStatus;
+    priority: number;
+    milestone_at: string | null;
+}
 export interface ProjectCreatedResponse { project: ProjectListItem }
 export interface ProjectUpdatedResponse { project: ProjectListItem }
 export interface AssignmentItem {
@@ -202,13 +280,16 @@ export interface ManagerProjectDetailResponse extends ProjectDetailResponse {
     operation: "get_detail";
     enterprise_id?: string;
 }
+export type WmpAssignmentType = "full_time" | "part_time" | "backup" | "temporary";
+
+/** Corps POST strict n8n `wmp-assign-v1` (champs null explicites si vides). */
 export interface AssignTalentRequest {
     talent_id: string;
     allocation_pct: number;
-    start_date?: string;
-    end_date?: string;
-    role_on_project?: string;
-    assignment_type?: "full_time" | "part_time" | "backup" | "temporary";
+    start_date: string | null;
+    end_date: string | null;
+    role_on_project: string | null;
+    assignment_type: WmpAssignmentType;
 }
 export interface AssignmentResponse { assignment: AssignmentItem }
 export interface UnassignmentResponse { success: boolean }

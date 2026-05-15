@@ -9,7 +9,10 @@ export function useRhActionsListQuery() {
     const token = getApiAuthToken();
     return useQuery({
         queryKey: [...queryKeys.rh.actions(), user?.id ?? "session"],
-        queryFn: ({ signal }) => fetchRhActionsList({ limit: 500 }, { signal }),
+        queryFn: async ({ signal }) => {
+            const raw = await fetchRhActionsList({ limit: 500 }, { signal });
+            return raw;
+        },
         enabled: Boolean(token),
     });
 }

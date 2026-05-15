@@ -1,7 +1,8 @@
 import { useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router";
-import { PageHero } from "@/components/layout/PageHero";
+import { useTranslation } from "react-i18next";
 import { WorkspacePageShell } from "@/components/workspace/workspace-page-shell";
+import { useWorkspaceTopbarMeta } from "@/layouts/workspace-topbar-meta";
 import { Dropdown } from "@/components/base/dropdown/dropdown";
 import { Eye } from "@untitledui/icons";
 import { useTeam, useWatchdogScan } from "@/hooks/useTeam";
@@ -215,6 +216,7 @@ function SortableTh({
 }
 
 export default function TeamPage() {
+    const { t } = useTranslation("common");
     const navigate = useNavigate();
     const [searchParams, setSearchParams] = useSearchParams();
     const [search, setSearch] = useState("");
@@ -314,14 +316,16 @@ export default function TeamPage() {
     const activeSort = sort.key;
     const activeDir = sort.dir;
 
+    useWorkspaceTopbarMeta(t("managerWorkspace.teamPageHero.title"), t("managerWorkspace.teamPageHero.subtitle"));
+
     return (
-        <WorkspacePageShell role="manager" eyebrow="Manager" title="Mon équipe" description={false} omitHeader>
-            <PageHero
-                eyebrow="Talent Intelligence"
-                title="Mon équipe"
-                subtitle="Vue consolidée des talents managés, charges, contrats et alertes."
-                badge="Manager"
-            />
+        <WorkspacePageShell
+            role="manager"
+            eyebrow={t("workspaceRoles.manager")}
+            title={t("managerWorkspace.teamPageHero.title")}
+            description={false}
+            omitHeader
+        >
             <section className="grid grid-cols-2 gap-3 md:grid-cols-4">
                 <KpiCard label="Total équipe" value={kpis.total} color="blue" />
                 <KpiCard label="Surchargés" value={kpis.overloaded} color="red" />

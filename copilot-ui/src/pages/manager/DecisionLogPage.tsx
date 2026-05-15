@@ -1,8 +1,24 @@
-import { Fragment, useCallback, useMemo, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router";
-import { PageHero } from "@/components/layout/PageHero";
+import { ChevronRight } from "@untitledui/icons";
+import {
+    Bar,
+    BarChart,
+    CartesianGrid,
+    Cell,
+    Line,
+    LineChart,
+    ResponsiveContainer,
+    Tooltip,
+    XAxis,
+    YAxis,
+} from "recharts";
+import i18n from "@/i18n";
+import { localeForDateFormatting } from "@/lib/ui-locale";
+import { Button } from "@/components/base/buttons/button";
 import { WorkspacePageShell } from "@/components/workspace/workspace-page-shell";
+import { useWorkspaceTopbarMeta } from "@/layouts/workspace-topbar-meta";
 import { useDecisions } from "@/hooks/useDecisions";
 import { useProjects } from "@/hooks/useProjects";
 import { formatUserFacingExplanation, stripTechnicalScoringSegments } from "@/lib/business-explanation";
@@ -11,8 +27,18 @@ import { useToast } from "@/providers/toast-provider";
 import { cx } from "@/utils/cx";
 import { managerProjectsOpenModalPath } from "@/utils/workspace-routes";
 
+const MANAGER_RH_REQUESTS_PATH = "/workspace/manager/rh-requests";
+const MANAGER_REPORTS_PATH = "/workspace/manager/reports";
+
 const DECISION_KEYS = ["Continue", "Adjust", "Stop", "Other"] as const;
 type DecisionBucket = (typeof DECISION_KEYS)[number];
+
+const CHART_BUCKET_FILL: Record<DecisionBucket, string> = {
+    Continue: "#059669",
+    Adjust: "#d97706",
+    Stop: "#dc2626",
+    Other: "#7c3aed",
+};
 
 function confidencePercent(c: number | null | undefined): number {
     const n = Number(c ?? 0);
@@ -22,15 +48,11 @@ function confidencePercent(c: number | null | undefined): number {
 }
 
 function normalizeBucket(decision: string): DecisionBucket {
-    if (decision === "Continue" || decision === "Adjust" || decision === "Stop") return decision;
+    const k = String(decision ?? "").trim().toLowerCase();
+    if (k === "continue") return "Continue";
+    if (k === "adjust") return "Adjust";
+    if (k === "stop") return "Stop";
     return "Other";
-}
-
-function dominantLabelFr(bucket: DecisionBucket): string {
-    if (bucket === "Adjust") return "des ajustements";
-    if (bucket === "Stop") return "des décisions Stop";
-    if (bucket === "Continue") return "des décisions de maintien du cap";
-    return "des cas complémentaires ou atypiques";
 }
 
 function scoreDisplay(score: number | null | undefined): string {
@@ -45,7 +67,43 @@ function confidenceBandIndex(pct: number): 0 | 1 | 2 {
     return 2;
 }
 
-const BAND_LABELS = ["Confiance faible", "Confiance moyenne", "Confiance élevée"] as const;
+const DECISION_LOG_KPI_CLASS =
+    "relative flex h-full min-h-[5.75rem] flex-col overflow-hidden rounded-xl border border-secondary bg-primary p-3 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-brand-secondary/30 hover:shadow-md sm:min-h-[6rem]";
+
+function escapeCsvCell(value: string): string {
+    const v = String(value).replace(/"/g, '""');
+    if (/[",\n\r]/.test(v)) return `"${v}"`;
+    return v;
+}
+
+function buildAndDownloadDecisionsCsv(rows: CopilotDecision[]) {
+    const header = ["id", "project_id", "project_name", "decision", "score", "confidence_pct", "created_at", "reason_preview"];
+    const lines = [header.map(escapeCsvCell).join(",")];
+    for (const d of rows) {
+        const reason = stripTechnicalScoringSegments(d.reason ?? "").replace(/\s+/g, " ").trim();
+        const preview = reason.length > 800 ? `${reason.slice(0, 797)}…` : reason;
+        const cells = [
+            String(d.id),
+            d.project_id ?? "",
+            d.project_name ?? "",
+            String(d.decision ?? ""),
+            String(d.score ?? ""),
+            String(confidencePercent(d.confidence)),
+            d.created_at,
+            preview,
+        ];
+        lines.push(cells.map(escapeCsvCell).join(","));
+    }
+    const blob = new Blob([`\uFEFF${lines.join("\n")}`], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `decisions_${new Date().toISOString().slice(0, 10)}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+}
 
 function displayCountForBucket(counts: Record<string, number>, bucketCounts: Record<DecisionBucket, number>, otherCount: number, k: DecisionBucket): number {
     if (k === "Other") return otherCount;
@@ -63,23 +121,12 @@ function timeAgo(iso: string): string {
     return `il y a ${d} j`;
 }
 
-function periodKey(iso: string): "today" | "week" | "month" | "older" {
-    const t = new Date(iso).getTime();
-    if (Number.isNaN(t)) return "older";
-    const now = Date.now();
-    const day = 86_400_000;
-    if (now - t < day) return "today";
-    if (now - t < 7 * day) return "week";
-    if (now - t < 30 * day) return "month";
-    return "older";
+function oneLineSummary(d: CopilotDecision, max = 72): string {
+    const raw = stripTechnicalScoringSegments(d.reason ?? "").replace(/\s+/g, " ").trim();
+    if (!raw) return "—";
+    if (raw.length <= max) return raw;
+    return `${raw.slice(0, Math.max(0, max - 1))}…`;
 }
-
-const PERIOD_ORDER: Array<{ key: "today" | "week" | "month" | "older"; title: string }> = [
-    { key: "today", title: "Aujourd'hui" },
-    { key: "week", title: "Cette semaine" },
-    { key: "month", title: "Ce mois-ci" },
-    { key: "older", title: "Plus anciennes" },
-];
 
 function shortBusinessSummary(d: CopilotDecision): string {
     const raw = stripTechnicalScoringSegments(d.reason ?? "").replace(/\s+/g, " ").trim();
@@ -110,11 +157,11 @@ const MOTIF_LABELS: Record<string, string> = {
 
 function spotlightDecision(list: CopilotDecision[]): CopilotDecision | null {
     if (!list.length) return null;
-    const stops = list.filter((d) => d.decision === "Stop");
+    const stops = list.filter((d) => normalizeBucket(d.decision) === "Stop");
     if (stops.length) {
         return [...stops].sort((a, b) => Number(a.score ?? 0) - Number(b.score ?? 0) || confidencePercent(a.confidence) - confidencePercent(b.confidence))[0];
     }
-    const adjusts = list.filter((d) => d.decision === "Adjust");
+    const adjusts = list.filter((d) => normalizeBucket(d.decision) === "Adjust");
     if (adjusts.length) {
         const lowScore = [...adjusts].sort((a, b) => Number(a.score ?? 0) - Number(b.score ?? 0))[0];
         if (Number(lowScore.score ?? 10) < 6) return lowScore;
@@ -125,9 +172,10 @@ function spotlightDecision(list: CopilotDecision[]): CopilotDecision | null {
 }
 
 function recommendedAction(d: CopilotDecision): string {
-    if (d.decision === "Stop") return "Arbitrage managérial urgent : sécuriser le périmètre et les ressources.";
-    if (d.decision === "Adjust") return "Planifier une revue courte et ajuster jalons ou capacité.";
-    if (d.decision === "Continue") return "Maintenir le pilotage et surveiller les indicateurs clés.";
+    const b = normalizeBucket(d.decision);
+    if (b === "Stop") return "Arbitrage managérial urgent : sécuriser le périmètre et les ressources.";
+    if (b === "Adjust") return "Planifier une revue courte et ajuster jalons ou capacité.";
+    if (b === "Continue") return "Maintenir le pilotage et surveiller les indicateurs clés.";
     return "Consolider le contexte et valider la suite avec l'équipe.";
 }
 
@@ -136,15 +184,15 @@ function decisionBadgeClass(decision: string): string {
     if (b === "Continue") return "border-emerald-300 bg-emerald-50 text-emerald-900 dark:border-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-100";
     if (b === "Adjust") return "border-amber-300 bg-amber-50 text-amber-900 dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-100";
     if (b === "Stop") return "border-red-300 bg-red-50 text-red-900 dark:border-red-800 dark:bg-red-950/40 dark:text-red-100";
-    return "border-secondary bg-secondary_subtle text-secondary";
+    return "border-violet-300 bg-violet-50 text-violet-900 dark:border-violet-600 dark:bg-violet-950/45 dark:text-violet-100";
 }
 
 function heatmapIntensityClass(n: number, max: number): string {
-    if (max <= 0 || n <= 0) return "bg-secondary_subtle/80";
+    if (max <= 0 || n <= 0) return "bg-secondary_subtle text-tertiary";
     const r = n / max;
-    if (r > 0.66) return "bg-red-500/85 text-white";
-    if (r > 0.33) return "bg-amber-500/80 text-amber-950";
-    return "bg-emerald-500/50 text-emerald-950";
+    if (r > 0.66) return "bg-violet-600 text-white shadow-inner dark:bg-violet-500";
+    if (r > 0.33) return "bg-violet-300/90 text-violet-950 dark:bg-violet-400/40 dark:text-violet-50";
+    return "bg-violet-100/90 text-violet-900 dark:bg-violet-950/35 dark:text-violet-100";
 }
 
 export default function ManagerDecisionLogPage() {
@@ -152,6 +200,7 @@ export default function ManagerDecisionLogPage() {
     const { push } = useToast();
     const [filterDecision, setFilterDecision] = useState<string>("all");
     const [filterProject, setFilterProject] = useState<string>("all");
+    const [filterPeriod, setFilterPeriod] = useState<"all" | "7d" | "30d" | "90d">("all");
     const [heatmapFilter, setHeatmapFilter] = useState<{ bucket: DecisionBucket; band: 0 | 1 | 2 } | null>(null);
     const [drawerOpen, setDrawerOpen] = useState(false);
     const [selected, setSelected] = useState<CopilotDecision | null>(null);
@@ -177,19 +226,6 @@ export default function ManagerDecisionLogPage() {
         return m;
     }, [decisions]);
 
-    const dominantBucket = useMemo((): DecisionBucket => {
-        let best: DecisionBucket = "Continue";
-        let max = -1;
-        (DECISION_KEYS as readonly DecisionBucket[]).forEach((k) => {
-            const c = displayCountForBucket(counts, bucketCounts, otherCount, k);
-            if (c > max) {
-                max = c;
-                best = k;
-            }
-        });
-        return best;
-    }, [bucketCounts, counts, otherCount]);
-
     const avgConfidence = useMemo(() => {
         if (!decisions.length) return null;
         const s = decisions.reduce((acc, d) => acc + confidencePercent(d.confidence), 0);
@@ -202,51 +238,43 @@ export default function ManagerDecisionLogPage() {
         return Math.round((s / decisions.length) * 10) / 10;
     }, [decisions]);
 
-    const recentCount = useMemo(() => {
-        const weekAgo = Date.now() - 7 * 86_400_000;
-        return decisions.filter((d) => new Date(d.created_at).getTime() >= weekAgo).length;
-    }, [decisions]);
-
-    const trendPhrase = useMemo(() => {
-        const sorted = [...decisions].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
-        if (sorted.length < 8) return null;
-        const recent = sorted.slice(0, 12);
-        const older = sorted.slice(12, 28);
-        if (older.length < 6) return null;
-        const pressure = (arr: CopilotDecision[]) =>
-            arr.filter((d) => d.decision === "Stop" || d.decision === "Adjust").length / arr.length;
-        const pr = pressure(recent);
-        const po = pressure(older);
-        if (pr > po + 0.12) return "Les arbitrages récents montrent davantage d'ajustements ou de freinages.";
-        if (pr + 0.12 < po) return "Les décisions récentes sont un peu plus favorables qu'auparavant.";
-        return null;
-    }, [decisions]);
-
-    const executiveBrief = useMemo(() => {
-        const total = data?.count ?? decisions.length;
-        if (!total) return "Aucune décision enregistrée pour l'instant. Les synthèses apparaîtront dès que le Copilot aura produit des arbitrages.";
-        const dom = dominantLabelFr(dominantBucket);
-        const conf = avgConfidence != null ? `${avgConfidence}` : "—";
-        const score = avgScore != null ? `${avgScore.toFixed(1)}` : "—";
-        const trend = trendPhrase ? `${trendPhrase} ` : "";
-        return `Le Copilot a enregistré ${total} décision${total > 1 ? "s" : ""}. La majorité relève de ${dom}, avec une confiance moyenne d'environ ${conf} % et un score projet moyen de ${score} sur 10. ${trend}Une revue managériale sur les projets les plus sensibles reste recommandée.`;
-    }, [data?.count, decisions.length, dominantBucket, avgConfidence, avgScore, trendPhrase]);
-
     const spotlight = useMemo(() => spotlightDecision(decisions), [decisions]);
+
+    /** Filtre décision (KPI) et filtre heatmap sont exclusifs : la heatmap définit déjà le bucket, sinon filtre KPI / « Autre ». */
+    const filteredDecisions = useMemo(() => {
+        let list = decisions;
+        if (heatmapFilter) {
+            list = list.filter((d) => {
+                if (normalizeBucket(d.decision) !== heatmapFilter.bucket) return false;
+                return confidenceBandIndex(confidencePercent(d.confidence)) === heatmapFilter.band;
+            });
+        } else if (filterDecision === "other") {
+            list = list.filter((d) => normalizeBucket(d.decision) === "Other");
+        } else if (filterDecision !== "all") {
+            list = list.filter((d) => normalizeBucket(d.decision) === filterDecision);
+        }
+        if (filterProject !== "all") list = list.filter((d) => d.project_id === filterProject);
+        if (filterPeriod !== "all") {
+            const days = filterPeriod === "7d" ? 7 : filterPeriod === "30d" ? 30 : 90;
+            const cut = Date.now() - days * 86_400_000;
+            list = list.filter((d) => new Date(d.created_at).getTime() >= cut);
+        }
+        return list;
+    }, [decisions, filterDecision, filterProject, filterPeriod, heatmapFilter]);
 
     const motifCounts = useMemo(() => {
         const map = new Map<string, number>();
-        for (const d of decisions) {
+        for (const d of filteredDecisions) {
             const m = detectMotif(d.reason ?? "");
             if (!m) continue;
             map.set(m, (map.get(m) ?? 0) + 1);
         }
         return [...map.entries()].sort((a, b) => b[1] - a[1]).slice(0, 6);
-    }, [decisions]);
+    }, [filteredDecisions]);
 
     const projectImpact = useMemo(() => {
         const map = new Map<string, { name: string; count: number }>();
-        for (const d of decisions) {
+        for (const d of filteredDecisions) {
             const id = d.project_id ?? "";
             if (!id) continue;
             const cur = map.get(id) ?? { name: d.project_name ?? "Projet", count: 0 };
@@ -258,27 +286,7 @@ export default function ManagerDecisionLogPage() {
             .map(([id, v]) => ({ id, ...v }))
             .sort((a, b) => b.count - a.count)
             .slice(0, 5);
-    }, [decisions]);
-
-    const confidenceByBucket = useMemo(() => {
-        const sums: Record<DecisionBucket, { sum: number; n: number }> = {
-            Continue: { sum: 0, n: 0 },
-            Adjust: { sum: 0, n: 0 },
-            Stop: { sum: 0, n: 0 },
-            Other: { sum: 0, n: 0 },
-        };
-        for (const d of decisions) {
-            const b = normalizeBucket(d.decision);
-            sums[b].sum += confidencePercent(d.confidence);
-            sums[b].n += 1;
-        }
-        const out: Record<DecisionBucket, number | null> = { Continue: null, Adjust: null, Stop: null, Other: null };
-        (DECISION_KEYS as readonly DecisionBucket[]).forEach((k) => {
-            const { sum, n } = sums[k];
-            if (n) out[k] = Math.round(sum / n);
-        });
-        return out;
-    }, [decisions]);
+    }, [filteredDecisions]);
 
     const heatmapMatrix = useMemo(() => {
         const matrix: number[][] = DECISION_KEYS.map(() => [0, 0, 0]);
@@ -292,31 +300,10 @@ export default function ManagerDecisionLogPage() {
         return { matrix, max };
     }, [decisions]);
 
-    const filteredDecisions = useMemo(() => {
-        let list = decisions;
-        if (filterDecision === "other") {
-            list = list.filter((d) => normalizeBucket(d.decision) === "Other");
-        } else if (filterDecision !== "all") {
-            list = list.filter((d) => d.decision === filterDecision);
-        }
-        if (filterProject !== "all") list = list.filter((d) => d.project_id === filterProject);
-        if (heatmapFilter) {
-            list = list.filter((d) => {
-                if (normalizeBucket(d.decision) !== heatmapFilter.bucket) return false;
-                return confidenceBandIndex(confidencePercent(d.confidence)) === heatmapFilter.band;
-            });
-        }
-        return list;
-    }, [decisions, filterDecision, filterProject, heatmapFilter]);
-
-    const timelineGroups = useMemo(() => {
-        const groups: Record<string, CopilotDecision[]> = { today: [], week: [], month: [], older: [] };
-        const sorted = [...filteredDecisions].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
-        for (const d of sorted) {
-            groups[periodKey(d.created_at)].push(d);
-        }
-        return groups;
-    }, [filteredDecisions]);
+    const tableSortedRows = useMemo(
+        () => [...filteredDecisions].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()),
+        [filteredDecisions],
+    );
 
     const openDrawer = useCallback((d: CopilotDecision) => {
         setSelected(d);
@@ -329,8 +316,18 @@ export default function ManagerDecisionLogPage() {
 
     const clearHeatmap = useCallback(() => setHeatmapFilter(null), []);
 
+    const resetAllFilters = useCallback(() => {
+        setFilterDecision("all");
+        setFilterProject("all");
+        setFilterPeriod("all");
+        setHeatmapFilter(null);
+    }, []);
+
     const onHeatmapCell = useCallback((bucket: DecisionBucket, band: 0 | 1 | 2) => {
-        setHeatmapFilter((prev) => (prev?.bucket === bucket && prev.band === band ? null : { bucket, band }));
+        setHeatmapFilter((prev) => {
+            const togglingOff = prev?.bucket === bucket && prev.band === band;
+            return togglingOff ? null : { bucket, band };
+        });
     }, []);
 
     const bucketLabel = useCallback(
@@ -343,11 +340,68 @@ export default function ManagerDecisionLogPage() {
         [t],
     );
 
-    const adjustStopShare = useMemo(() => {
-        if (!decisions.length) return 0;
-        const n = decisions.filter((d) => d.decision === "Adjust" || d.decision === "Stop").length;
-        return Math.round((n / decisions.length) * 100);
-    }, [decisions]);
+    const heatmapBandFull = useCallback(
+        (band: 0 | 1 | 2) => {
+            if (band === 0) return t("managerWorkspace.decisionLogPage.heatmapBandLow");
+            if (band === 1) return t("managerWorkspace.decisionLogPage.heatmapBandMid");
+            return t("managerWorkspace.decisionLogPage.heatmapBandHigh");
+        },
+        [t],
+    );
+
+    const heatmapBandCol = useCallback(
+        (band: 0 | 1 | 2) => {
+            if (band === 0) return t("managerWorkspace.decisionLogPage.heatmapColLow");
+            if (band === 1) return t("managerWorkspace.decisionLogPage.heatmapColMid");
+            return t("managerWorkspace.decisionLogPage.heatmapColHigh");
+        },
+        [t],
+    );
+
+    const distributionBars = useMemo(() => {
+        const m: Record<DecisionBucket, number> = { Continue: 0, Adjust: 0, Stop: 0, Other: 0 };
+        for (const d of filteredDecisions) {
+            m[normalizeBucket(d.decision)] += 1;
+        }
+        return (DECISION_KEYS as readonly DecisionBucket[]).map((k) => ({
+            key: k,
+            name: bucketLabel(k),
+            value: m[k],
+            fill: CHART_BUCKET_FILL[k],
+        }));
+    }, [bucketLabel, filteredDecisions]);
+
+    const confidenceTrendPoints = useMemo(() => {
+        const sorted = [...filteredDecisions].sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+        const slice = sorted.slice(-28);
+        return slice.map((d, idx) => ({
+            idx: idx + 1,
+            label: new Date(d.created_at).toLocaleDateString(localeForDateFormatting(i18n.language), { month: "short", day: "numeric" }),
+            conf: confidencePercent(d.confidence),
+        }));
+    }, [filteredDecisions]);
+
+    const onExportCsv = useCallback(() => {
+        if (!filteredDecisions.length) return;
+        buildAndDownloadDecisionsCsv(filteredDecisions);
+    }, [filteredDecisions]);
+
+    const filtersDirty = heatmapFilter != null || filterDecision !== "all" || filterProject !== "all" || filterPeriod !== "all";
+
+    const topbarTrailing = useMemo((): ReactNode => {
+        return (
+            <Button type="button" color="secondary" size="sm" onClick={onExportCsv} isDisabled={!filteredDecisions.length}>
+                {t("managerWorkspace.decisionLogPage.exportCsv")}
+            </Button>
+        );
+    }, [filteredDecisions.length, onExportCsv, t]);
+
+    /** Une cellule heatmap définit déjà le bucket : on retire le filtre KPI décision pour éviter 0 résultat. */
+    useEffect(() => {
+        if (heatmapFilter) setFilterDecision("all");
+    }, [heatmapFilter]);
+
+    useWorkspaceTopbarMeta(t("managerWorkspace.decisionLogPage.heroTitle"), t("managerWorkspace.decisionLogPage.heroSubtitle"), topbarTrailing);
 
     return (
         <WorkspacePageShell
@@ -357,54 +411,13 @@ export default function ManagerDecisionLogPage() {
             description={false}
             omitHeader
         >
-            <div className="space-y-6 lg:space-y-8">
-                <PageHero
-                    eyebrow={t("managerWorkspace.decisionLogPage.heroEyebrow")}
-                    title={t("managerWorkspace.decisionLogPage.heroTitle")}
-                    subtitle={t("managerWorkspace.decisionLogPage.heroSubtitle")}
-                    badge={t("workspaceRoles.manager")}
-                />
-
-                <section className="relative overflow-hidden rounded-2xl border border-secondary bg-primary p-5 shadow-sm lg:p-6">
-                    <div className="pointer-events-none absolute -right-16 -top-16 size-48 rounded-full bg-brand-secondary/10 blur-3xl" aria-hidden />
-                    <p className="text-sm leading-relaxed text-secondary md:text-base">{executiveBrief}</p>
-                    {!isLoading && decisions.length > 0 ? (
-                        <dl className="mt-4 flex flex-wrap gap-3 text-xs text-tertiary">
-                            <div className="rounded-xl border border-secondary bg-primary_alt px-3 py-2">
-                                <dt className="font-semibold text-primary">Total</dt>
-                                <dd>{data?.count ?? decisions.length}</dd>
-                            </div>
-                            <div className="rounded-xl border border-secondary bg-primary_alt px-3 py-2">
-                                <dt className="font-semibold text-primary">Dominante</dt>
-                                <dd className="capitalize">{bucketLabel(dominantBucket)}</dd>
-                            </div>
-                            <div className="rounded-xl border border-secondary bg-primary_alt px-3 py-2">
-                                <dt className="font-semibold text-primary">Confiance moy.</dt>
-                                <dd>{avgConfidence != null ? `${avgConfidence} %` : "—"}</dd>
-                            </div>
-                            <div className="rounded-xl border border-secondary bg-primary_alt px-3 py-2">
-                                <dt className="font-semibold text-primary">Score moy.</dt>
-                                <dd>{avgScore != null ? `${avgScore.toFixed(1)} / 10` : "—"}</dd>
-                            </div>
-                            {trendPhrase ? (
-                                <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-amber-950 dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-100">
-                                    <dt className="font-semibold">Tendance</dt>
-                                    <dd>{trendPhrase}</dd>
-                                </div>
-                            ) : null}
-                        </dl>
-                    ) : null}
-                </section>
-
-                {/* KPI */}
-                <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+            <div className="space-y-6 pb-10">
+                <section className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-7">
                     <KpiCard
-                        label="Total"
-                        value={data?.count ?? 0}
-                        hint="Décisions enregistrées"
+                        label={t("managerWorkspace.decisionLogPage.kpiTotal")}
+                        value={data?.count ?? decisions.length}
                         tone="brand"
                         active={filterDecision === "all" && !heatmapFilter}
-                        trend={recentCount ? `${recentCount} sur 7 j.` : undefined}
                         onClick={() => {
                             setFilterDecision("all");
                             clearHeatmap();
@@ -413,7 +426,6 @@ export default function ManagerDecisionLogPage() {
                     <KpiCard
                         label={bucketLabel("Continue")}
                         value={counts.Continue ?? bucketCounts.Continue}
-                        hint="Cap maintenu"
                         tone="safe"
                         active={filterDecision === "Continue"}
                         onClick={() => {
@@ -424,10 +436,8 @@ export default function ManagerDecisionLogPage() {
                     <KpiCard
                         label={bucketLabel("Adjust")}
                         value={counts.Adjust ?? bucketCounts.Adjust}
-                        hint="Arbitrage"
                         tone="warn"
                         active={filterDecision === "Adjust"}
-                        sub={`${adjustStopShare}% ${bucketLabel("Stop")}+${bucketLabel("Adjust")}`}
                         onClick={() => {
                             setFilterDecision("Adjust");
                             clearHeatmap();
@@ -436,7 +446,6 @@ export default function ManagerDecisionLogPage() {
                     <KpiCard
                         label={bucketLabel("Stop")}
                         value={counts.Stop ?? bucketCounts.Stop}
-                        hint="Freinage"
                         tone="danger"
                         active={filterDecision === "Stop"}
                         onClick={() => {
@@ -447,7 +456,6 @@ export default function ManagerDecisionLogPage() {
                     <KpiCard
                         label={bucketLabel("Other")}
                         value={otherCount}
-                        hint={t("managerWorkspace.decisionLogPage.kpiHintProceedReject")}
                         tone="neutral"
                         active={filterDecision === "other"}
                         onClick={() => {
@@ -455,204 +463,277 @@ export default function ManagerDecisionLogPage() {
                             clearHeatmap();
                         }}
                     />
-                </section>
-
-                <section className="grid gap-3 sm:grid-cols-3">
-                    <MiniMetric label="Confiance moyenne" value={avgConfidence != null ? `${avgConfidence} %` : "—"} bar={avgConfidence} />
-                    <MiniMetric label="Score moyen" value={avgScore != null ? `${avgScore.toFixed(1)} / 10` : "—"} bar={avgScore != null ? avgScore * 10 : null} />
-                    <MiniMetric
-                        label="Pression ajustement / Stop"
-                        value={`${adjustStopShare} %`}
-                        bar={adjustStopShare}
-                        hint="Part des décisions Adjust ou Stop"
+                    <KpiCard
+                        label={t("managerWorkspace.decisionLogPage.kpiAvgConfidence")}
+                        value={
+                            avgConfidence != null ? (
+                                <span className="text-2xl font-semibold tabular-nums leading-tight text-primary">
+                                    {avgConfidence}
+                                    <span className="text-sm font-medium text-tertiary">%</span>
+                                </span>
+                            ) : (
+                                <span className="text-2xl font-semibold text-tertiary">—</span>
+                            )
+                        }
+                        tone="brand"
+                        active={false}
+                        onClick={() => {
+                            setFilterDecision("all");
+                            clearHeatmap();
+                        }}
+                    />
+                    <KpiCard
+                        label={t("managerWorkspace.decisionLogPage.kpiAvgScore")}
+                        value={
+                            avgScore != null ? (
+                                <span className="text-2xl font-semibold tabular-nums leading-tight text-primary">{avgScore.toFixed(1)}</span>
+                            ) : (
+                                <span className="text-2xl font-semibold text-tertiary">—</span>
+                            )
+                        }
+                        tone="brand"
+                        active={false}
+                        onClick={() => {
+                            setFilterDecision("all");
+                            clearHeatmap();
+                        }}
                     />
                 </section>
 
-                {/* Filtres */}
-                <section className="rounded-2xl border border-secondary bg-primary p-4 shadow-sm">
-                    <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-                        <span className="text-xs font-medium text-tertiary">Projet</span>
-                        <select
-                            value={filterProject}
-                            onChange={(e) => setFilterProject(e.target.value)}
-                            className="min-w-0 flex-1 rounded-lg border border-secondary bg-primary px-3 py-2 text-sm"
-                        >
-                            <option value="all">Tous les projets</option>
-                            {projects.map((p) => (
-                                <option key={p.id} value={p.id}>
-                                    {p.name}
-                                </option>
-                            ))}
-                        </select>
-                        {heatmapFilter || filterDecision !== "all" || filterProject !== "all" ? (
-                            <button
-                                type="button"
-                                className="shrink-0 rounded-lg border border-secondary px-3 py-2 text-xs font-semibold text-brand-secondary hover:bg-secondary_subtle"
-                                onClick={() => {
-                                    setFilterDecision("all");
-                                    setFilterProject("all");
-                                    clearHeatmap();
-                                }}
+                <section className="sticky top-0 z-30 rounded-2xl border border-secondary/90 bg-primary/90 px-3 py-3 shadow-sm shadow-secondary/20 ring-1 ring-secondary/40 backdrop-blur-md md:px-4">
+                    <div className="flex flex-col gap-3 lg:flex-row lg:flex-wrap lg:items-end">
+                        <label className="flex min-w-[10rem] flex-1 flex-col gap-1">
+                            <span className="text-[10px] font-semibold uppercase tracking-wide text-tertiary">
+                                {t("managerWorkspace.decisionLogPage.filterProjectLabel")}
+                            </span>
+                            <select
+                                value={filterProject}
+                                onChange={(e) => setFilterProject(e.target.value)}
+                                className="rounded-lg border border-secondary bg-primary px-3 py-2 text-sm text-primary"
                             >
-                                Effacer filtres
-                            </button>
-                        ) : null}
+                                <option value="all">{t("managerWorkspace.decisionLogPage.filterProjectAll")}</option>
+                                {projects.map((p) => (
+                                    <option key={p.id} value={p.id}>
+                                        {p.name}
+                                    </option>
+                                ))}
+                            </select>
+                        </label>
+                        <label className="flex min-w-[10rem] flex-1 flex-col gap-1">
+                            <span className="text-[10px] font-semibold uppercase tracking-wide text-tertiary">
+                                {t("managerWorkspace.decisionLogPage.filterDecisionLabel")}
+                            </span>
+                            <select
+                                value={heatmapFilter ? "all" : filterDecision}
+                                onChange={(e) => {
+                                    clearHeatmap();
+                                    setFilterDecision(e.target.value);
+                                }}
+                                disabled={Boolean(heatmapFilter)}
+                                className="rounded-lg border border-secondary bg-primary px-3 py-2 text-sm text-primary disabled:cursor-not-allowed disabled:opacity-60"
+                            >
+                                <option value="all">{t("managerWorkspace.decisionLogPage.filterDecisionAll")}</option>
+                                <option value="Continue">{bucketLabel("Continue")}</option>
+                                <option value="Adjust">{bucketLabel("Adjust")}</option>
+                                <option value="Stop">{bucketLabel("Stop")}</option>
+                                <option value="other">{bucketLabel("Other")}</option>
+                            </select>
+                        </label>
+                        <label className="flex min-w-[10rem] flex-1 flex-col gap-1">
+                            <span className="text-[10px] font-semibold uppercase tracking-wide text-tertiary">
+                                {t("managerWorkspace.decisionLogPage.filterPeriodLabel")}
+                            </span>
+                            <select
+                                value={filterPeriod}
+                                onChange={(e) => setFilterPeriod(e.target.value as "all" | "7d" | "30d" | "90d")}
+                                className="rounded-lg border border-secondary bg-primary px-3 py-2 text-sm text-primary"
+                            >
+                                <option value="all">{t("managerWorkspace.decisionLogPage.periodAll")}</option>
+                                <option value="7d">{t("managerWorkspace.decisionLogPage.period7d")}</option>
+                                <option value="30d">{t("managerWorkspace.decisionLogPage.period30d")}</option>
+                                <option value="90d">{t("managerWorkspace.decisionLogPage.period90d")}</option>
+                            </select>
+                        </label>
+                        <Button type="button" color="secondary" size="sm" className="w-full shrink-0 lg:w-auto" isDisabled={!filtersDirty} onClick={resetAllFilters}>
+                            {t("managerWorkspace.decisionLogPage.resetFilters")}
+                        </Button>
                     </div>
                     {heatmapFilter ? (
                         <p className="mt-2 text-xs text-tertiary">
-                            Filtre heatmap : {heatmapFilter.bucket === "Other" ? "Autre" : heatmapFilter.bucket} · {BAND_LABELS[heatmapFilter.band]}
+                            {t("managerWorkspace.decisionLogPage.heatmapFilterLine", {
+                                bucket: bucketLabel(heatmapFilter.bucket),
+                                band: heatmapBandFull(heatmapFilter.band),
+                            })}
                         </p>
                     ) : null}
                 </section>
 
-                {isLoading ? <p className="text-sm text-tertiary">Chargement…</p> : null}
+                {isLoading ? <p className="text-sm text-tertiary">{t("managerWorkspace.decisionLogPage.loading")}</p> : null}
                 {error ? (
                     <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-900 dark:border-red-900 dark:bg-red-950/40 dark:text-red-100">
-                        Impossible de charger le journal des décisions.
+                        {t("managerWorkspace.decisionLogPage.loadError")}
                     </div>
                 ) : null}
 
                 {!isLoading && !error ? (
                     <>
-                        <div className="grid gap-6 lg:grid-cols-2">
-                            {/* Spotlight */}
-                            <section className="rounded-2xl border border-secondary bg-primary p-4 shadow-sm lg:p-5">
-                                <h2 className="text-sm font-semibold text-primary">Décision à surveiller</h2>
+                        {filteredDecisions.length === 0 && decisions.length > 0 ? (
+                            <div className="rounded-2xl border border-dashed border-secondary/80 bg-primary px-4 py-6 text-center shadow-sm">
+                                <p className="text-sm text-secondary">{t("managerWorkspace.decisionLogPage.emptyFiltered")}</p>
+                                <Button type="button" color="primary" size="sm" className="mt-3" onClick={resetAllFilters}>
+                                    {t("managerWorkspace.decisionLogPage.showAllDecisions")}
+                                </Button>
+                            </div>
+                        ) : null}
+
+                        <section className="relative overflow-hidden rounded-2xl border border-secondary/80 bg-primary p-5 shadow-md ring-1 ring-secondary/30 transition-shadow hover:shadow-lg md:p-6">
+                            <div className="pointer-events-none absolute inset-y-0 left-0 w-1 bg-gradient-to-b from-brand-secondary to-brand-secondary/50" aria-hidden />
+                            <div className="pl-3">
+                                <p className="text-[10px] font-semibold uppercase tracking-wider text-brand-secondary">{t("managerWorkspace.decisionLogPage.spotlightEyebrow")}</p>
+                                <h2 className="mt-1 text-base font-semibold tracking-tight text-primary md:text-lg">{t("managerWorkspace.decisionLogPage.spotlightTitle")}</h2>
                                 {spotlight ? (
-                                    <div className="mt-4 rounded-xl border border-amber-200/80 bg-amber-50/60 p-4 dark:border-amber-800 dark:bg-amber-950/25">
-                                        <div className="flex flex-wrap items-center gap-2">
-                                            <span className={cx("rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase", decisionBadgeClass(spotlight.decision))}>
-                                                {spotlight.decision}
-                                            </span>
-                                            <span className="truncate font-medium text-primary">{spotlight.project_name ?? "Sans projet"}</span>
+                                    <div className="mt-4 grid gap-4 md:grid-cols-[1fr_auto] md:items-start">
+                                        <div className="min-w-0 space-y-3">
+                                            <div className="flex flex-wrap items-center gap-2">
+                                                <span className={cx("rounded-full border px-2.5 py-0.5 text-[11px] font-semibold uppercase tracking-wide", decisionBadgeClass(spotlight.decision))}>
+                                                    {spotlight.decision}
+                                                </span>
+                                                <span className="truncate text-sm font-medium text-primary">{spotlight.project_name?.trim() || "—"}</span>
+                                            </div>
+                                            <div className="flex flex-wrap gap-4 text-xs text-secondary">
+                                                <span>
+                                                    <span className="text-tertiary">{t("managerWorkspace.decisionLogPage.timelineScore")} · </span>
+                                                    <span className="font-semibold tabular-nums text-primary">{scoreDisplay(spotlight.score)}</span>
+                                                </span>
+                                                <span>
+                                                    <span className="text-tertiary">{t("managerWorkspace.decisionLogPage.timelineConfidence")} · </span>
+                                                    <span className="font-semibold tabular-nums text-primary">{confidencePercent(spotlight.confidence)}%</span>
+                                                </span>
+                                            </div>
+                                            <p className="line-clamp-2 text-sm leading-snug text-secondary">{shortBusinessSummary(spotlight)}</p>
+                                            <p className="text-xs font-medium leading-snug text-brand-secondary">{recommendedAction(spotlight)}</p>
                                         </div>
-                                        <dl className="mt-3 grid gap-2 text-xs">
-                                            <div className="flex justify-between gap-2">
-                                                <dt className="text-tertiary">Score</dt>
-                                                <dd className="font-semibold text-primary">{scoreDisplay(spotlight.score)}</dd>
-                                            </div>
-                                            <div className="flex justify-between gap-2">
-                                                <dt className="text-tertiary">Confiance</dt>
-                                                <dd className="font-semibold text-primary">{confidencePercent(spotlight.confidence)} %</dd>
-                                            </div>
-                                        </dl>
-                                        <p className="mt-2 line-clamp-3 text-sm text-secondary">{shortBusinessSummary(spotlight)}</p>
-                                        <p className="mt-2 text-[11px] font-medium text-brand-secondary">{recommendedAction(spotlight)}</p>
-                                        <DecisionLifecycle decision={spotlight} compact />
-                                        <button
-                                            type="button"
-                                            className="mt-4 w-full rounded-lg border border-brand-secondary/50 bg-brand-primary/10 py-2 text-xs font-semibold text-brand-secondary hover:bg-brand-primary/20"
-                                            onClick={() => openDrawer(spotlight)}
-                                        >
-                                            Voir détail
-                                        </button>
+                                        <Button type="button" color="primary" size="md" className="shrink-0 md:self-end" onClick={() => openDrawer(spotlight)}>
+                                            {t("managerWorkspace.decisionLogPage.timelineViewDetail")}
+                                        </Button>
                                     </div>
                                 ) : (
-                                    <p className="mt-3 text-sm text-tertiary">Aucune décision à mettre en avant.</p>
+                                    <p className="mt-3 text-sm text-tertiary">{t("managerWorkspace.decisionLogPage.spotlightEmpty")}</p>
                                 )}
-                            </section>
+                            </div>
+                        </section>
 
-                            {/* Analytics */}
-                            <section className="rounded-2xl border border-secondary bg-primary p-4 shadow-sm lg:p-5">
-                                <h2 className="text-sm font-semibold text-primary">Tableau analytique</h2>
-                                <p className="mt-1 text-xs text-tertiary">Répartition et motifs détectés dans les libellés existants.</p>
-                                <div className="mt-4 space-y-4">
-                                    <div>
-                                        <p className="text-[11px] font-semibold uppercase text-tertiary">Par décision</p>
-                                        <div className="mt-2 space-y-2">
-                                            {(DECISION_KEYS as readonly DecisionBucket[]).map((k) => {
-                                                const n = displayCountForBucket(counts, bucketCounts, otherCount, k);
-                                                const max = Math.max(1, decisions.length);
-                                                const pct = Math.min(100, Math.round((n / max) * 100));
-                                                return (
-                                                    <div key={k}>
-                                                        <div className="flex justify-between text-xs">
-                                                            <span className="text-secondary">{k === "Other" ? "Autre" : k}</span>
-                                                            <span className="tabular-nums text-tertiary">{n}</span>
-                                                        </div>
-                                                        <div className="mt-1 h-2 overflow-hidden rounded-full bg-secondary">
-                                                            <div className="h-full rounded-full bg-brand-secondary/80" style={{ width: `${pct}%` }} />
-                                                        </div>
-                                                    </div>
-                                                );
-                                            })}
-                                        </div>
+                        <div className="grid gap-5 lg:grid-cols-2">
+                            <div className="space-y-5">
+                                <article className="rounded-2xl border border-secondary/80 bg-primary p-4 shadow-sm ring-1 ring-secondary/25 md:p-5">
+                                    <h3 className="text-xs font-semibold uppercase tracking-wide text-tertiary">{t("managerWorkspace.decisionLogPage.chartDistributionTitle")}</h3>
+                                    <div className="mt-3 h-52 w-full min-w-0">
+                                        {distributionBars.some((b) => b.value > 0) ? (
+                                            <ResponsiveContainer width="100%" height="100%">
+                                                <BarChart data={distributionBars} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
+                                                    <CartesianGrid strokeDasharray="3 3" vertical={false} className="stroke-secondary/60" />
+                                                    <XAxis dataKey="name" tick={{ fontSize: 11, fill: "currentColor" }} className="text-tertiary" axisLine={false} tickLine={false} />
+                                                    <YAxis width={28} tick={{ fontSize: 10 }} axisLine={false} tickLine={false} allowDecimals={false} />
+                                                    <Tooltip
+                                                        cursor={{ fill: "rgba(139, 92, 246, 0.06)" }}
+                                                        contentStyle={{ borderRadius: 12, border: "1px solid rgb(226 232 240)", fontSize: 12 }}
+                                                    />
+                                                    <Bar dataKey="value" radius={[6, 6, 0, 0]} maxBarSize={48}>
+                                                        {distributionBars.map((e) => (
+                                                            <Cell key={e.key} fill={e.fill} />
+                                                        ))}
+                                                    </Bar>
+                                                </BarChart>
+                                            </ResponsiveContainer>
+                                        ) : (
+                                            <div className="flex h-full items-center justify-center text-sm text-tertiary">{t("managerWorkspace.decisionLogPage.chartEmpty")}</div>
+                                        )}
                                     </div>
-                                    <div>
-                                        <p className="text-[11px] font-semibold uppercase text-tertiary">Motifs fréquents</p>
-                                        <div className="mt-2 flex flex-wrap gap-1.5">
-                                            {motifCounts.length ? (
-                                                motifCounts.map(([key, n]) => (
-                                                    <span key={key} className="rounded-full border border-secondary bg-primary_alt px-2 py-0.5 text-[11px] text-secondary">
-                                                        {MOTIF_LABELS[key] ?? key} · {n}
-                                                    </span>
-                                                ))
-                                            ) : (
-                                                <span className="text-xs text-tertiary">Aucun motif récurrent détecté dans les textes.</span>
-                                            )}
-                                        </div>
+                                </article>
+                                <article className="rounded-2xl border border-secondary/80 bg-primary p-4 shadow-sm ring-1 ring-secondary/25 md:p-5">
+                                    <h3 className="text-xs font-semibold uppercase tracking-wide text-tertiary">{t("managerWorkspace.decisionLogPage.chartTrendTitle")}</h3>
+                                    <div className="mt-3 h-52 w-full min-w-0">
+                                        {confidenceTrendPoints.length > 1 ? (
+                                            <ResponsiveContainer width="100%" height="100%">
+                                                <LineChart data={confidenceTrendPoints} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
+                                                    <CartesianGrid strokeDasharray="3 3" vertical={false} className="stroke-secondary/60" />
+                                                    <XAxis dataKey="label" tick={{ fontSize: 9 }} interval="preserveStartEnd" axisLine={false} tickLine={false} className="text-tertiary" />
+                                                    <YAxis domain={[0, 100]} width={32} tick={{ fontSize: 10 }} axisLine={false} tickLine={false} />
+                                                    <Tooltip contentStyle={{ borderRadius: 12, border: "1px solid rgb(226 232 240)", fontSize: 12 }} />
+                                                    <Line type="monotone" dataKey="conf" stroke="#7c3aed" strokeWidth={2} dot={{ r: 3, fill: "#7c3aed" }} activeDot={{ r: 5 }} />
+                                                </LineChart>
+                                            </ResponsiveContainer>
+                                        ) : (
+                                            <div className="flex h-full items-center justify-center text-sm text-tertiary">{t("managerWorkspace.decisionLogPage.chartTrendEmpty")}</div>
+                                        )}
                                     </div>
-                                    <div>
-                                        <p className="text-[11px] font-semibold uppercase text-tertiary">Projets les plus impactés</p>
-                                        <ul className="mt-2 space-y-1.5 text-xs">
-                                            {projectImpact.length ? (
-                                                projectImpact.map((p) => (
-                                                    <li key={p.id} className="flex justify-between gap-2 rounded-lg border border-secondary bg-primary_alt px-2 py-1.5">
-                                                        <span className="truncate text-primary">{p.name}</span>
-                                                        <span className="shrink-0 tabular-nums text-tertiary">{p.count}</span>
-                                                    </li>
-                                                ))
-                                            ) : (
-                                                <li className="text-tertiary">Pas d’identifiant projet sur ces entrées.</li>
-                                            )}
-                                        </ul>
+                                </article>
+                            </div>
+                            <div className="space-y-5">
+                                <article className="rounded-2xl border border-secondary/80 bg-primary p-4 shadow-sm ring-1 ring-secondary/25 md:p-5">
+                                    <h3 className="text-xs font-semibold uppercase tracking-wide text-tertiary">{t("managerWorkspace.decisionLogPage.analyticsMotifs")}</h3>
+                                    <div className="mt-3 flex flex-wrap gap-2">
+                                        {motifCounts.length ? (
+                                            motifCounts.map(([key, n]) => (
+                                                <span
+                                                    key={key}
+                                                    className="rounded-full border border-secondary/80 bg-secondary_subtle/60 px-2.5 py-1 text-xs font-medium text-secondary transition-colors hover:border-brand-secondary/40"
+                                                >
+                                                    {MOTIF_LABELS[key] ?? key} · {n}
+                                                </span>
+                                            ))
+                                        ) : (
+                                            <p className="text-sm text-tertiary">{t("managerWorkspace.decisionLogPage.analyticsMotifsEmpty")}</p>
+                                        )}
                                     </div>
-                                    <div>
-                                        <p className="text-[11px] font-semibold uppercase text-tertiary">Confiance moyenne par type</p>
-                                        <div className="mt-2 space-y-1.5 text-xs">
-                                            {(DECISION_KEYS as readonly DecisionBucket[]).map((k) => (
-                                                <div key={k} className="flex justify-between gap-2">
-                                                    <span className="text-secondary">{k === "Other" ? "Autre" : k}</span>
-                                                    <span className="tabular-nums text-tertiary">{confidenceByBucket[k] != null ? `${confidenceByBucket[k]} %` : "—"}</span>
-                                                </div>
-                                            ))}
-                                        </div>
-                                    </div>
-                                </div>
-                            </section>
+                                </article>
+                                <article className="rounded-2xl border border-secondary/80 bg-primary p-4 shadow-sm ring-1 ring-secondary/25 md:p-5">
+                                    <h3 className="text-xs font-semibold uppercase tracking-wide text-tertiary">{t("managerWorkspace.decisionLogPage.analyticsProjects")}</h3>
+                                    <ul className="mt-3 divide-y divide-secondary/60">
+                                        {projectImpact.length ? (
+                                            projectImpact.map((p) => (
+                                                <li key={p.id} className="flex justify-between gap-2 py-2.5 text-sm first:pt-0">
+                                                    <span className="truncate font-medium text-primary">{p.name}</span>
+                                                    <span className="shrink-0 tabular-nums text-tertiary">{p.count}</span>
+                                                </li>
+                                            ))
+                                        ) : (
+                                            <li className="py-2 text-sm text-tertiary">{t("managerWorkspace.decisionLogPage.analyticsProjectsEmpty")}</li>
+                                        )}
+                                    </ul>
+                                </article>
+                            </div>
                         </div>
 
-                        {/* Heatmap */}
-                        <section className="rounded-2xl border border-secondary bg-primary p-4 shadow-sm lg:p-5">
+                        <section className="rounded-2xl border border-secondary/80 bg-primary p-4 shadow-md ring-1 ring-secondary/30 md:p-5">
                             <div className="flex flex-wrap items-end justify-between gap-2">
                                 <div>
-                                    <h2 className="text-sm font-semibold text-primary">Heatmap de confiance</h2>
-                                    <p className="mt-1 text-xs text-tertiary">Cliquez sur une cellule pour affiner la timeline.</p>
+                                    <h2 className="text-sm font-semibold text-primary">{t("managerWorkspace.decisionLogPage.heatmapTitle")}</h2>
+                                    <p className="mt-0.5 text-xs text-tertiary">{t("managerWorkspace.decisionLogPage.heatmapHint")}</p>
                                 </div>
                                 {heatmapFilter ? (
                                     <button type="button" className="text-xs font-semibold text-brand-secondary hover:underline" onClick={clearHeatmap}>
-                                        Réinitialiser la heatmap
+                                        {t("managerWorkspace.decisionLogPage.resetHeatmap")}
                                     </button>
                                 ) : null}
                             </div>
-                            <div className="mt-4 overflow-x-auto">
-                                <div className="inline-block min-w-full rounded-xl border border-secondary">
-                                    <div className="grid grid-cols-[minmax(0,6rem)_repeat(3,minmax(0,1fr))] bg-secondary_subtle/40 text-[10px] font-semibold uppercase text-tertiary">
-                                        <div className="border-b border-r border-secondary p-2" />
-                                        {BAND_LABELS.map((lab) => (
-                                            <div key={lab} className="border-b border-r border-secondary p-2 text-center last:border-r-0">
-                                                {lab.replace("Confiance ", "")}
+                            <div className="mt-4 overflow-x-auto rounded-xl border border-secondary/60 bg-secondary_subtle/30 p-2">
+                                <div className="inline-block min-w-full overflow-hidden rounded-lg">
+                                    <div className="grid grid-cols-[minmax(0,5.5rem)_repeat(3,minmax(0,1fr))] gap-px bg-secondary/40 p-px text-[10px] font-semibold uppercase text-tertiary">
+                                        <div className="rounded-tl-md bg-primary px-2 py-2" />
+                                        {([0, 1, 2] as const).map((band) => (
+                                            <div key={band} className="bg-primary px-2 py-2 text-center last:rounded-tr-md">
+                                                {heatmapBandCol(band)}
                                             </div>
                                         ))}
                                         {(DECISION_KEYS as readonly DecisionBucket[]).map((bucket, row) => (
                                             <Fragment key={bucket}>
                                                 <div
                                                     className={cx(
-                                                        "flex items-center border-r border-secondary bg-primary px-2 py-2 text-[10px] font-semibold text-secondary",
-                                                        row < DECISION_KEYS.length - 1 ? "border-b" : "",
+                                                        "flex items-center bg-primary px-2 py-2 text-[10px] font-semibold text-secondary",
                                                     )}
                                                 >
-                                                    {bucket === "Other" ? "Autre" : bucket}
+                                                    {bucketLabel(bucket)}
                                                 </div>
                                                 {([0, 1, 2] as const).map((band) => {
                                                     const n = heatmapMatrix.matrix[row][band];
@@ -663,11 +744,11 @@ export default function ManagerDecisionLogPage() {
                                                             type="button"
                                                             onClick={() => onHeatmapCell(bucket, band)}
                                                             className={cx(
-                                                                "min-h-[3.25rem] border-r p-2 text-center text-sm font-bold tabular-nums transition hover:ring-2 hover:ring-brand-secondary/40",
-                                                                row < DECISION_KEYS.length - 1 ? "border-b" : "",
-                                                                band === 2 ? "last:border-r-0" : "",
+                                                                "min-h-[2.5rem] px-2 py-2 text-center text-xs font-bold tabular-nums transition-all duration-150",
                                                                 heatmapIntensityClass(n, heatmapMatrix.max),
-                                                                active && "ring-2 ring-brand-secondary ring-offset-2 ring-offset-primary",
+                                                                active
+                                                                    ? "z-[1] ring-2 ring-brand-secondary ring-offset-2 ring-offset-primary"
+                                                                    : "hover:brightness-[1.02] dark:hover:brightness-110",
                                                             )}
                                                         >
                                                             {n}
@@ -681,77 +762,64 @@ export default function ManagerDecisionLogPage() {
                             </div>
                         </section>
 
-                        {/* Timeline */}
-                        <section>
-                            <h2 className="text-sm font-semibold text-primary">Timeline décisions</h2>
-                            <p className="mt-0.5 text-xs text-tertiary">
-                                {filteredDecisions.length} affichée{filteredDecisions.length > 1 ? "s" : ""}
-                                {filteredDecisions.length !== decisions.length ? ` sur ${decisions.length}` : ""}
-                            </p>
-                            {!filteredDecisions.length ? (
-                                <div className="mt-4 rounded-2xl border border-dashed border-secondary px-6 py-12 text-center text-sm text-tertiary">
-                                    Aucune décision pour ces filtres.
+                        {tableSortedRows.length > 0 ? (
+                            <section className="rounded-2xl border border-secondary/80 bg-primary shadow-md ring-1 ring-secondary/30">
+                                <div className="flex flex-col gap-0.5 border-b border-secondary/70 px-4 py-4 md:flex-row md:items-end md:justify-between md:px-5">
+                                    <div>
+                                        <h2 className="text-sm font-semibold text-primary">{t("managerWorkspace.decisionLogPage.tableTitle")}</h2>
+                                        <p className="mt-0.5 text-xs text-tertiary">
+                                            {t("managerWorkspace.decisionLogPage.tableSubtitle", { count: tableSortedRows.length })}
+                                        </p>
+                                    </div>
                                 </div>
-                            ) : (
-                                <div className="relative mt-6 space-y-10 pl-4 before:absolute before:left-[7px] before:top-2 before:h-[calc(100%-16px)] before:w-px before:bg-secondary">
-                                    {PERIOD_ORDER.map(({ key, title }) => {
-                                        const items = timelineGroups[key];
-                                        if (!items.length) return null;
-                                        return (
-                                            <div key={key}>
-                                                <div className="relative flex items-center gap-2">
-                                                    <span className="absolute -left-4 size-2 rounded-full bg-brand-secondary" aria-hidden />
-                                                    <h3 className="text-xs font-bold uppercase tracking-wide text-tertiary">{title}</h3>
-                                                </div>
-                                                <ul className="mt-3 space-y-3">
-                                                    {items.map((d) => (
-                                                        <li key={d.id}>
-                                                            <article className="rounded-2xl border border-secondary bg-primary p-4 shadow-sm transition hover:border-brand-secondary/30">
-                                                                <div className="flex flex-wrap items-start justify-between gap-2">
-                                                                    <div className="min-w-0 flex-1">
-                                                                        <div className="flex flex-wrap items-center gap-2">
-                                                                            <span className={cx("rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase", decisionBadgeClass(d.decision))}>
-                                                                                {d.decision}
-                                                                            </span>
-                                                                            <span className="truncate font-medium text-primary">{d.project_name ?? "Sans projet"}</span>
-                                                                        </div>
-                                                                        <p className="mt-1 text-[11px] text-tertiary">
-                                                                            {d.scope ? `Source : ${d.scope}` : null}
-                                                                            {d.scope ? " · " : null}
-                                                                            {timeAgo(d.created_at)}
-                                                                        </p>
-                                                                        <p className="mt-1 text-xs text-secondary">
-                                                                            Score {scoreDisplay(d.score)} · Confiance {confidencePercent(d.confidence)} %
-                                                                        </p>
-                                                                        {detectMotif(d.reason ?? "") ? (
-                                                                            <span className="mt-1 inline-block rounded-full border border-secondary bg-primary_alt px-2 py-0.5 text-[10px] text-tertiary">
-                                                                                {MOTIF_LABELS[detectMotif(d.reason ?? "")!] ?? detectMotif(d.reason ?? "")}
-                                                                            </span>
-                                                                        ) : null}
-                                                                        <p className="mt-2 line-clamp-2 text-sm text-secondary">{shortBusinessSummary(d)}</p>
-                                                                        <div className="mt-2 max-w-md">
-                                                                            <ConfidenceBar value={d.confidence} />
-                                                                        </div>
-                                                                        <DecisionLifecycle decision={d} compact />
-                                                                    </div>
-                                                                    <button
-                                                                        type="button"
-                                                                        className="shrink-0 rounded-lg border border-brand-secondary/40 bg-brand-primary/10 px-3 py-1.5 text-xs font-semibold text-brand-secondary hover:bg-brand-primary/20"
-                                                                        onClick={() => openDrawer(d)}
-                                                                    >
-                                                                        Voir détail
-                                                                    </button>
-                                                                </div>
-                                                            </article>
-                                                        </li>
-                                                    ))}
-                                                </ul>
-                                            </div>
-                                        );
-                                    })}
+                                <div className="overflow-x-auto">
+                                    <table className="w-full min-w-[720px] border-collapse text-left text-sm">
+                                        <thead>
+                                            <tr className="border-b border-secondary/80 bg-secondary_subtle/40 text-[10px] font-semibold uppercase tracking-wide text-tertiary">
+                                                <th className="px-4 py-3 md:px-5">{t("managerWorkspace.decisionLogPage.tableColDecision")}</th>
+                                                <th className="px-4 py-3 md:px-5">{t("managerWorkspace.decisionLogPage.tableColProject")}</th>
+                                                <th className="px-4 py-3 md:px-5">{t("managerWorkspace.decisionLogPage.tableColScore")}</th>
+                                                <th className="px-4 py-3 md:px-5">{t("managerWorkspace.decisionLogPage.tableColConfidence")}</th>
+                                                <th className="min-w-[12rem] px-4 py-3 md:px-5">{t("managerWorkspace.decisionLogPage.tableColSummary")}</th>
+                                                <th className="px-4 py-3 md:px-5">{t("managerWorkspace.decisionLogPage.tableColDate")}</th>
+                                                <th className="w-10 px-2 py-3" aria-label={t("managerWorkspace.decisionLogPage.tableColAction")} />
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-secondary/60">
+                                            {tableSortedRows.map((d) => (
+                                                <tr
+                                                    key={d.id}
+                                                    className="cursor-pointer outline-none transition-colors hover:bg-brand-primary/[0.04] focus-visible:bg-brand-primary/[0.06] focus-visible:ring-2 focus-visible:ring-brand-secondary/30"
+                                                    onClick={() => openDrawer(d)}
+                                                    onKeyDown={(e) => {
+                                                        if (e.key === "Enter" || e.key === " ") {
+                                                            e.preventDefault();
+                                                            openDrawer(d);
+                                                        }
+                                                    }}
+                                                    tabIndex={0}
+                                                    role="row"
+                                                >
+                                                    <td className="px-4 py-3 md:px-5">
+                                                        <span className={cx("inline-flex rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase", decisionBadgeClass(d.decision))}>
+                                                            {d.decision}
+                                                        </span>
+                                                    </td>
+                                                    <td className="max-w-[10rem] truncate px-4 py-3 font-medium text-primary md:max-w-[14rem] md:px-5">{d.project_name?.trim() || "—"}</td>
+                                                    <td className="px-4 py-3 tabular-nums text-secondary md:px-5">{scoreDisplay(d.score)}</td>
+                                                    <td className="px-4 py-3 tabular-nums text-secondary md:px-5">{confidencePercent(d.confidence)}%</td>
+                                                    <td className="max-w-xs truncate px-4 py-3 text-secondary md:px-5">{oneLineSummary(d)}</td>
+                                                    <td className="whitespace-nowrap px-4 py-3 text-xs text-tertiary md:px-5">{timeAgo(d.created_at)}</td>
+                                                    <td className="px-2 py-3 text-tertiary">
+                                                        <ChevronRight className="size-4" aria-hidden />
+                                                    </td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
                                 </div>
-                            )}
-                        </section>
+                            </section>
+                        ) : null}
                     </>
                 ) : null}
             </div>
@@ -770,20 +838,14 @@ export default function ManagerDecisionLogPage() {
 function KpiCard({
     label,
     value,
-    hint,
     tone,
     active,
-    sub,
-    trend,
     onClick,
 }: {
     label: string;
-    value: number;
-    hint: string;
+    value: ReactNode;
     tone: "brand" | "safe" | "warn" | "danger" | "neutral";
     active?: boolean;
-    sub?: string;
-    trend?: string;
     onClick: () => void;
 }) {
     const ring =
@@ -801,44 +863,17 @@ function KpiCard({
             type="button"
             onClick={onClick}
             className={cx(
-                "rounded-2xl border bg-primary p-4 text-left shadow-sm ring-1 transition hover:border-brand-secondary/30",
+                DECISION_LOG_KPI_CLASS,
+                "text-left ring-1",
                 ring,
-                active ? "border-brand-secondary bg-brand-primary/5" : "border-secondary",
+                active ? "border-brand-secondary bg-brand-primary/5 shadow-md" : "border-secondary",
             )}
         >
-            <p className="text-[11px] font-semibold uppercase tracking-wide text-tertiary">{label}</p>
-            <p className="mt-1 text-2xl font-bold tabular-nums text-primary">{value}</p>
-            <p className="mt-1 text-[11px] text-tertiary">{hint}</p>
-            {sub ? <p className="mt-0.5 text-[10px] font-medium text-amber-700 dark:text-amber-200">{sub}</p> : null}
-            {trend ? <p className="mt-1 text-[10px] text-brand-secondary">{trend}</p> : null}
+            <div className="flex h-full flex-col justify-between gap-1">
+                <p className="text-[10px] font-semibold uppercase tracking-wide text-tertiary">{label}</p>
+                <div className="text-2xl font-semibold tabular-nums leading-tight text-primary">{value}</div>
+            </div>
         </button>
-    );
-}
-
-function MiniMetric({ label, value, bar, hint }: { label: string; value: string; bar: number | null; hint?: string }) {
-    const pct = bar == null || !Number.isFinite(bar) ? 0 : Math.min(100, Math.max(0, bar));
-    return (
-        <article className="rounded-2xl border border-secondary bg-primary p-4 shadow-sm ring-1 ring-secondary/15">
-            <p className="text-[11px] font-semibold uppercase tracking-wide text-tertiary">{label}</p>
-            <p className="mt-1 text-lg font-bold tabular-nums text-primary">{value}</p>
-            {hint ? <p className="mt-0.5 text-[10px] text-tertiary">{hint}</p> : null}
-            <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-secondary">
-                <div className="h-full rounded-full bg-brand-secondary/70 transition-all" style={{ width: `${pct}%` }} />
-            </div>
-        </article>
-    );
-}
-
-function ConfidenceBar({ value }: { value: number }) {
-    const pct = confidencePercent(value);
-    const color = pct >= 80 ? "bg-emerald-500" : pct >= 50 ? "bg-amber-500" : "bg-red-500";
-    return (
-        <div className="flex items-center gap-2">
-            <div className="h-2 min-w-[5rem] flex-1 overflow-hidden rounded-full bg-secondary">
-                <div className={cx("h-full rounded-full transition-all", color)} style={{ width: `${pct}%` }} />
-            </div>
-            <span className="text-[11px] font-medium tabular-nums text-secondary">{pct} %</span>
-        </div>
     );
 }
 
@@ -882,6 +917,7 @@ function DecisionDrawer({
     onCopied: () => void;
     onCopyFailed: () => void;
 }) {
+    const { t } = useTranslation("common");
     if (!open || !decision) return null;
 
     const summaryText = [
@@ -902,63 +938,129 @@ function DecisionDrawer({
     };
 
     const pid = decision.project_id?.trim();
+    const p = decision.payload ?? {};
+    const reviewed = Boolean(p.manager_reviewed ?? p.reviewed_by_manager ?? p.manager_validation);
+    const actionDone = Boolean(p.action_completed ?? p.action_done ?? p.follow_up_done);
+    const createdLabel = new Date(decision.created_at).toLocaleString(localeForDateFormatting(i18n.language), { dateStyle: "medium", timeStyle: "short" });
 
     return (
         <div className="fixed inset-0 z-50">
-            <button type="button" className="absolute inset-0 bg-black/40" onClick={onClose} aria-label="Fermer" />
-            <aside className="absolute right-0 top-0 flex h-full w-full max-w-full flex-col overflow-hidden border-l border-secondary bg-primary shadow-2xl sm:max-w-md">
-                <header className="border-b border-secondary px-4 py-3">
-                    <div className="flex items-start justify-between gap-2">
+            <button type="button" className="absolute inset-0 bg-black/50 backdrop-blur-[2px]" onClick={onClose} aria-label={t("managerWorkspace.decisionLogPage.drawerCloseAria")} />
+            <aside className="absolute right-0 top-0 flex h-full w-full max-w-full flex-col overflow-hidden border-l border-secondary/80 bg-primary shadow-2xl sm:max-w-lg">
+                <header className="border-b border-secondary/80 px-5 py-4">
+                    <div className="flex items-start justify-between gap-3">
                         <div className="min-w-0">
-                            <p className="text-[10px] font-semibold uppercase text-tertiary">Décision</p>
-                            <h2 className="truncate text-lg font-semibold text-primary">{decision.project_name ?? "Sans projet"}</h2>
-                            <span className={cx("mt-2 inline-flex rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase", decisionBadgeClass(decision.decision))}>
+                            <p className="text-[10px] font-semibold uppercase tracking-wide text-brand-secondary">{t("managerWorkspace.decisionLogPage.drawerEyebrow")}</p>
+                            <h2 className="mt-1 truncate text-lg font-semibold tracking-tight text-primary">{decision.project_name?.trim() || "—"}</h2>
+                            <span className={cx("mt-2 inline-flex rounded-full border px-2.5 py-0.5 text-[10px] font-semibold uppercase", decisionBadgeClass(decision.decision))}>
                                 {decision.decision}
                             </span>
                         </div>
-                        <button type="button" className="rounded-lg border border-secondary px-2 py-1 text-xs font-medium hover:bg-secondary_subtle" onClick={onClose}>
-                            Fermer
+                        <button
+                            type="button"
+                            className="rounded-xl border border-secondary/80 px-3 py-1.5 text-xs font-medium text-secondary transition-colors hover:bg-secondary_subtle"
+                            onClick={onClose}
+                        >
+                            {t("managerWorkspace.decisionLogPage.drawerClose")}
                         </button>
                     </div>
                 </header>
-                <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4">
+                <div className="min-h-0 flex-1 space-y-5 overflow-y-auto px-5 py-5">
                     <dl className="grid gap-2 text-xs">
-                        <Row label="Score" value={scoreDisplay(decision.score)} />
-                        <Row label="Confiance" value={`${confidencePercent(decision.confidence)} %`} />
-                        <Row label="Source" value={decision.scope || "—"} />
-                        <Row label="Horodatage" value={new Date(decision.created_at).toLocaleString("fr-FR")} />
+                        <Row label={t("managerWorkspace.decisionLogPage.timelineScore")} value={scoreDisplay(decision.score)} />
+                        <Row label={t("managerWorkspace.decisionLogPage.timelineConfidence")} value={`${confidencePercent(decision.confidence)} %`} />
+                        <Row label={t("managerWorkspace.decisionLogPage.drawerSource")} value={decision.scope || "—"} />
+                        <Row label={t("managerWorkspace.decisionLogPage.drawerTimestamp")} value={createdLabel} />
                     </dl>
-                    <div className="mt-4">
-                        <p className="text-[11px] font-semibold uppercase text-tertiary">Synthèse métier</p>
+                    <section>
+                        <h3 className="text-[11px] font-semibold uppercase tracking-wide text-tertiary">{t("managerWorkspace.decisionLogPage.drawerRecommended")}</h3>
+                        <p className="mt-2 text-sm font-medium leading-snug text-brand-secondary">{recommendedAction(decision)}</p>
+                    </section>
+                    <section>
+                        <h3 className="text-[11px] font-semibold uppercase tracking-wide text-tertiary">{t("managerWorkspace.decisionLogPage.drawerExplanation")}</h3>
                         <p className="mt-2 text-sm leading-relaxed text-secondary">
                             {formatUserFacingExplanation(decision.reason ?? "", {
                                 score: Number(decision.score ?? 0),
                                 decision: decision.decision,
                             })}
                         </p>
-                    </div>
-                    <div className="mt-4">
-                        <p className="text-[11px] font-semibold uppercase text-tertiary">Lifecycle</p>
+                    </section>
+                    <section>
+                        <h3 className="text-[11px] font-semibold uppercase tracking-wide text-tertiary">{t("managerWorkspace.decisionLogPage.drawerTimeline")}</h3>
+                        <div className="mt-2 space-y-2">
+                            <div className="flex gap-3 rounded-xl border border-secondary/60 bg-primary_alt/40 px-3 py-2.5">
+                                <span className="mt-1 size-2 shrink-0 rounded-full bg-brand-secondary" aria-hidden />
+                                <div>
+                                    <p className="text-[10px] font-semibold uppercase text-tertiary">{t("managerWorkspace.decisionLogPage.drawerTimelineCreated")}</p>
+                                    <p className="text-sm text-secondary">{createdLabel}</p>
+                                </div>
+                            </div>
+                            <div className="flex gap-3 rounded-xl border border-secondary/60 bg-primary_alt/40 px-3 py-2.5">
+                                <span className="mt-1 size-2 shrink-0 rounded-full bg-secondary" aria-hidden />
+                                <div>
+                                    <p className="text-[10px] font-semibold uppercase text-tertiary">{t("managerWorkspace.decisionLogPage.drawerTimelineReco")}</p>
+                                    <p className="text-sm text-secondary">
+                                        {(decision.reason ?? "").trim() ? t("managerWorkspace.decisionLogPage.drawerTimelineDone") : t("managerWorkspace.decisionLogPage.drawerTimelinePending")}
+                                    </p>
+                                </div>
+                            </div>
+                            <div className="flex gap-3 rounded-xl border border-secondary/60 bg-primary_alt/40 px-3 py-2.5">
+                                <span className="mt-1 size-2 shrink-0 rounded-full bg-secondary" aria-hidden />
+                                <div>
+                                    <p className="text-[10px] font-semibold uppercase text-tertiary">{t("managerWorkspace.decisionLogPage.drawerTimelineReview")}</p>
+                                    <p className="text-sm text-secondary">
+                                        {reviewed ? t("managerWorkspace.decisionLogPage.drawerTimelineDone") : t("managerWorkspace.decisionLogPage.drawerTimelinePending")}
+                                    </p>
+                                </div>
+                            </div>
+                            <div className="flex gap-3 rounded-xl border border-secondary/60 bg-primary_alt/40 px-3 py-2.5">
+                                <span className="mt-1 size-2 shrink-0 rounded-full bg-secondary" aria-hidden />
+                                <div>
+                                    <p className="text-[10px] font-semibold uppercase text-tertiary">{t("managerWorkspace.decisionLogPage.drawerTimelineAction")}</p>
+                                    <p className="text-sm text-secondary">
+                                        {actionDone ? t("managerWorkspace.decisionLogPage.drawerTimelineDone") : t("managerWorkspace.decisionLogPage.drawerTimelinePending")}
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                    </section>
+                    <section>
+                        <h3 className="text-[11px] font-semibold uppercase tracking-wide text-tertiary">{t("managerWorkspace.decisionLogPage.drawerLifecycle")}</h3>
                         <DecisionLifecycle decision={decision} />
-                    </div>
+                    </section>
                     {decision.payload && Object.keys(decision.payload).length > 0 ? (
-                        <p className="mt-4 text-xs text-tertiary">Données d’analyse complémentaires disponibles côté système (non détaillées ici).</p>
+                        <p className="text-xs text-tertiary">{t("managerWorkspace.decisionLogPage.drawerPayloadNote")}</p>
                     ) : null}
-                </div>
-                <footer className="border-t border-secondary px-4 py-3">
-                    <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
-                        {pid ? (
+                    <section>
+                        <h3 className="text-[11px] font-semibold uppercase tracking-wide text-tertiary">{t("managerWorkspace.decisionLogPage.drawerLinks")}</h3>
+                        <div className="mt-2 flex flex-col gap-2">
+                            {pid ? (
+                                <Link
+                                    to={managerProjectsOpenModalPath(pid)}
+                                    className="rounded-xl border border-brand-secondary/35 bg-brand-primary/10 px-3 py-2.5 text-center text-xs font-semibold text-brand-secondary transition-colors hover:bg-brand-primary/18"
+                                >
+                                    {t("managerWorkspace.decisionLogPage.drawerLinkProject")}
+                                </Link>
+                            ) : null}
                             <Link
-                                to={managerProjectsOpenModalPath(pid)}
-                                className="rounded-lg border border-brand-secondary/40 bg-brand-primary/10 px-3 py-2 text-center text-xs font-semibold text-brand-secondary hover:bg-brand-primary/20"
+                                to={MANAGER_RH_REQUESTS_PATH}
+                                className="rounded-xl border border-secondary/80 px-3 py-2.5 text-center text-xs font-semibold text-secondary transition-colors hover:bg-secondary_subtle"
                             >
-                                Ouvrir le projet (Mission Control)
+                                {t("managerWorkspace.decisionLogPage.drawerLinkRh")}
                             </Link>
-                        ) : null}
-                        <button type="button" className="rounded-lg border border-secondary px-3 py-2 text-xs font-medium hover:bg-secondary_subtle" onClick={() => void copy()}>
-                            Copier le résumé
-                        </button>
-                    </div>
+                            <Link
+                                to={MANAGER_REPORTS_PATH}
+                                className="rounded-xl border border-secondary/80 px-3 py-2.5 text-center text-xs font-semibold text-secondary transition-colors hover:bg-secondary_subtle"
+                            >
+                                {t("managerWorkspace.decisionLogPage.drawerLinkReports")}
+                            </Link>
+                        </div>
+                    </section>
+                </div>
+                <footer className="border-t border-secondary/80 px-5 py-4">
+                    <button type="button" className="w-full rounded-xl border border-secondary px-3 py-2.5 text-xs font-medium text-secondary transition-colors hover:bg-secondary_subtle" onClick={() => void copy()}>
+                        {t("managerWorkspace.decisionLogPage.drawerCopy")}
+                    </button>
                 </footer>
             </aside>
         </div>

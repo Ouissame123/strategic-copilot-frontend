@@ -1,8 +1,8 @@
 import { useMemo } from "react";
 import { Link, useSearchParams } from "react-router";
 import { useTranslation } from "react-i18next";
-import { PageHero } from "@/components/layout/PageHero";
 import { WorkspacePageShell } from "@/components/workspace/workspace-page-shell";
+import { useWorkspaceTopbarMeta } from "@/layouts/workspace-topbar-meta";
 import { useNotifications, usePatchAlert } from "@/hooks/useNotifications";
 import { useToast } from "@/providers/toast-provider";
 import type { NotificationItem } from "@/types/api.types";
@@ -59,6 +59,8 @@ export default function NotificationsPage() {
     const errorMessage =
         error instanceof Error ? error.message : typeof error === "string" ? error : t("managerWorkspace.notifications.backendError");
 
+    useWorkspaceTopbarMeta(t("managerWorkspace.notifications.pageTitle"), t("managerWorkspace.notifications.subtitle"));
+
     return (
         <WorkspacePageShell
             role="manager"
@@ -67,20 +69,14 @@ export default function NotificationsPage() {
             description={false}
             omitHeader
         >
-            <PageHero
-                eyebrow={t("workspaceRoles.manager")}
-                title={t("managerWorkspace.notifications.pageTitle")}
-                subtitle={t("managerWorkspace.notifications.subtitle")}
-                badge={t("workspaceRoles.manager")}
-                actions={
-                    <Link
-                        to="/workspace/manager/dashboard"
-                        className="rounded-lg border border-secondary bg-primary_alt px-3 py-2 text-xs font-semibold text-secondary hover:bg-secondary_subtle"
-                    >
-                        {t("managerWorkspace.notifications.backDashboard")}
-                    </Link>
-                }
-            />
+            <div className="mb-4 flex flex-wrap justify-end gap-2">
+                <Link
+                    to="/workspace/manager/dashboard"
+                    className="rounded-lg border border-secondary bg-primary_alt px-3 py-2 text-xs font-semibold text-secondary hover:bg-secondary_subtle"
+                >
+                    {t("managerWorkspace.notifications.backDashboard")}
+                </Link>
+            </div>
 
             <div className="space-y-4">
                 <div className="flex flex-wrap gap-2">

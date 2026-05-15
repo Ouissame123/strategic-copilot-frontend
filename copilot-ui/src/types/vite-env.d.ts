@@ -46,10 +46,29 @@ interface ImportMetaEnv {
      */
     readonly VITE_MANAGER_TEAM_DETAIL_URL?: string;
     /**
-     * PATCH mise à jour projet `WF_Manager_Projects`. Chemin ou URL avec `:id` (prioritaire).
-     * Par défaut (sans cette variable) : `{VITE_API_BASE_URL}/manager/projects/:id` si `VITE_API_BASE_URL` est défini, sinon `/webhook/manager/projects/:id`.
+     * PATCH mise à jour projet (`wmp-update-v1` par défaut). Chemin ou URL avec `:id` / `:projectId` (id encodé par le client).
+     * Sinon préfixe `VITE_WMP_UPDATE_PROJECTS_PREFIX` + `/{id}`.
+     * Par défaut (sans ces variables) : `{VITE_API_BASE_URL}/wmp-update-v1/manager/projects/{id}` ou `/webhook/wmp-update-v1/manager/projects/{id}`.
      */
     readonly VITE_MANAGER_PROJECTS_UPDATE_URL?: string;
+    /** Préfixe PATCH projet avant `/{projectId}` (sans slash final). Ex. `/webhook/wmp-update-v1/manager/projects`. */
+    readonly VITE_WMP_UPDATE_PROJECTS_PREFIX?: string;
+    /**
+     * GET détail projet manager — chemin ou URL avec `:id` (id encodé par le client).
+     * Prioritaire sur `VITE_WMP_DETAIL_PROJECTS_PREFIX` et le défaut `…/wmp-detail-v1/manager/projects/{id}`.
+     */
+    readonly VITE_MANAGER_PROJECTS_DETAIL_URL?: string;
+    /** Préfixe GET détail projet avant `/{projectId}` (sans slash final). Ex. `/webhook/wmp-detail-v1/manager/projects`. */
+    readonly VITE_WMP_DETAIL_PROJECTS_PREFIX?: string;
+    /** Préfixe POST assign (sans slash final). Voir `wmp-assignments-webhook.config.ts`. */
+    readonly VITE_WMP_ASSIGN_PROJECTS_PREFIX?: string;
+    /** Préfixe DELETE unassign (sans slash final). */
+    readonly VITE_WMP_UNASSIGN_PROJECTS_PREFIX?: string;
+    /**
+     * Si `1` : après assign/unassign, lance `POST /webhook/api/copilot/recompute` pour ce projet.
+     * Par défaut (absent ou autre valeur) : pas d’appel (évite erreurs 500 si le workflow n’est pas prêt).
+     */
+    readonly VITE_TRIGGER_PROJECT_RECOMPUTE_AFTER_ASSIGN?: string;
 
     /**
      * Hôte racine n8n (sans `/webhook`). En `npm run dev`, sert surtout de **cible du proxy** Vite (évite CORS) ;

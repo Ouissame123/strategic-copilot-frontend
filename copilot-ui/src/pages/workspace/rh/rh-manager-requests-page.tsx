@@ -5,8 +5,10 @@ import { Badge } from "@/components/base/badges/badges";
 import { Button } from "@/components/base/buttons/button";
 import { Table, TableCard } from "@/components/application/table/table";
 import { WorkspacePageShell } from "@/components/workspace/workspace-page-shell";
+import { UUID_REGEX } from "@/components/manager/rh-requests/rh-requests-utils";
 import { useCopilotPage } from "@/hooks/use-copilot-page";
 import { usePatchRhActionMutation, useRhActionsListQuery } from "@/hooks/use-rh-actions-query";
+import { useAuth } from "@/providers/auth-provider";
 import { rowsFromRhPayload, pickCell } from "@/utils/rh-api-parse";
 
 function statusKey(raw: unknown): string {
@@ -60,6 +62,7 @@ function StatusBadge({ status }: { status: string }) {
 
 export default function RhManagerRequestsPage() {
     const { t } = useTranslation(["common", "nav"]);
+    const { user } = useAuth();
     useCopilotPage("staffing", t("nav:rhNavManagerRequests"));
 
     const q = useRhActionsListQuery();
@@ -71,7 +74,13 @@ export default function RhManagerRequestsPage() {
     }, [q.data]);
 
     const setStatus = async (id: string, status: string) => {
-        await patch.mutateAsync({ id, body: { status } });
+        const row = rows.find((r) => String(r.id) === id);
+        const eid = String(row?.enterprise_id ?? user?.enterpriseId ?? "").trim();
+        const body: Record<string, unknown> = { status };
+        if (UUID_REGEX.test(eid)) {
+            body.enterprise_id = eid;
+        }
+        await patch.mutateAsync({ id, body });
     };
 
     return (

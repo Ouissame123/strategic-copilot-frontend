@@ -289,13 +289,6 @@ export default function ProfilePage({ variant = "default" }: ProfilePageProps) {
 
         return (
             <div className="mx-auto max-w-3xl space-y-5 px-4 py-5 lg:py-8">
-                <PageHero
-                    eyebrow="Espace manager"
-                    title="Mon profil"
-                    subtitle="Compte, sécurité et préférences de notifications."
-                    badge="Manager"
-                />
-
                 <div className="flex flex-col items-center gap-3 sm:flex-row sm:items-center sm:gap-5">
                     <div className="relative shrink-0">
                         <input

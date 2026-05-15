@@ -1,10 +1,23 @@
 import { isAxiosError } from "axios";
 import { httpClient } from "../lib/http-client";
-import { getManagerProjectsBaseUrl, getManagerProjectsPatchUrl } from "@/config/manager-projects-api.config";
+import { getManagerProjectDetailGetUrl, getManagerProjectsBaseUrl, getManagerProjectsPatchUrl } from "@/config/manager-projects-api.config";
+import { getWmpAssignPostUrl, getWmpUnassignDeleteUrl } from "@/config/wmp-assignments-webhook.config";
 import { readEnv, trimUrl } from "@/config/resolve-api-url";
 import type {
-    AssignTalentRequest, AssignmentResponse, CreateProjectRequest, DecisionLabel, ProjectCreatedResponse, ProjectDetailResponse,
-    ProjectsListResponse, ProjectUpdatedResponse, UnassignmentResponse, UpdateProjectRequest, ManagerProjectDetailResponse, ManagerProjectsListResponse,
+    AssignTalentRequest,
+    AssignmentResponse,
+    CreateProjectRequest,
+    DecisionLabel,
+    ManagerProjectDetailResponse,
+    ManagerProjectsListResponse,
+    ProjectCreatedResponse,
+    ProjectDetailResponse,
+    ProjectStatus,
+    ProjectsListResponse,
+    ProjectUpdatedResponse,
+    UnassignmentResponse,
+    WmpAssignmentType,
+    WmpUpdateProjectPatchBody,
 } from "../types/api.types";
 
 const managerProjectsRoot = () => getManagerProjectsBaseUrl();
@@ -34,31 +47,33 @@ export function milestoneAtToYYYYMMDD(value: string | number | null | undefined)
     return new Date(t).toISOString().slice(0, 10);
 }
 
-function normalizeUpdateProjectBody(body: UpdateProjectRequest): UpdateProjectRequest {
-    const out = { ...(body as Record<string, unknown>) };
-    if ("milestone_at" in out) {
-        const ma = out.milestone_at;
-        if (ma == null || String(ma).trim() === "") {
-            delete out.milestone_at;
-        } else {
-            const ymd = milestoneAtToYYYYMMDD(ma as string);
-            if (ymd) out.milestone_at = ymd;
-            else delete out.milestone_at;
-        }
+const WMP_UPDATE_STATUSES: readonly ProjectStatus[] = ["planned", "active", "on_hold", "completed", "cancelled"];
+
+/**
+ * Corps JSON strict pour `PATCH …/wmp-update-v1/manager/projects/:id` :
+ * `{ status, priority, milestone_at }` uniquement (`milestone_at` : `YYYY-MM-DD` ou `null`).
+ */
+export function buildStrictUpdateProjectPatchBody(input: WmpUpdateProjectPatchBody): WmpUpdateProjectPatchBody {
+    const status = input.status;
+    if (!WMP_UPDATE_STATUSES.includes(status)) throw new Error("Invalid project status");
+    const rawPri = Number(input.priority);
+    if (!Number.isFinite(rawPri)) throw new Error("Invalid priority");
+    const priority = Math.round(rawPri);
+
+    let milestone_at: string | null = null;
+    if (input.milestone_at != null && String(input.milestone_at).trim() !== "") {
+        const ymd = milestoneAtToYYYYMMDD(input.milestone_at as string);
+        milestone_at = ymd ?? null;
     }
-    if ("priority" in out && out.priority != null) {
-        const n = Number(out.priority);
-        if (Number.isFinite(n)) out.priority = n;
-    }
-    return out as UpdateProjectRequest;
+    return { status, priority, milestone_at };
 }
 
-function logPatchProjectDev(projectId: string, url: string, body: UpdateProjectRequest): void {
+function logPatchProjectDev(projectId: string, url: string, body: WmpUpdateProjectPatchBody): void {
     if (!import.meta.env.DEV) return;
     const base = trimUrl(import.meta.env.VITE_API_BASE_URL as string | undefined);
     const enc = encodeURIComponent(projectId);
-    const expectedWhenApiBase = base ? `${base}/manager/projects/${enc}` : `/webhook/manager/projects/${enc}`;
-    const hasOverride = Boolean(readEnv("VITE_MANAGER_PROJECTS_UPDATE_URL"));
+    const expectedDefault = base ? `${base}/wmp-update-v1/manager/projects/${enc}` : `/webhook/wmp-update-v1/manager/projects/${enc}`;
+    const hasOverride = Boolean(readEnv("VITE_MANAGER_PROJECTS_UPDATE_URL") || readEnv("VITE_WMP_UPDATE_PROJECTS_PREFIX"));
     // eslint-disable-next-line no-console
     console.groupCollapsed(`[manager-projects] PATCH project ${projectId}`);
     // eslint-disable-next-line no-console
@@ -68,12 +83,12 @@ function logPatchProjectDev(projectId: string, url: string, body: UpdateProjectR
     // eslint-disable-next-line no-console
     console.log("body", body);
     // eslint-disable-next-line no-console
-    console.log("expectedUrlIfDefault (VITE_API_BASE_URL + /manager/projects/:id, ou proxy /webhook)", expectedWhenApiBase);
+    console.log("expectedUrlIfDefault (wmp-update-v1)", expectedDefault);
     // eslint-disable-next-line no-console
-    console.log("urlMatchesExpectedDefault", !hasOverride && url === expectedWhenApiBase);
+    console.log("urlMatchesExpectedDefault", !hasOverride && url === expectedDefault);
     if (hasOverride) {
         // eslint-disable-next-line no-console
-        console.log("note", "VITE_MANAGER_PROJECTS_UPDATE_URL est défini — l’URL peut différer du défaut.");
+        console.log("note", "Surcharge PATCH (VITE_MANAGER_PROJECTS_UPDATE_URL ou VITE_WMP_UPDATE_PROJECTS_PREFIX).");
     }
     // eslint-disable-next-line no-console
     console.groupEnd();
@@ -104,6 +119,47 @@ function normalizeLatestViability(raw: unknown): ProjectDetailResponse["latest_v
     };
 }
 
+const WMP_ASSIGNMENT_TYPES: readonly WmpAssignmentType[] = ["full_time", "part_time", "backup", "temporary"];
+
+function trimToNull(v: string | null | undefined): string | null {
+    if (v == null) return null;
+    const s = String(v).trim();
+    return s.length ? s : null;
+}
+
+/**
+ * Corps POST strict pour `wmp-assign-v1` (talent_id, allocation_pct, dates/rôle nullables, assignment_type).
+ */
+export function buildStrictAssignTalentPayload(input: {
+    talent_id: string;
+    allocation_pct: number;
+    assignment_type: WmpAssignmentType;
+    start_date?: string | null;
+    end_date?: string | null;
+    role_on_project?: string | null;
+}): AssignTalentRequest {
+    const talent_id = String(input.talent_id ?? "").trim();
+    if (!talent_id) throw new Error("Missing talent_id");
+    const lowerT = talent_id.toLowerCase();
+    if (lowerT === ":talentid" || lowerT === ":id") throw new Error("Invalid talent_id");
+
+    const raw = Number(input.allocation_pct);
+    if (!Number.isFinite(raw)) throw new Error("Invalid allocation_pct");
+    const allocation_pct = Math.min(100, Math.max(0, Math.round(raw)));
+
+    const assignment_type = input.assignment_type;
+    if (!WMP_ASSIGNMENT_TYPES.includes(assignment_type)) throw new Error("Invalid assignment_type");
+
+    return {
+        talent_id,
+        allocation_pct,
+        start_date: trimToNull(input.start_date),
+        end_date: trimToNull(input.end_date),
+        role_on_project: trimToNull(input.role_on_project),
+        assignment_type,
+    };
+}
+
 function normalizeProjectDetail(data: ProjectDetailResponse | ManagerProjectDetailResponse): ProjectDetailResponse {
     return {
         project: data.project,
@@ -122,9 +178,10 @@ export const managerProjectsApi = {
             ...r,
             data: normalizeProjectsList(r.data),
         })),
+    /** GET détail — URL via `getManagerProjectDetailGetUrl` (défaut `wmp-detail-v1`, surcharges env possibles). */
     detail: (id: string) =>
         httpClient
-            .get<ProjectDetailResponse | ManagerProjectDetailResponse>(`${managerProjectsRoot()}/${encodeURIComponent(id)}`, {
+            .get<ProjectDetailResponse | ManagerProjectDetailResponse>(getManagerProjectDetailGetUrl(id), {
                 skipGlobalHttpErrorToast: true,
             })
             .then((r) => ({
@@ -133,12 +190,11 @@ export const managerProjectsApi = {
             })),
     create: (body: CreateProjectRequest) => httpClient.post<ProjectCreatedResponse>(managerProjectsRoot(), body),
     /**
-     * PATCH `WF_Manager_Projects` — URL résolue via `getManagerProjectsPatchUrl` (défaut : `{VITE_API_BASE_URL}/manager/projects/:id`).
-     * Corps normalisé (`milestone_at` → `YYYY-MM-DD`). En dev : logs console (URL, méthode, body, réponse / erreur).
-     * Une seule requête PATCH à la fois par `projectId` (file d’attente).
+     * PATCH `wmp-update-v1` — URL via `getManagerProjectsPatchUrl` (défaut : `…/wmp-update-v1/manager/projects/{id}`).
+     * Corps strict `{ status, priority, milestone_at }`. En dev : logs console. Une seule requête à la fois par `projectId`.
      */
-    update: (id: string, body: UpdateProjectRequest) => {
-        const normalized = normalizeUpdateProjectBody(body);
+    update: (id: string, body: WmpUpdateProjectPatchBody) => {
+        const normalized = buildStrictUpdateProjectPatchBody(body);
         const url = getManagerProjectsPatchUrl(id);
         return enqueueProjectPatch(id, async () => {
             logPatchProjectDev(id, url, normalized);
@@ -160,15 +216,14 @@ export const managerProjectsApi = {
             }
         });
     },
-    assign: (id: string, body: AssignTalentRequest) =>
-        httpClient.post<AssignmentResponse>(`${managerProjectsRoot()}/${encodeURIComponent(id)}/assignments`, body, {
+    /** POST n8n `wmp-assign-v1` — URL via `getWmpAssignPostUrl` (jamais `:id` littéral). */
+    assign: (projectId: string, body: AssignTalentRequest) =>
+        httpClient.post<AssignmentResponse>(getWmpAssignPostUrl(projectId), body, {
             skipGlobalHttpErrorToast: true,
         }),
-    unassign: (id: string, talentId: string) =>
-        httpClient.delete<UnassignmentResponse>(
-            `${managerProjectsRoot()}/${encodeURIComponent(id)}/assignments/${encodeURIComponent(talentId)}`,
-            {
-                skipGlobalHttpErrorToast: true,
-            },
-        ),
+    /** DELETE n8n `wmp-unassign-v1` — URL via `getWmpUnassignDeleteUrl`. */
+    unassign: (projectId: string, talentId: string) =>
+        httpClient.delete<UnassignmentResponse>(getWmpUnassignDeleteUrl(projectId, talentId), {
+            skipGlobalHttpErrorToast: true,
+        }),
 };

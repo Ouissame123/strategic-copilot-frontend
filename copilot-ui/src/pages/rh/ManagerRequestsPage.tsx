@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link, useSearchParams } from "react-router";
+import { useTranslation } from "react-i18next";
 import { Dialog, Modal, ModalOverlay } from "@/components/application/modals/modal";
 import { Button } from "@/components/base/buttons/button";
-import { PageHero } from "@/components/layout/PageHero";
 import { WorkspacePageShell } from "@/components/workspace/workspace-page-shell";
+import { useWorkspaceTopbarMeta } from "@/layouts/workspace-topbar-meta";
 import { usePatchRhAction, useRhActions } from "@/hooks/useNotifications";
 import { stripTechnicalScoringSegments } from "@/lib/business-explanation";
 import { rowsFromRhActionsPayload } from "@/utils/rh-actions-list";
@@ -132,6 +133,7 @@ function humanizeField(value: string): string {
 }
 
 export default function ManagerRequestsPage() {
+    const { t } = useTranslation("common");
     const [searchParams, setSearchParams] = useSearchParams();
     const [statusFilter, setStatusFilter] = useState<StatusBucket | "all">("pending");
     const [search, setSearch] = useState("");
@@ -277,24 +279,24 @@ export default function ManagerRequestsPage() {
         );
     };
 
+    useWorkspaceTopbarMeta(t("managerWorkspace.pendingRh.listPageTitle"), t("managerWorkspace.pendingRh.listPageSubtitle"));
+
     return (
-        <WorkspacePageShell role="manager" eyebrow="RH / Manager" title="Actions RH du Copilot" omitHeader>
+        <WorkspacePageShell
+            role="manager"
+            eyebrow={t("workspaceRoles.manager")}
+            title={t("managerWorkspace.pendingRh.listPageTitle")}
+            omitHeader
+        >
             <div className="space-y-4">
-                <PageHero
-                    eyebrow="RH / Manager"
-                    title="Actions RH du Copilot"
-                    subtitle="Traitez les demandes de réaffectation, formation et recrutement proposées par l’IA."
-                    badge="Manager"
-                    status="info"
-                    actions={
-                        <Link
-                            to="/workspace/manager/notifications"
-                            className="inline-flex items-center justify-center rounded-lg border border-brand-secondary/40 bg-brand-primary/10 px-3 py-2 text-xs font-semibold text-brand-secondary transition hover:bg-brand-primary/20"
-                        >
-                            Retour aux alertes manager
-                        </Link>
-                    }
-                />
+                <div className="flex flex-wrap justify-end gap-2">
+                    <Link
+                        to="/workspace/manager/notifications"
+                        className="inline-flex items-center justify-center rounded-lg border border-brand-secondary/40 bg-brand-primary/10 px-3 py-2 text-xs font-semibold text-brand-secondary transition hover:bg-brand-primary/20"
+                    >
+                        {t("managerWorkspace.pendingRh.backToAlerts")}
+                    </Link>
+                </div>
 
                 <section aria-label="Indicateurs par statut" className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
                     {STATUS_ORDER.map((key) => (

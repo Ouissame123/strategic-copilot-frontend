@@ -29,6 +29,11 @@ function buildUrl(path: string): string {
     return `${API_BASE_URL}${normalizedPath}`;
 }
 
+/** Résolution d’URL identique à `fetch` (logs diagnostic). */
+export function buildApiUrlForDebug(path: string): string {
+    return buildUrl(path);
+}
+
 function getAuthHeaders(): Record<string, string> {
     if (!authToken) return {};
     return { Authorization: `Bearer ${authToken}` };
@@ -47,6 +52,11 @@ export interface ApiClientOptions {
     signal?: AbortSignal;
     /** Désactive le retry automatique sur erreurs serveur 5xx (GET uniquement). */
     skipRetry?: boolean;
+    /**
+     * Réponses 2xx : si le corps n’est pas du JSON valide (ex. texte « OK » renvoyé par un webhook n8n),
+     * renvoyer `{}` au lieu de lever une erreur.
+     */
+    acceptNonJson200?: boolean;
 }
 
 const SERVER_RETRY_MAX = 2;
@@ -78,12 +88,13 @@ async function withServerRetry<T>(run: () => Promise<T>, skipRetry?: boolean): P
 }
 
 /** Lit le corps une seule fois ; JSON si possible, sinon erreur avec texte brut. */
-async function parseSuccessBody<T>(response: Response): Promise<T> {
+async function parseSuccessBody<T>(response: Response, acceptNonJson200?: boolean): Promise<T> {
     const text = await response.text();
     if (!text.trim()) return {} as T;
     try {
         return JSON.parse(text) as T;
     } catch {
+        if (acceptNonJson200) return {} as T;
         throw new ApiError("Réponse JSON invalide", response.status, text);
     }
 }
@@ -208,7 +219,7 @@ async function apiRequestWithBody<T>(
     body: unknown | undefined,
     options: ApiClientOptions = {},
 ): Promise<T> {
-    const { timeout = getHttpTimeoutMs(), signal } = options;
+    const { timeout = getHttpTimeoutMs(), signal, acceptNonJson200 } = options;
     const timeoutController = new AbortController();
     let timedOut = false;
     const timeoutId = setTimeout(() => {
@@ -236,7 +247,7 @@ async function apiRequestWithBody<T>(
             throw new ApiError(`Échec ${response.status} ${response.statusText}`, response.status, payload);
         }
 
-        return parseSuccessBody<T>(response);
+        return parseSuccessBody<T>(response, acceptNonJson200);
     } catch (err) {
         clearTimeout(timeoutId);
         if (err instanceof ApiError) throw err;

@@ -6,6 +6,7 @@ import "@/styles/globals.css";
 import "@/i18n";
 
 import { ProtectedRoute } from "@/components/auth/protected-route";
+import { RhManagerRequestsEntry } from "@/components/routing/rh-manager-requests-entry";
 import {
     LegacyDecisionLogRedirect,
     LegacyProfileRedirect,
@@ -52,7 +53,6 @@ import ManagerDecisionLogPage from "@/pages/manager/DecisionLogPage";
 import ManagerProfilePage from "@/pages/manager/ProfilePage";
 import NotificationsPage from "@/pages/manager/NotificationsPage";
 import HelperChatPage from "@/pages/manager/HelperChatPage";
-import ManagerRequestsPage from "@/pages/rh/ManagerRequestsPage";
 import ManagerRhRequestsPage from "@/pages/workspace/manager/manager-rh-requests-page";
 import {
     TalentDashboardPage,
@@ -107,7 +107,7 @@ createRoot(document.getElementById("root")!).render(
                                         path="/workspace/rh/manager-requests"
                                         element={
                                             <ProtectedRoute roles={["manager", "rh"]}>
-                                                <ManagerRequestsPage />
+                                                <RhManagerRequestsEntry />
                                             </ProtectedRoute>
                                         }
                                     />
@@ -126,7 +126,6 @@ createRoot(document.getElementById("root")!).render(
                                         <Route path="skills-catalog" element={<RhSkillsCatalogPage />} />
                                         <Route path="critical-gaps" element={<RhCriticalGapsPage />} />
                                         <Route path="training-plans" element={<RhTrainingPlansPage />} />
-                                        <Route path="manager-requests" element={<ManagerRequestsPage />} />
                                         <Route path="mobility" element={<RhMobilityPage />} />
                                         <Route path="org-alerts" element={<RhOrgAlertsPage />} />
                                         <Route path="projects" element={<ProjectsPage />} />

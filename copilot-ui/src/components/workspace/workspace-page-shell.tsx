@@ -56,9 +56,7 @@ export function WorkspacePageShell({ role, eyebrow, title, description, omitHead
                     </div>
                     <div className={cx("relative mt-4 h-1 w-full rounded-full bg-gradient-to-r", workspaceRoleHeaderStripeClass(role))} />
                 </div>
-            ) : (
-                <h1 className="sr-only">{title}</h1>
-            )}
+            ) : null}
 
             {tabs && tabs.length > 0 && (
                 <nav className="flex flex-wrap gap-2 border-b border-secondary pb-3" aria-label={eyebrow}>

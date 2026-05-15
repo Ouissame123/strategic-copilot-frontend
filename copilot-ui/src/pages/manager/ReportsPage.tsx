@@ -1,13 +1,10 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { isAxiosError } from "axios";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
-import { getSystemHealth, type ScheduleReportPayload } from "@/api/reports.api";
-import { PageHero } from "@/components/layout/PageHero";
+import type { ScheduleReportPayload } from "@/api/reports.api";
 import {
     ReportTemplateCard,
     ReportsHistoryTable,
-    SystemStatusPanel,
     type ReportFormat,
     type ReportHistoryItem,
     type ReportTemplate,
@@ -16,11 +13,11 @@ import {
     coerceReportType,
     enrichTemplatesWithHistory,
     mapN8nReportToHistoryItem,
-    parseSystemHealthPayload,
     type ReportTemplateDefInput,
 } from "@/components/reports/adapters";
 import { labelReportType } from "@/components/reports/utils";
 import { WorkspacePageShell } from "@/components/workspace/workspace-page-shell";
+import { useWorkspaceTopbarMeta } from "@/layouts/workspace-topbar-meta";
 import { useReportsData } from "@/hooks/useReports";
 import { useReportsN8n, type N8nReportHistoryItem } from "@/hooks/use-reports-n8n";
 import { useAuth } from "@/providers/auth-provider";
@@ -298,6 +295,8 @@ export default function ReportsPage() {
         [t],
     );
 
+    useWorkspaceTopbarMeta(tr("pageHeroTitle"), tr("pageHeroSubtitle"));
+
     const { push } = useToast();
     const [range, setRange] = useState<ReportRange>("30d");
     const [paramProject, setParamProject] = useState<string>("all");
@@ -323,16 +322,7 @@ export default function ReportsPage() {
 
     const { user } = useAuth();
     const enterpriseId = (user?.enterpriseId ?? (import.meta.env.VITE_MANAGER_ENTERPRISE_ID as string | undefined) ?? "").trim();
-    const queryClient = useQueryClient();
     const reportsN8n = useReportsN8n(enterpriseId || undefined);
-
-    const systemHealthQuery = useQuery({
-        queryKey: ["system-health"],
-        queryFn: () => getSystemHealth().then((r) => r.data),
-        retry: false,
-        staleTime: 60_000,
-    });
-    const systemServices = useMemo(() => parseSystemHealthPayload(systemHealthQuery.data), [systemHealthQuery.data]);
 
     const rangeLabel = useCallback(
         (r: ReportRange) => {
@@ -1041,59 +1031,6 @@ export default function ReportsPage() {
             omitHeader
         >
             <div className="space-y-6 lg:space-y-8 print:space-y-4">
-                <PageHero
-                    eyebrow={tr("pageHeroEyebrow")}
-                    title={tr("pageHeroTitle")}
-                    subtitle={tr("pageHeroSubtitle")}
-                    badge={t("workspaceRoles.manager")}
-                    metrics={
-                        <div className="flex flex-col gap-3">
-                            <div className="flex flex-wrap gap-2">
-                                {(
-                                    [
-                                        { id: "pdf" as const, label: tr("badgePdf") },
-                                        { id: "storage" as const, label: tr("badgeStorage") },
-                                        { id: "email" as const, label: tr("badgeEmail") },
-                                        { id: "sched" as const, label: tr("badgeSchedule") },
-                                    ] as const
-                                ).map((item) => (
-                                    <span
-                                        key={item.id}
-                                        className="inline-flex items-center rounded-full border border-secondary/80 bg-secondary_subtle/50 px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-secondary"
-                                    >
-                                        {item.label}
-                                    </span>
-                                ))}
-                            </div>
-                            <div className="flex flex-wrap items-center gap-3 text-xs">
-                                {lastGenerated?.report_id ? (
-                                    <div className="flex flex-wrap items-center gap-2">
-                                        <p className="font-medium text-emerald-800 dark:text-emerald-200">
-                                            {tr("lastReportPrefix")} <span className="font-mono">{lastGenerated.report_id}</span>
-                                        </p>
-                                        {lastGenerated.file_url ? (
-                                            <button
-                                                type="button"
-                                                onClick={() => openReportPdfUrl(lastGenerated.file_url!)}
-                                                className="rounded-md border border-emerald-600/40 bg-emerald-50 px-2 py-1 text-[11px] font-semibold text-emerald-900 hover:bg-emerald-100 dark:border-emerald-500/40 dark:bg-emerald-950/50 dark:text-emerald-100 dark:hover:bg-emerald-900/40"
-                                            >
-                                                {tr("downloadPdf")}
-                                            </button>
-                                        ) : null}
-                                    </div>
-                                ) : (
-                                    <p className="text-tertiary">{tr("noRecentPdf")}</p>
-                                )}
-                                {!enterpriseId ? (
-                                    <span className="rounded-md bg-utility-warning-50 px-2 py-1 text-[11px] font-medium text-utility-warning-900 dark:bg-utility-warning-950/50 dark:text-utility-warning-100">
-                                        {tr("enterpriseMissing")}
-                                    </span>
-                                ) : null}
-                            </div>
-                        </div>
-                    }
-                />
-
                 <div
                     className="flex flex-col gap-1 rounded-2xl border border-secondary bg-secondary_subtle/40 p-1 sm:flex-row sm:items-stretch print:hidden"
                     role="tablist"
@@ -1160,20 +1097,6 @@ export default function ReportsPage() {
                         role="tabpanel"
                         aria-labelledby="reports-tab-trigger-generation"
                     >
-                        <header className="print:hidden">
-                            <h2 className="text-lg font-bold tracking-tight text-primary">{tr("generationHeading")}</h2>
-                            <p className="mt-1 max-w-2xl text-sm text-secondary">{tr("generationIntro")}</p>
-                        </header>
-
-                        <section className="space-y-4 print:hidden">
-                            <SystemStatusPanel
-                                services={systemServices}
-                                onRefresh={() => void queryClient.invalidateQueries({ queryKey: ["system-health"] })}
-                                loading={systemHealthQuery.isFetching}
-                                compact
-                            />
-                        </section>
-
                         {/* Actions principales */}
                         <section className="rounded-2xl border border-secondary bg-primary p-4 shadow-sm lg:p-5 print:hidden">
                             <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">

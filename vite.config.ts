@@ -20,8 +20,8 @@ export default defineConfig(({ mode }) => {
         defaultN8nTarget;
 
     /**
-     * En dev : auth → backend local ; `/api/*` → n8n prod (rewrite `/api/...` → `/webhook/api/...`).
-     * Ex. GET `/api/workspace/manager/projects` → `https://n8nprod.aphelionxinnovations.com/webhook/api/workspace/manager/projects`
+     * En dev : auth → backend local ; `/api/*` → n8n prod (rewrite par défaut `/api/...` → `/webhook/api/...`).
+     * Exception : `/api/rh/actions/*` → webhook dédié `…/webhook/c8bae94d-…/api/rh/actions/…` (PATCH annulation RH).
      *
      * `/webhook/*` : chemins utilisés tels quels par le client (`apiClient` sans `VITE_API_BASE_URL`).
      * Sans ce proxy, le navigateur appelle `:5173/webhook/...` → 404.
@@ -51,8 +51,21 @@ export default defineConfig(({ mode }) => {
         configure: attachProxyDebug,
     };
 
+    /** Webhook n8n dédié PATCH (et éventuellement GET) actions RH — le client appelle toujours `PATCH /api/rh/actions/:id`. */
+    const N8N_RH_ACTIONS_WEBHOOK_PREFIX = "/webhook/c8bae94d-8de1-4f06-bb0a-a1e90eb6a80d";
+
     const proxy: Record<string, ProxyOptions> = {
+        /** `PATCH /api/rh/actions/:id` → `…/webhook/c8bae94d-…/api/rh/actions/:id` (workflow n8n prod). */
+        "/api/rh/actions": {
+            ...webhookProxy,
+            rewrite: (p) => `${N8N_RH_ACTIONS_WEBHOOK_PREFIX}${p}`,
+        },
         "/api": {
+            ...webhookProxy,
+            rewrite: (p) => `/webhook${p}`,
+        },
+        /** Workflows manager RH (`GET/PATCH /manager/rh-actions`) → n8n `/webhook/manager/...`. */
+        "/manager": {
             ...webhookProxy,
             rewrite: (p) => `/webhook${p}`,
         },

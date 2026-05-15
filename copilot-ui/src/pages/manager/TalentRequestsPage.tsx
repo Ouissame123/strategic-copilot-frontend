@@ -3,8 +3,8 @@ import { useTranslation } from "react-i18next";
 import { Badge } from "@/components/base/badges/badges";
 import { Button } from "@/components/base/buttons/button";
 import { NativeSelect } from "@/components/base/select/select-native";
-import { PageHero } from "@/components/layout/PageHero";
 import { WorkspacePageShell } from "@/components/workspace/workspace-page-shell";
+import { useWorkspaceTopbarMeta } from "@/layouts/workspace-topbar-meta";
 import { useCopilotPage } from "@/hooks/use-copilot-page";
 import { usePatchRhAction, useRhActions } from "@/hooks/useNotifications";
 import { useTeam } from "@/hooks/useTeam";
@@ -236,6 +236,8 @@ export default function TalentRequestsPage() {
         return { label: tr("statusHrTransfer"), color: "brand" as const };
     };
 
+    useWorkspaceTopbarMeta(tr("heroTitle"), tr("heroSubtitle"));
+
     return (
         <WorkspacePageShell
             role="manager"
@@ -245,38 +247,30 @@ export default function TalentRequestsPage() {
             omitHeader
         >
             <div className="space-y-6 lg:space-y-8">
-                <PageHero
-                    eyebrow={tr("heroEyebrow")}
-                    title={tr("heroTitle")}
-                    subtitle={tr("heroSubtitle")}
-                    badge={t("workspaceRoles.manager")}
-                    metrics={
-                        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-                            {kpiDefs.map(({ id, labelKey }) => {
-                                const count = kpiCounts[id];
-                                const active = kpiFilter === id;
-                                return (
-                                    <button
-                                        key={id}
-                                        type="button"
-                                        onClick={() => setKpiFilter((prev) => (prev === id ? "all" : id))}
-                                        className={cx(
-                                            "flex flex-col items-start rounded-xl border px-3 py-2.5 text-left transition-colors",
-                                            active
-                                                ? "border-brand-secondary bg-brand-secondary/10 ring-1 ring-brand-secondary/30"
-                                                : "border-secondary bg-secondary_subtle/40 hover:border-secondary_hover",
-                                        )}
-                                    >
-                                        <span className="text-2xl font-bold tabular-nums text-primary">{count}</span>
-                                        <span className="mt-0.5 text-[11px] font-semibold uppercase tracking-wide text-secondary">
-                                            {tr(labelKey)}
-                                        </span>
-                                    </button>
-                                );
-                            })}
-                        </div>
-                    }
-                />
+                <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                    {kpiDefs.map(({ id, labelKey }) => {
+                        const count = kpiCounts[id];
+                        const active = kpiFilter === id;
+                        return (
+                            <button
+                                key={id}
+                                type="button"
+                                onClick={() => setKpiFilter((prev) => (prev === id ? "all" : id))}
+                                className={cx(
+                                    "flex flex-col items-start rounded-xl border px-3 py-2.5 text-left transition-colors",
+                                    active
+                                        ? "border-brand-secondary bg-brand-secondary/10 ring-1 ring-brand-secondary/30"
+                                        : "border-secondary bg-secondary_subtle/40 hover:border-secondary_hover",
+                                )}
+                            >
+                                <span className="text-2xl font-bold tabular-nums text-primary">{count}</span>
+                                <span className="mt-0.5 text-[11px] font-semibold uppercase tracking-wide text-secondary">
+                                    {tr(labelKey)}
+                                </span>
+                            </button>
+                        );
+                    })}
+                </div>
 
                 {rhQuery.isError ? (
                     <section className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950 dark:border-amber-900/40 dark:bg-amber-950/30 dark:text-amber-100">

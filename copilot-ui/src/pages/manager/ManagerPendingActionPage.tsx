@@ -6,7 +6,7 @@ import { WorkspacePageShell } from "@/components/workspace/workspace-page-shell"
 import { formatRelativeShort } from "@/lib/format-relative-short";
 
 /**
- * Détail d’une action RH listée sur le dashboard (même source de données, pas de nouvel endpoint).
+ * Détail d’une action RH (même source de données dashboard, pas de nouvel endpoint).
  * Les managers ne passent pas par l’espace `/workspace/rh` (rôle réservé RH).
  */
 export default function ManagerPendingActionPage() {
@@ -34,7 +34,7 @@ export default function ManagerPendingActionPage() {
                     </p>
                     {user?.role === "rh" ? (
                         <Link
-                            to={`/workspace/rh/manager-requests?action=${encodeURIComponent(item.id)}`}
+                            to={`/workspace/manager/hr-requests?action=${encodeURIComponent(item.id)}`}
                             className="inline-flex text-sm font-medium text-brand-secondary hover:underline"
                         >
                             {t("managerWorkspace.pendingRh.openInRh")}
@@ -42,14 +42,14 @@ export default function ManagerPendingActionPage() {
                     ) : (
                         <p className="text-sm text-tertiary">
                             {t("managerWorkspace.pendingRh.managerHintBefore")}{" "}
-                            <Link to="/workspace/manager/dashboard#rh-actions" className="text-brand-secondary hover:underline">
+                            <Link to="/workspace/manager/hr-requests" className="text-brand-secondary hover:underline">
                                 {t("managerWorkspace.pendingRh.dashboard")}
                             </Link>{" "}
                             {t("managerWorkspace.pendingRh.managerHintAfter")}
                         </p>
                     )}
                     <div>
-                        <Link to="/workspace/manager/dashboard#rh-actions" className="text-sm text-brand-secondary hover:underline">
+                        <Link to="/workspace/manager/dashboard" className="text-sm text-brand-secondary hover:underline">
                             {t("managerWorkspace.pendingRh.backDashboardHash")}
                         </Link>
                     </div>

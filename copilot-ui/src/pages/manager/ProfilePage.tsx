@@ -1,9 +1,12 @@
 import { useTranslation } from "react-i18next";
 import { WorkspacePageShell } from "@/components/workspace/workspace-page-shell";
+import { useWorkspaceTopbarMeta } from "@/layouts/workspace-topbar-meta";
 import ProfilePage from "@/pages/profile-page";
 
 export default function ManagerProfilePage() {
     const { t } = useTranslation("common");
+
+    useWorkspaceTopbarMeta(t("managerWorkspace.profile.shellTitle"), t("managerWorkspace.profile.shellSubtitle"));
 
     return (
         <WorkspacePageShell

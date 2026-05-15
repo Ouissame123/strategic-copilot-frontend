@@ -82,9 +82,7 @@ function missionControlJsonDetail(error: AxiosError): string | null {
     if (typeof raw === "string" && raw.trim()) {
         const st = error.response?.status;
         const sanitized = sanitizeApiErrorMessageForUser(raw.trim(), { httpStatus: st });
-        if (!sanitized) return null;
-        const max = 220;
-        return sanitized.length > max ? `${sanitized.slice(0, max)}…` : sanitized;
+        return sanitized || null;
     }
     return null;
 }
@@ -94,10 +92,16 @@ export function readMissionControlHttpErrorMessage(error: unknown): string {
     if (!isAxiosError(error)) {
         return readUserFacingApiErrorMessage(error, "Erreur inconnue.");
     }
+    const st = error.response?.status;
     const backend = missionControlJsonDetail(error);
     if (backend) return backend;
 
-    const st = error.response?.status;
+    const rawData = error.response?.data;
+    if (typeof rawData === "string" && rawData.trim()) {
+        const sanitized = sanitizeApiErrorMessageForUser(rawData.trim(), { httpStatus: st });
+        if (sanitized) return sanitized;
+    }
+
     const fixed: Record<number, string> = {
         400: "Données invalides.",
         401: "Session expirée.",

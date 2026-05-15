@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { agentsApi } from "@/api/agents.api";
+import { buildStrictAssignTalentPayload } from "@/api/manager-projects.api";
 import { orchestratorApi } from "@/api/orchestrator.api";
 import { strategistApi } from "@/api/strategist.api";
 import { ManagerProjectCopilotPanel, type CopilotPrefetchedProjectContext } from "@/components/copilot/ManagerProjectCopilotPanel";
@@ -17,7 +18,7 @@ import {
     useUpdateProject,
     useWhatIf,
 } from "@/hooks/useProjects";
-import type { AssignTalentRequest, AssignmentItem, ProjectListItem, ProjectStatus } from "@/types/api.types";
+import type { AssignTalentRequest, AssignmentItem, ProjectListItem, ProjectStatus, WmpAssignmentType } from "@/types/api.types";
 import { useToast } from "@/providers/toast-provider";
 import { cx } from "@/utils/cx";
 
@@ -268,7 +269,7 @@ export function ProjectMissionControlModal({ open, projectId, listProject, onClo
     const [assignPayload, setAssignPayload] = useState<{
         talent_id: string;
         allocation_pct: number;
-        assignment_type: NonNullable<AssignTalentRequest["assignment_type"]>;
+        assignment_type: WmpAssignmentType;
     }>({ talent_id: "", allocation_pct: 50, assignment_type: "part_time" });
     const [whatIfPayload, setWhatIfPayload] = useState({ added_talent_id: "", allocation_pct: "" });
     const [workspaceTab, setWorkspaceTab] = useState<WorkspaceTabId>("overview");
@@ -549,11 +550,11 @@ export function ProjectMissionControlModal({ open, projectId, listProject, onClo
                             onChange={(e) => setEditPayload((p) => ({ ...p, status: e.target.value as ProjectStatus }))}
                             className="rounded border border-secondary bg-primary px-2 py-1.5 text-sm text-fg-primary"
                         >
-                            <option value="planned">planned</option>
-                            <option value="active">active</option>
-                            <option value="on_hold">on_hold</option>
-                            <option value="completed">completed</option>
-                            <option value="cancelled">cancelled</option>
+                            <option value="planned">{tm("statusOptionPlanned")}</option>
+                            <option value="active">{tm("statusOptionActive")}</option>
+                            <option value="on_hold">{tm("statusOptionOnHold")}</option>
+                            <option value="completed">{tm("statusOptionCompleted")}</option>
+                            <option value="cancelled">{tm("statusOptionCancelled")}</option>
                         </select>
                     </label>
                     <label className="flex flex-col gap-1">
@@ -586,25 +587,14 @@ export function ProjectMissionControlModal({ open, projectId, listProject, onClo
                         className="rounded border border-secondary bg-primary px-3 py-2 text-sm font-medium text-fg-secondary hover:bg-secondary_subtle disabled:cursor-not-allowed disabled:opacity-50"
                         onClick={() => {
                             if (updateProject.isPending || !isEditDirty) return;
-                            updateProject.mutate(
-                                {
-                                    projectId: pid,
-                                    body: {
-                                        status: editPayload.status,
-                                        priority: editPayload.priority,
-                                        milestone_at: editPayload.milestone_at || undefined,
-                                    },
+                            updateProject.mutate({
+                                projectId: pid,
+                                body: {
+                                    status: editPayload.status,
+                                    priority: editPayload.priority,
+                                    milestone_at: editPayload.milestone_at.trim() ? editPayload.milestone_at.trim() : null,
                                 },
-                                {
-                                    onSuccess: async () => {
-                                        pushToast(tm("projectChangesSaved"), "success");
-                                        await detail.refetch();
-                                    },
-                                    onError: (err) => {
-                                        pushToast(tm("projectStatusSaveError", { message: readMissionControlHttpErrorMessage(err) }), "error");
-                                    },
-                                },
-                            );
+                            });
                         }}
                     >
                         {tm("saveProjectChanges")}
@@ -654,7 +644,6 @@ export function ProjectMissionControlModal({ open, projectId, listProject, onClo
                                                 {
                                                     onSuccess: async () => {
                                                         pushToast(tm("unassignSuccessToast"), "success");
-                                                        await detail.refetch();
                                                     },
                                                     onError: (err) => {
                                                         pushToast(
@@ -725,7 +714,7 @@ export function ProjectMissionControlModal({ open, projectId, listProject, onClo
                                     assignmentTypeTouched.current = true;
                                     setAssignPayload((p) => ({
                                         ...p,
-                                        assignment_type: e.target.value as NonNullable<AssignTalentRequest["assignment_type"]>,
+                                        assignment_type: e.target.value as WmpAssignmentType,
                                     }));
                                 }}
                                 className="rounded border border-secondary bg-primary px-2 py-1.5 text-sm text-fg-primary"
@@ -747,13 +736,22 @@ export function ProjectMissionControlModal({ open, projectId, listProject, onClo
                         className="rounded border border-secondary bg-primary px-3 py-2 text-sm font-medium text-fg-secondary hover:bg-secondary_subtle disabled:cursor-not-allowed disabled:opacity-50"
                         onClick={() => {
                             const alloc = clamp(Number(assignPayload.allocation_pct) || 0, 0, 100);
-                            const assignment_type =
+                            const assignment_type: WmpAssignmentType =
                                 assignPayload.assignment_type || (alloc >= 80 ? "full_time" : "part_time");
-                            const body: AssignTalentRequest = {
-                                talent_id: String(assignPayload.talent_id).trim(),
-                                allocation_pct: alloc,
-                                assignment_type,
-                            };
+                            let body: AssignTalentRequest;
+                            try {
+                                body = buildStrictAssignTalentPayload({
+                                    talent_id: String(assignPayload.talent_id).trim(),
+                                    allocation_pct: alloc,
+                                    assignment_type,
+                                    start_date: null,
+                                    end_date: null,
+                                    role_on_project: null,
+                                });
+                            } catch {
+                                pushToast(tm("assignTalentError", { message: "Données invalides" }), "error");
+                                return;
+                            }
                             assignTalent.mutate(
                                 { projectId: pid, body },
                                 {
@@ -761,7 +759,6 @@ export function ProjectMissionControlModal({ open, projectId, listProject, onClo
                                         pushToast(tm("assignSuccessToast"), "success");
                                         assignmentTypeTouched.current = false;
                                         setAssignPayload({ talent_id: "", allocation_pct: 50, assignment_type: "part_time" });
-                                        await detail.refetch();
                                     },
                                     onError: (err) => {
                                         pushToast(tm("assignTalentError", { message: readMissionControlHttpErrorMessage(err) }), "error");

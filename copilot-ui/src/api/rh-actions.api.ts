@@ -1,11 +1,12 @@
 /**
- * File d’actions RH — POST création, GET liste (même ressource REST).
- * v3 (Bearer JWT) : pas de `enterprise_id` en query/body — tenant et manager issus du token.
+ * Actions RH : POST/GET liste sur webhook métier ; PATCH sur `/api/rh/actions/:id`.
+ * En dev, Vite proxy réécrit vers le webhook n8n :
+ * `https://n8nprod.aphelionxinnovations.com/webhook/c8bae94d-8de1-4f06-bb0a-a1e90eb6a80d/api/rh/actions/:id`
+ * (voir `vite.config.ts` — entrée `/api/rh/actions`).
  */
 import type { ApiClientOptions } from "@/utils/apiClient";
-import { ApiError, apiGet, apiPost, getApiAuthToken } from "@/utils/apiClient";
+import { apiGet, apiPatch, apiPost } from "@/utils/apiClient";
 import { assertUuid } from "@/api/manager-api-contract";
-import { buildN8nUrl, getN8nBaseUrl } from "@/lib/build-n8n-url";
 
 function basePath(): string {
     const fromEnv = (import.meta.env as Record<string, string | undefined>).VITE_RH_ACTIONS_URL?.trim();
@@ -38,6 +39,29 @@ export async function postRhAction(body: PostRhActionBody, options?: ApiClientOp
     return apiPost<unknown>(basePath(), payload, options);
 }
 
+/** Liste : même source qu’avant refactor (`/webhook/api/rh/actions` ou `VITE_RH_ACTIONS_URL`) — payload n8n `{ status, items[] }`. */
+const RH_ACTIONS_PATCH_PATH = "/api/rh/actions";
+
+const RH_ACTIONS_PATCH_KEYS = ["status", "response_message", "assigned_to"] as const;
+
+/** Corps PATCH strictement limité aux champs acceptés par le webhook n8n. */
+function slimRhActionPatchBody(body: Record<string, unknown>): Record<string, unknown> {
+    const out: Record<string, unknown> = {};
+    for (const k of RH_ACTIONS_PATCH_KEYS) {
+        if (Object.prototype.hasOwnProperty.call(body, k) && body[k] !== undefined) {
+            out[k] = body[k];
+        }
+    }
+    return out;
+}
+
+/** Chemin relatif utilisé pour le PATCH (logs / tests). */
+export function rhActionsPatchPath(id: string): string {
+    const raw = String(id ?? "").trim();
+    if (!raw) return RH_ACTIONS_PATCH_PATH;
+    return `${RH_ACTIONS_PATCH_PATH}/${encodeURIComponent(raw)}`;
+}
+
 export async function fetchRhActionsList(
     params: { status?: string; project_id?: string; limit?: number },
     options?: ApiClientOptions,
@@ -50,52 +74,18 @@ export async function fetchRhActionsList(
     return apiGet<unknown>(qs ? `${basePath()}?${qs}` : basePath(), options);
 }
 
-/** PATCH — corps sans enterprise_id (tenant via JWT). */
+/**
+ * PATCH workflow RH — uniquement `status`, `response_message`, `assigned_to`.
+ * Réponses 200 avec corps non-JSON (ex. texte « OK ») traitées comme succès.
+ */
 export async function patchRhAction(id: string, body: Record<string, unknown>, options?: ApiClientOptions): Promise<unknown> {
-    const actionId = assertUuid(id, "action_id");
-    const { enterprise_id: _e, ...rest } = body;
-    const token = getApiAuthToken();
-    const timeoutMs = options?.timeout ?? 30_000;
-    const timeoutController = new AbortController();
-    const timer = window.setTimeout(() => timeoutController.abort(), timeoutMs);
-    const signal = options?.signal ?? timeoutController.signal;
-
-    const request = async (url: string): Promise<unknown> => {
-        const response = await fetch(url, {
-            method: "PATCH",
-            headers: {
-                "Content-Type": "application/json",
-                Accept: "application/json",
-                ...(token ? { Authorization: `Bearer ${token}` } : {}),
-            },
-            body: JSON.stringify(rest),
-            credentials: "include",
-            signal,
-        });
-        const text = await response.text();
-        let payload: unknown = text;
-        if (text.trim()) {
-            try {
-                payload = JSON.parse(text);
-            } catch {
-                payload = text;
-            }
-        }
-        if (!response.ok) throw new ApiError(`Échec ${response.status} ${response.statusText}`, response.status, payload);
-        return payload;
-    };
-
-    const primaryUrl = buildN8nUrl(`/webhook/api/rh/actions/${encodeURIComponent(actionId)}`);
-    const fallbackUrl = `${window.location.origin}/api/rh/actions/${encodeURIComponent(actionId)}`;
-    try {
-        return await request(primaryUrl);
-    } catch (e) {
-        if (!(e instanceof ApiError) || e.status !== 500) throw e;
-        if (getN8nBaseUrl()) throw e;
-        return request(fallbackUrl);
-    } finally {
-        window.clearTimeout(timer);
+    const rawId = String(id ?? "").trim();
+    if (!rawId) {
+        throw new Error("action_id requis.");
     }
+    const path = rhActionsPatchPath(rawId);
+    const payload = slimRhActionPatchBody(body);
+    return apiPatch<unknown>(path, payload, { ...options, acceptNonJson200: true });
 }
 
 /** Plan de formation — POST dédié si le workflow l’expose (corps minimal). */

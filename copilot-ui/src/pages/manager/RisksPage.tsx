@@ -2,8 +2,8 @@ import { Fragment, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { PageHero } from "@/components/layout/PageHero";
 import { WorkspacePageShell } from "@/components/workspace/workspace-page-shell";
+import { useWorkspaceTopbarMeta } from "@/layouts/workspace-topbar-meta";
 import { agentsApi } from "@/api/agents.api";
 import { useDashboard } from "@/hooks/useDashboard";
 import { useManagerRiskData } from "@/hooks/use-manager-risk-data";
@@ -57,13 +57,6 @@ function severityBadgeClass(sev: string | undefined): string {
     if (v === "high") return "border-orange-200 bg-orange-50 text-orange-900 dark:border-orange-800 dark:bg-orange-950/40 dark:text-orange-100";
     if (v === "medium") return "border-amber-200 bg-amber-50 text-amber-900 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-100";
     return "border-emerald-200 bg-emerald-50 text-emerald-900 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-100";
-}
-
-function globalRiskBadge(score: number): { label: string; className: string } {
-    if (score < 3) return { label: "Faible", className: "border-emerald-300 bg-emerald-50 text-emerald-900 dark:border-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-100" };
-    if (score < 5) return { label: "Modéré", className: "border-amber-300 bg-amber-50 text-amber-900 dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-100" };
-    if (score < 7.5) return { label: "Élevé", className: "border-orange-400 bg-orange-50 text-orange-950 dark:border-orange-700 dark:bg-orange-950/40 dark:text-orange-100" };
-    return { label: "Critique", className: "border-red-500 bg-red-50 text-red-900 dark:border-red-700 dark:bg-red-950/50 dark:text-red-100" };
 }
 
 function computeGlobalRiskScore(params: {
@@ -321,7 +314,7 @@ export default function RisksPage() {
     const isLoading = aggregateView ? dashboard.isLoading : riskDetail.isLoading;
     const isError = aggregateView ? dashboard.isError : riskDetail.isError;
 
-    const riskBadge = globalRiskScore != null ? globalRiskBadge(globalRiskScore) : { label: "—", className: "border-secondary bg-secondary_subtle text-tertiary" };
+    useWorkspaceTopbarMeta(t("managerWorkspace.risksPage.heroTitle"), t("managerWorkspace.risksPage.heroSubtitle"));
 
     return (
         <WorkspacePageShell
@@ -340,45 +333,6 @@ export default function RisksPage() {
 
             {!isLoading && !isError ? (
                 <div className="space-y-6 lg:space-y-8">
-                    <PageHero
-                        eyebrow={t("managerWorkspace.risksPage.heroEyebrow")}
-                        title={t("managerWorkspace.risksPage.heroTitle")}
-                        subtitle={t("managerWorkspace.risksPage.heroSubtitle")}
-                        badge={t("workspaceRoles.manager")}
-                        actions={
-                            <button
-                                type="button"
-                                disabled={watchdogScan.isPending}
-                                className="rounded-xl border border-brand-solid bg-brand-solid px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-brand-solid_hover disabled:opacity-50"
-                                onClick={() => {
-                                    const fallback = leaderboardRows[0]?.project_id;
-                                    onScan(projectId.trim() || fallback);
-                                }}
-                            >
-                                {watchdogScan.isPending ? t("managerWorkspace.risksPage.scanInProgress") : t("managerWorkspace.risksPage.scanWatchdog")}
-                            </button>
-                        }
-                        metrics={
-                            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                                <div className="rounded-xl border border-secondary bg-primary_alt px-4 py-3 text-center shadow-inner sm:text-left">
-                                    <p className="text-[10px] font-semibold uppercase tracking-wide text-tertiary">{t("managerWorkspace.risksPage.metricGlobalRiskCaption")}</p>
-                                    <p
-                                        className={cx(
-                                            "mt-1 text-2xl font-bold tabular-nums",
-                                            globalRiskScore != null ? scoreColorClass(globalRiskScore) : "text-tertiary",
-                                        )}
-                                    >
-                                        {globalRiskScore != null ? globalRiskScore.toFixed(2) : "—"}
-                                        <span className="text-sm font-medium text-tertiary"> /10</span>
-                                    </p>
-                                    <span className={cx("mt-2 inline-flex rounded-full border px-2.5 py-0.5 text-[11px] font-semibold", riskBadge.className)}>
-                                        {riskBadge.label}
-                                    </span>
-                                </div>
-                            </div>
-                        }
-                    />
-
                     {/* KPI */}
                     <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
                         {aggregateView ? (
@@ -506,7 +460,7 @@ export default function RisksPage() {
                         </div>
                     </section>
 
-                    <div className="space-y-6">
+                    <div className="space-y-4">
                             <section className="rounded-2xl border border-secondary bg-primary p-4 shadow-sm lg:p-5">
                                 <div className="flex flex-wrap items-center justify-between gap-2">
                                     <h2 className="text-sm font-semibold text-primary">Priorité IA</h2>
@@ -708,14 +662,14 @@ function RiskHeatmap({
     const labelsUrgence = ["Surveillance", "Aujourd'hui", "Urgent"];
 
     return (
-        <section className="rounded-2xl border border-secondary bg-primary p-4 shadow-sm lg:p-5">
-            <h2 className="text-sm font-semibold text-primary">Risk heatmap</h2>
-            <p className="mt-1 text-xs text-tertiary">Impact × urgence — cliquez sur une cellule pour ouvrir une alerte.</p>
-            <div className="mt-4 overflow-hidden rounded-xl border border-secondary">
-                <div className="grid grid-cols-[minmax(0,4.5rem)_repeat(3,minmax(0,1fr))] bg-secondary_subtle/30 text-[10px] font-semibold uppercase text-tertiary">
-                    <div className="border-b border-r border-secondary p-2" />
+        <section className="rounded-xl border border-secondary bg-primary p-2.5 shadow-sm sm:p-3">
+            <h2 className="text-xs font-semibold tracking-tight text-primary">Risk heatmap</h2>
+            <p className="mt-0.5 text-[11px] leading-snug text-tertiary">Impact × urgence — cliquez sur une cellule pour ouvrir une alerte.</p>
+            <div className="mt-2 max-h-[13rem] overflow-auto rounded-lg border border-secondary sm:max-h-[14rem]">
+                <div className="grid min-h-0 grid-cols-[minmax(0,3.25rem)_repeat(3,minmax(0,1fr))] bg-secondary_subtle/30 text-[9px] font-semibold uppercase tracking-wide text-tertiary">
+                    <div className="border-b border-r border-secondary px-1 py-1" />
                     {labelsImpact.map((lab) => (
-                        <div key={lab} className="border-b border-r border-secondary p-2 text-center last:border-r-0">
+                        <div key={lab} className="border-b border-r border-secondary px-1 py-1 text-center leading-tight last:border-r-0">
                             {lab}
                         </div>
                     ))}
@@ -723,7 +677,7 @@ function RiskHeatmap({
                         <Fragment key={uLab}>
                             <div
                                 className={cx(
-                                    "flex items-center border-r border-secondary bg-primary px-2 py-2 text-[10px] font-semibold leading-tight text-secondary",
+                                    "flex items-center border-r border-secondary bg-primary px-1 py-1 text-[9px] font-semibold leading-tight text-secondary",
                                     row < labelsUrgence.length - 1 ? "border-b" : "",
                                 )}
                             >
@@ -736,7 +690,7 @@ function RiskHeatmap({
                                     <div
                                         key={`${row}-${col}`}
                                         className={cx(
-                                            "relative min-h-[4.5rem] border-r border-secondary bg-primary p-1.5",
+                                            "relative min-h-[2.75rem] border-r border-secondary bg-primary p-1 sm:min-h-[3rem]",
                                             row < labelsUrgence.length - 1 ? "border-b" : "",
                                             col === 2 ? "last:border-r-0" : "",
                                         )}
@@ -747,7 +701,7 @@ function RiskHeatmap({
                                                 type="button"
                                                 onClick={() => onPick(a)}
                                                 className={cx(
-                                                    "mb-1 w-full truncate rounded-lg border px-1.5 py-1 text-left text-[10px] font-medium transition hover:brightness-95",
+                                                    "mb-0.5 w-full max-w-full truncate rounded-md border px-1 py-0.5 text-left text-[9px] font-medium leading-tight transition last:mb-0 hover:brightness-95 sm:text-[10px]",
                                                     severityBadgeClass(a.severity),
                                                 )}
                                                 title={a.message}
@@ -756,7 +710,11 @@ function RiskHeatmap({
                                             </button>
                                         ))}
                                         {cell.length > 3 ? (
-                                            <button type="button" className="w-full text-[10px] font-semibold text-brand-secondary hover:underline" onClick={() => onPick(cell[0])}>
+                                            <button
+                                                type="button"
+                                                className="w-full py-0.5 text-[9px] font-semibold leading-none text-brand-secondary hover:underline sm:text-[10px]"
+                                                onClick={() => onPick(cell[0])}
+                                            >
                                                 +{cell.length - 3}
                                             </button>
                                         ) : null}

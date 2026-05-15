@@ -1,8 +1,8 @@
 import { Link, useSearchParams } from "react-router";
 import { useTranslation } from "react-i18next";
-import { PageHero } from "@/components/layout/PageHero";
 import { ManagerProjectCopilotPanel } from "@/components/copilot/ManagerProjectCopilotPanel";
 import { WorkspacePageShell } from "@/components/workspace/workspace-page-shell";
+import { useWorkspaceTopbarMeta } from "@/layouts/workspace-topbar-meta";
 
 function readProjectNameParam(raw: string | null): string | undefined {
     if (raw == null || raw === "") return undefined;
@@ -19,6 +19,11 @@ export default function HelperChatPage() {
     const [searchParams] = useSearchParams();
     const projectId = (searchParams.get("project_id") ?? "").trim() || null;
     const projectName = readProjectNameParam(searchParams.get("project_name"));
+
+    useWorkspaceTopbarMeta(
+        projectId ? t("managerWorkspace.helper.titleAi") : t("managerWorkspace.helper.title"),
+        projectId ? (projectName ?? t("managerWorkspace.helper.subtitleProjectFallback")) : t("managerWorkspace.helper.emptyHint"),
+    );
 
     const backLink = (
         <Link
@@ -38,13 +43,7 @@ export default function HelperChatPage() {
                 description={false}
                 omitHeader
             >
-                <PageHero
-                    eyebrow={t("workspaceRoles.manager")}
-                    title={t("managerWorkspace.helper.title")}
-                    subtitle={t("managerWorkspace.helper.emptyHint")}
-                    badge={t("workspaceRoles.manager")}
-                    actions={backLink}
-                />
+                <div className="mb-4 flex flex-wrap gap-2">{backLink}</div>
                 <div className="rounded-2xl border border-dashed border-secondary bg-secondary_subtle/30 p-6 text-center">
                     <p className="text-sm text-fg-secondary">Ajoutez <span className="font-mono text-xs">?project_id=…</span> à l’URL ou ouvrez un projet depuis Mes projets.</p>
                 </div>
@@ -60,17 +59,7 @@ export default function HelperChatPage() {
             description={false}
             omitHeader
         >
-            <PageHero
-                eyebrow={t("workspaceRoles.manager")}
-                title={t("managerWorkspace.helper.titleAi")}
-                subtitle={
-                    projectName
-                        ? projectName
-                        : "Projet lié via l’URL : le panneau ci-dessous utilise le paramètre project_id."
-                }
-                badge={t("workspaceRoles.manager")}
-                actions={backLink}
-            />
+            <div className="mb-4 flex flex-wrap gap-2">{backLink}</div>
             <div className="relative isolate min-h-[calc(100dvh-11rem)] w-full min-w-0">
                 <div
                     aria-hidden
