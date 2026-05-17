@@ -4,6 +4,7 @@
 export const queryKeys = {
     projectDetail: (id: string) => ["project-detail", id] as const,
     projectRisks: (projectId: string | null) => ["project-risks", projectId ?? "all"] as const,
+    projectTasks: (projectId: string) => ["project-tasks", projectId] as const,
     portfolio: {
         all: ["portfolio"] as const,
         overview: () => [...queryKeys.portfolio.all, "overview"] as const,

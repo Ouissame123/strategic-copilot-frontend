@@ -181,6 +181,10 @@ export interface DashboardResponse {
     };
 }
 
+/**
+ * Ligne liste `GET /manager/projects` (Manager_Projects).
+ * Champs dérivés (`reason_code`, `fragility_score`, etc.) : voir `enrichManagerProjectListItem` — TODO BACK workflow.
+ */
 export interface ProjectListItem {
     id: string;
     name: string;
@@ -188,10 +192,11 @@ export interface ProjectListItem {
     priority: number;
     milestone_at: string | null;
     team_size: number;
+    progress_pct?: number | null;
     active_alerts_count: number;
     latest_viability_score: number | null;
     latest_decision: DecisionLabel | null;
-    progress_pct?: number | null;
+    /** Alias legacy */
     decision?: DecisionLabel | null;
     alerts_count?: number;
     equipe_size?: number;
@@ -231,6 +236,16 @@ export interface AssignmentItem {
     status?: string;
 }
 export interface RequirementItem { id: string; skill_id: string; skill_name?: string; required_level: number }
+/** Risque Watchdog / détail projet (GET manager project detail — tableau `risks`). */
+export interface ProjectRiskItem {
+    id: string;
+    severity: string;
+    risk_code: string;
+    title: string | null;
+    description: string | null;
+    score: number | null;
+}
+
 export interface AlertItem {
     id: string;
     severity: string;
@@ -257,13 +272,37 @@ export interface ViabilityScore {
     explanation?: string | null;
 }
 export interface ProjectKpiFull {
-    progress_pct: number;
-    capacity_load_pct: number;
-    project_health_score: number;
+    progress_pct?: number | null;
+    capacity_load_pct?: number | null;
+    project_health_score?: number | null;
+    strategic_alignment_score?: number | null;
     /** Présent selon certains workflows n8n */
     delay_days?: number | null;
+    computed_at?: string | null;
 }
-export interface ArbitrageOption { id: string; label: string; rationale: string; impact_score: number }
+export type ArbitrageOptionType = "reallocation" | "delay" | "reinforce" | "stop_scope";
+
+export type ArbitrageOptionStatus = "proposed" | "selected" | "executed" | "rejected" | "expired";
+
+export interface ArbitrageImpactJson {
+    score_delta?: number;
+    capacity_delta?: number;
+    alerts_impact?: number;
+    budget_impact?: number;
+    timeline_days?: number;
+}
+
+export interface ArbitrageOption {
+    id: string;
+    label: string;
+    rationale: string;
+    impact_score: number;
+    option_type?: ArbitrageOptionType;
+    impact_json?: ArbitrageImpactJson | null;
+    confidence?: number;
+    status?: ArbitrageOptionStatus;
+    created_at?: string;
+}
 export interface ProjectFull extends ProjectListItem { description?: string; start_date?: string; budget_rh_planned?: number }
 export interface ProjectDetailResponse {
     project: ProjectFull;
@@ -273,6 +312,7 @@ export interface ProjectDetailResponse {
     latest_viability: ViabilityScore | null;
     latest_kpi: ProjectKpiFull | null;
     arbitrage_options: ArbitrageOption[];
+    risks: ProjectRiskItem[];
 }
 export interface ManagerProjectDetailResponse extends ProjectDetailResponse {
     status: "success";
@@ -430,8 +470,28 @@ export interface ConversationDetailResponse { conversation: ConversationItem; me
 export interface ArchiveConversationRequest { restore?: boolean }
 export interface ArchiveConversationResponse { success: boolean }
 
-export interface ViabilityRequest { project_id: string; force_refresh?: boolean; simulation_mode?: boolean; intent?: string }
-export interface ViabilityResponse { project_id: string; score: number; decision: DecisionLabel; explanation?: string }
+export interface ViabilityRequest {
+    project_id: string;
+    enterprise_id?: string;
+    enable_strategist?: boolean;
+    use_ai?: boolean;
+    force_refresh?: boolean;
+    simulation_mode?: boolean;
+    intent?: string;
+}
+
+export interface ViabilityResponse {
+    project_id: string;
+    score: number;
+    decision: DecisionLabel;
+    explanation?: string;
+    /** Champs optionnels renvoyés par l’orchestrator après re-scan complet. */
+    viability_score?: number;
+    risks?: ProjectRiskItem[];
+    recommendations?: unknown;
+    latest_kpi?: ProjectKpiFull;
+    [key: string]: unknown;
+}
 
 /** Body `modifications` pour POST /webhook/api/project/what-if (`delay_days` optionnel selon workflow). */
 export interface WhatIfModifications {
@@ -510,9 +570,17 @@ export interface WhatIfResponse {
 
 /** Alias pour payloads runtime éventuellement partiels */
 export type WhatIfResult = Partial<WhatIfResponse>;
-export interface ProposeRequest { project_id: string; use_ai?: boolean }
+export interface ProposeRequest {
+    enterprise_id: string;
+    project_id: string;
+    use_ai?: boolean;
+}
 export interface ProposeResponse { options: ArbitrageOption[] }
-export interface ExecuteRequest { option_id: string; action: "execute" | "reject" }
+export interface ExecuteRequest {
+    enterprise_id: string;
+    option_id: string;
+    action: "execute" | "reject";
+}
 export interface ExecuteResponse { success: boolean; decision_id?: string }
 
 export interface HelperChatRequest { message: string; project_id?: string; conversation_id?: string }

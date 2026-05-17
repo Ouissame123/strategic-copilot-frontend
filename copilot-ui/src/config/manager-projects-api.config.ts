@@ -81,3 +81,17 @@ export function getManagerProjectDetailGetUrl(projectId: string): string {
     if (apiBase) return `${apiBase}/wmp-detail-v1/manager/projects/${enc}`;
     return `/webhook/wmp-detail-v1/manager/projects/${enc}`;
 }
+
+/** Racine WF_Manager_Project_Tasks — `GET|POST …/manager/projects/{id}/tasks`. */
+export function getManagerProjectTasksBaseUrl(projectId: string): string {
+    const id = String(projectId ?? "").trim();
+    if (!id) throw new Error("Missing project id");
+    const enc = encodeURIComponent(id);
+
+    const prefix = readEnv("VITE_WMP_TASKS_PROJECTS_PREFIX")?.trim().replace(/\/$/, "");
+    if (prefix) return `${prefix}/${enc}/tasks`;
+
+    const apiBase = trimUrl(import.meta.env.VITE_API_BASE_URL as string | undefined);
+    if (apiBase) return `${apiBase}/manager/projects/${enc}/tasks`;
+    return `/webhook/manager/projects/${enc}/tasks`;
+}

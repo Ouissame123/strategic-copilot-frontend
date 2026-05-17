@@ -40,6 +40,9 @@ export type ManagerProjectCopilotPanelProps = {
     messageContextPrefix?: string | null;
     /** Incrémente `nonce` pour remplir le champ avec `text` (ex. bouton « Analyser avec IA »). */
     externalPrompt?: { text: string; nonce: number } | null;
+    /** Re-scan complet via POST `/webhook/api/project/viability` (modal Mission Control). */
+    onRefreshProjectSnapshot?: () => void;
+    refreshingProjectSnapshot?: boolean;
 };
 
 const QUICK_PROMPTS = [
@@ -71,6 +74,8 @@ export function ManagerProjectCopilotPanel({
     quickPrompts,
     messageContextPrefix = null,
     externalPrompt = null,
+    onRefreshProjectSnapshot = undefined,
+    refreshingProjectSnapshot = false,
 }: ManagerProjectCopilotPanelProps) {
     const { push } = useToast();
     const qc = useQueryClient();
@@ -275,9 +280,13 @@ export function ManagerProjectCopilotPanel({
 
     const refreshProjectContext = useCallback(() => {
         if (!projectId) return;
+        if (onRefreshProjectSnapshot) {
+            onRefreshProjectSnapshot();
+            return;
+        }
         void qc.invalidateQueries({ queryKey: ["project-detail", projectId] });
         void qc.invalidateQueries({ queryKey: ["chat-conversations"] });
-    }, [projectId, qc]);
+    }, [onRefreshProjectSnapshot, projectId, qc]);
 
     const allMessages = useMemo(
         () => [...(displayDetail?.messages ?? []), ...pendingMessages],
@@ -377,7 +386,7 @@ export function ManagerProjectCopilotPanel({
             ref={scrollRef}
             className={cx(
                 "min-h-0 flex-1 overflow-y-auto overscroll-contain",
-                compact ? "space-y-2 px-2 py-2" : "space-y-3 px-1 py-3 sm:min-h-[240px] sm:px-3",
+                compact ? "space-y-2.5 px-3 py-2.5" : "space-y-3 px-1 py-3 sm:min-h-[240px] sm:px-3",
             )}
         >
             {detailLoading ? (
@@ -431,7 +440,7 @@ export function ManagerProjectCopilotPanel({
         <footer
             className={cx(
                 "sticky bottom-0 z-20 shrink-0 border-t border-secondary/80 bg-primary/95 shadow-[0_-8px_24px_-12px_rgba(0,0,0,0.12)] backdrop-blur-md supports-[backdrop-filter]:bg-primary/80",
-                compact ? "px-2 py-2" : "px-2 py-3 sm:px-3",
+                compact ? "px-3 py-2.5 ring-1 ring-inset ring-secondary/40" : "px-2 py-3 sm:px-3",
             )}
         >
             {errorBanner}
@@ -445,11 +454,13 @@ export function ManagerProjectCopilotPanel({
                             void handleSend();
                         }
                     }}
-                    placeholder={compact ? "Votre question sur ce projet…" : "Pose ta question au conseiller…"}
+                    placeholder={compact ? "Posez une question stratégique…" : "Pose ta question au conseiller…"}
                     rows={compact ? 2 : 2}
                     className={cx(
                         "min-h-0 flex-1 resize-none rounded-2xl border border-secondary bg-primary shadow-inner outline-none transition placeholder:text-tertiary focus:border-brand-secondary focus:ring-2 focus:ring-brand-solid/25",
-                        compact ? "px-2.5 py-2 text-xs" : "px-3 py-2.5 text-sm",
+                        compact
+                            ? "rounded-xl border-secondary/80 px-3 py-2 text-xs leading-relaxed shadow-xs"
+                            : "px-3 py-2.5 text-sm",
                     )}
                     disabled={send.isPending}
                 />
@@ -459,7 +470,9 @@ export function ManagerProjectCopilotPanel({
                     disabled={!input.trim() || send.isPending}
                     className={cx(
                         "shrink-0 self-end rounded-2xl bg-brand-solid font-semibold text-white shadow-md shadow-brand-solid/30 transition hover:opacity-95 disabled:cursor-not-allowed disabled:opacity-45",
-                        compact ? "px-3 py-2 text-xs" : "px-4 py-2.5 text-sm",
+                        compact
+                            ? "rounded-xl px-3.5 py-2 text-xs shadow-sm hover:shadow-md"
+                            : "px-4 py-2.5 text-sm",
                     )}
                 >
                     {send.isPending ? "…" : "Envoyer"}
@@ -537,14 +550,21 @@ export function ManagerProjectCopilotPanel({
                             <button
                                 key={a.action}
                                 type="button"
+                                disabled={a.action === "refresh_snapshot" && refreshingProjectSnapshot}
                                 onClick={() => {
                                     if (a.action === "refresh_snapshot") refreshProjectContext();
                                     if (a.action === "new_thread") startNewConversation();
                                 }}
-                                className="flex items-center justify-center gap-2 rounded-xl border border-secondary bg-primary px-3 py-2 text-xs font-semibold text-secondary transition hover:border-brand-secondary/50 hover:bg-brand-primary/5 hover:text-primary"
+                                className="flex items-center justify-center gap-2 rounded-xl border border-secondary bg-primary px-3 py-2 text-xs font-semibold text-secondary transition hover:border-brand-secondary/50 hover:bg-brand-primary/5 hover:text-primary disabled:cursor-not-allowed disabled:opacity-50"
                             >
-                                {a.action === "refresh_snapshot" ? <RefreshCw01 className="size-3.5" /> : null}
-                                {a.label}
+                                {a.action === "refresh_snapshot" ? (
+                                    <RefreshCw01
+                                        className={cx("size-3.5", refreshingProjectSnapshot && "animate-spin")}
+                                    />
+                                ) : null}
+                                {a.action === "refresh_snapshot" && refreshingProjectSnapshot
+                                    ? "Actualisation…"
+                                    : a.label}
                             </button>
                         ))}
                     </div>
@@ -652,29 +672,17 @@ export function ManagerProjectCopilotPanel({
             </div>
         ) : null;
 
-    const compactQuickPromptsBar = compact ? (
-        <div className="shrink-0 space-y-2 border-b border-secondary/50 bg-gradient-to-b from-secondary_subtle/30 to-transparent px-2.5 pb-2.5 pt-1">
-            <button
-                type="button"
-                onClick={() => setHistoryOpen(true)}
-                className="flex w-full items-center justify-center gap-2 rounded-xl border border-secondary/80 bg-primary/90 py-2 text-[11px] font-semibold text-secondary shadow-sm transition hover:border-brand-secondary/40 hover:bg-brand-primary/5 hover:text-primary"
-            >
-                Historique
-                {conversationsForProject.length > 0 ? (
-                    <span className="rounded-full bg-secondary_subtle px-1.5 py-px text-[10px] font-bold tabular-nums text-tertiary">
-                        {conversationsForProject.length}
-                    </span>
-                ) : null}
-            </button>
-            <p className="text-[9px] font-semibold uppercase tracking-wide text-tertiary">Questions rapides</p>
-            <div className="grid grid-cols-1 gap-1.5">
+    const compactQuickPromptChips = compact ? (
+        <div className="shrink-0 border-b border-secondary/60 bg-primary px-3 py-2.5">
+            <p className="mb-1.5 text-[9px] font-semibold uppercase tracking-wider text-tertiary">Questions rapides</p>
+            <div className="flex flex-wrap gap-1.5">
                 {prompts.map((label) => (
                     <button
                         key={label}
                         type="button"
                         disabled={send.isPending}
                         onClick={() => void handleSend(label)}
-                        className="rounded-xl border border-secondary/70 bg-primary px-2.5 py-2 text-left text-[11px] font-medium leading-snug text-primary shadow-sm ring-1 ring-black/[0.03] transition hover:border-brand-secondary/45 hover:bg-brand-primary/5 hover:shadow-md disabled:cursor-not-allowed disabled:opacity-45"
+                        className="rounded-full border border-secondary/80 bg-primary px-2.5 py-1 text-[10px] font-medium leading-snug text-secondary shadow-xs transition hover:-translate-y-px hover:border-brand-secondary/45 hover:bg-brand-primary/8 hover:text-primary hover:shadow-sm disabled:cursor-not-allowed disabled:opacity-45 disabled:hover:translate-y-0"
                     >
                         {label}
                     </button>
@@ -685,10 +693,15 @@ export function ManagerProjectCopilotPanel({
 
     if (compact) {
         return (
-            <div className="relative flex h-full min-h-0 w-full min-w-0 flex-col overflow-hidden rounded-xl border border-secondary/80 bg-primary shadow-sm ring-1 ring-secondary/30">
-                <div className="shrink-0 border-b border-secondary/70 bg-gradient-to-br from-brand-primary_alt/18 via-primary to-transparent px-3 py-2.5">
-                    <p className="text-[10px] font-semibold uppercase tracking-wider text-tertiary">Copilot projet</p>
-                    <p className="mt-1 truncate text-sm font-semibold tracking-tight text-primary">{displayName}</p>
+            <div className="relative flex h-full min-h-0 w-full min-w-0 flex-col overflow-hidden rounded-xl border border-secondary/80 bg-primary shadow-sm ring-1 ring-black/[0.04] dark:ring-white/[0.06]">
+                <header className="shrink-0 border-b border-secondary/70 bg-gradient-to-br from-brand-primary_alt/15 via-primary to-transparent px-3 py-3">
+                    <div className="flex items-start justify-between gap-2">
+                        <h2 className="text-sm font-semibold tracking-tight text-primary">Copilot Projet</h2>
+                        <span className="inline-flex shrink-0 rounded-full border border-brand-secondary/35 bg-gradient-to-r from-brand-primary/15 to-violet-500/10 px-2 py-0.5 text-[9px] font-semibold uppercase tracking-wider text-brand-secondary">
+                            AI Powered
+                        </span>
+                    </div>
+                    <p className="mt-0.5 truncate text-xs font-medium text-secondary">{displayName}</p>
                     <div className="mt-2 flex flex-wrap gap-1">
                         <span className="inline-flex items-center rounded-full border border-secondary/80 bg-primary/90 px-2 py-0.5 text-[10px] text-secondary">
                             Score <span className="ml-0.5 tabular-nums font-semibold text-primary">{scoreLabel}</span>
@@ -708,15 +721,17 @@ export function ManagerProjectCopilotPanel({
                         </span>
                     </div>
                     {prefetchedContext?.aiRecommendation ? (
-                        <p className="mt-2 line-clamp-2 text-[10px] leading-snug text-secondary">{prefetchedContext.aiRecommendation}</p>
+                        <div className="mt-2.5 rounded-xl border border-secondary/70 bg-secondary_subtle/45 p-2.5 shadow-xs">
+                            <p className="text-[9px] font-semibold uppercase tracking-wider text-tertiary">Insight principal</p>
+                            <p className="mt-1 text-[11px] leading-relaxed text-secondary">{prefetchedContext.aiRecommendation}</p>
+                        </div>
                     ) : null}
-                </div>
-                {compactQuickPromptsBar}
+                </header>
+                {compactQuickPromptChips}
                 <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
                     {messageArea}
                     {inputFooter}
                 </div>
-                {compactHistoryDrawer}
             </div>
         );
     }
@@ -829,11 +844,15 @@ function MessageBubble({ message: m, compact = false }: { message: ChatMessage; 
             ) : null}
             <div
                 className={cx(
-                    "max-w-[min(92%,28rem)] rounded-3xl shadow-md",
-                    compact ? "max-w-[min(94%,18rem)] px-2.5 py-2 text-xs" : "px-4 py-2.5 text-sm",
+                    "max-w-[min(92%,28rem)] shadow-sm",
+                    compact ? "max-w-[min(92%,16rem)] px-3 py-2.5 text-xs leading-relaxed" : "rounded-3xl px-4 py-2.5 text-sm shadow-md",
                     isUser
-                        ? "rounded-br-md bg-gradient-to-br from-brand-solid to-brand-secondary text-white shadow-brand-solid/25"
-                        : "rounded-bl-md border border-secondary/60 bg-primary ring-1 ring-secondary/30",
+                        ? compact
+                            ? "rounded-2xl rounded-br-md bg-gradient-to-br from-brand-solid to-brand-secondary text-white shadow-brand-solid/20"
+                            : "rounded-br-md bg-gradient-to-br from-brand-solid to-brand-secondary text-white shadow-brand-solid/25"
+                        : compact
+                          ? "rounded-2xl rounded-bl-md border border-secondary/70 bg-secondary_subtle/30 ring-1 ring-secondary/25"
+                          : "rounded-bl-md border border-secondary/60 bg-primary ring-1 ring-secondary/30",
                 )}
             >
                 {isUser && compact ? (

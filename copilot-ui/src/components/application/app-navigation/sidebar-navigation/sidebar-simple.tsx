@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import { useState } from "react";
 import { LogOut01 } from "@untitledui/icons";
-import { useNavigate } from "react-router";
+import { useLocation, useNavigate } from "react-router";
 import { ProjectLogo } from "@/components/foundations/logo/project-logo";
 import { useAuth } from "@/providers/auth-provider";
 import { cx } from "@/utils/cx";
@@ -9,21 +9,16 @@ import { MobileNavigationHeader } from "../base-components/mobile-header";
 import { NavItemBase } from "../base-components/nav-item";
 import { NavList } from "../base-components/nav-list";
 import type { NavItemType } from "../config";
+import { isNavPathActive } from "../nav-path-active";
 
 interface SidebarNavigationProps {
-    /** URL of the currently active item. */
+    /** @deprecated Préférer `useLocation()` interne ; conservé pour tests. */
     activeUrl?: string;
-    /** List of items to display. */
     items: NavItemType[];
-    /** List of footer items to display. */
     footerItems?: NavItemType[];
-    /** Feature card to display. */
     featureCard?: ReactNode;
-    /** Affiche le bouton « Déconnexion » en bas (desktop et drawer mobile). */
     showSidebarLogout?: boolean;
-    /** Whether to hide the right side border. */
     hideBorder?: boolean;
-    /** Additional CSS classes to apply to the sidebar. */
     className?: string;
 }
 
@@ -36,6 +31,8 @@ export const SidebarNavigationSimple = ({
     hideBorder = false,
     className,
 }: SidebarNavigationProps) => {
+    const location = useLocation();
+    const pathname = activeUrl ?? location.pathname;
     const navigate = useNavigate();
     const { logout } = useAuth();
     const [isLoggingOut, setIsLoggingOut] = useState(false);
@@ -59,7 +56,7 @@ export const SidebarNavigationSimple = ({
             </div>
 
             <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
-                <NavList activeUrl={activeUrl} items={items} />
+                <NavList items={items} />
             </div>
 
             <div className="shrink-0 border-t border-secondary/80 bg-secondary px-2 py-3 lg:px-4 lg:py-4">
@@ -67,7 +64,13 @@ export const SidebarNavigationSimple = ({
                     <ul className="mb-3 flex flex-col">
                         {footerItems.map((item) => (
                             <li key={item.label} className="py-0.5">
-                                <NavItemBase badge={item.badge} icon={item.icon} href={item.href} type="link" current={item.href === activeUrl}>
+                                <NavItemBase
+                                    badge={item.badge}
+                                    icon={item.icon}
+                                    href={item.href}
+                                    type="link"
+                                    current={isNavPathActive(pathname, item.href)}
+                                >
                                     {item.label}
                                 </NavItemBase>
                             </li>
@@ -103,13 +106,8 @@ export const SidebarNavigationSimple = ({
 
     return (
         <>
-            {/* Mobile header navigation */}
             <MobileNavigationHeader>{content}</MobileNavigationHeader>
-
-            {/* Desktop sidebar navigation */}
             <div className="hidden lg:fixed lg:inset-y-0 lg:left-0 lg:flex">{content}</div>
-
-            {/* Placeholder to take up physical space because the real sidebar has `fixed` position. */}
             <div
                 style={{
                     paddingLeft: MAIN_SIDEBAR_WIDTH,

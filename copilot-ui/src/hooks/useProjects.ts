@@ -5,6 +5,7 @@ import { managerProjectsApi } from "../api/manager-projects.api";
 import { strategistApi } from "../api/strategist.api";
 import { readEnv } from "@/config/resolve-api-url";
 import { readMissionControlHttpErrorMessage } from "@/lib/user-facing-api-error";
+import { invalidateAfterStrategistArbitrage } from "@/lib/strategist-arbitrage";
 import { queryKeys } from "@/lib/query-keys";
 import { useToast } from "@/providers/toast-provider";
 import type {
@@ -119,18 +120,22 @@ export const useUpdateProject = () => {
     });
 };
 
-export const useStrategistPropose = () =>
-    useMutation({ mutationFn: (body: ProposeRequest) => strategistApi.propose(body).then((r) => r.data) });
+export const useStrategistPropose = () => {
+    const qc = useQueryClient();
+    return useMutation({
+        mutationFn: (body: ProposeRequest) => strategistApi.propose(body).then((r) => r.data),
+        onSuccess: () => {
+            void invalidateAfterStrategistArbitrage(qc);
+        },
+    });
+};
 
 export const useStrategistExecute = () => {
     const qc = useQueryClient();
     return useMutation({
         mutationFn: (body: ExecuteRequest) => strategistApi.execute(body).then((r) => r.data),
         onSuccess: () => {
-            void qc.invalidateQueries({ queryKey: ["project-detail"] });
-            void qc.invalidateQueries({ queryKey: ["decisions"] });
-            void qc.invalidateQueries({ queryKey: ["decision-log"] });
-            void qc.invalidateQueries({ queryKey: ["projects"] });
+            void invalidateAfterStrategistArbitrage(qc);
         },
     });
 };
@@ -139,13 +144,9 @@ export const useStrategistExecute = () => {
 export const useExecuteArbitrage = () => {
     const qc = useQueryClient();
     return useMutation({
-        mutationFn: ({ optionId, action }: { optionId: string; action: "execute" | "reject" }) =>
-            strategistApi.executeOption(optionId, action).then((r) => r.data),
+        mutationFn: (body: ExecuteRequest) => strategistApi.execute(body).then((r) => r.data),
         onSuccess: () => {
-            void qc.invalidateQueries({ queryKey: ["project-detail"] });
-            void qc.invalidateQueries({ queryKey: ["decisions"] });
-            void qc.invalidateQueries({ queryKey: ["decision-log"] });
-            void qc.invalidateQueries({ queryKey: ["projects"] });
+            void invalidateAfterStrategistArbitrage(qc);
         },
     });
 };

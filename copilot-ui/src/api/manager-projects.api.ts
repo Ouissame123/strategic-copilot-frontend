@@ -3,7 +3,13 @@ import { httpClient } from "../lib/http-client";
 import { getManagerProjectDetailGetUrl, getManagerProjectsBaseUrl, getManagerProjectsPatchUrl } from "@/config/manager-projects-api.config";
 import { getWmpAssignPostUrl, getWmpUnassignDeleteUrl } from "@/config/wmp-assignments-webhook.config";
 import { readEnv, trimUrl } from "@/config/resolve-api-url";
+import { normalizeProgressPctValue } from "@/utils/format";
 import type {
+    AlertItem,
+    ArbitrageImpactJson,
+    ArbitrageOption,
+    ArbitrageOptionStatus,
+    ArbitrageOptionType,
     AssignTalentRequest,
     AssignmentResponse,
     CreateProjectRequest,
@@ -12,6 +18,8 @@ import type {
     ManagerProjectsListResponse,
     ProjectCreatedResponse,
     ProjectDetailResponse,
+    ProjectKpiFull,
+    ProjectRiskItem,
     ProjectStatus,
     ProjectsListResponse,
     ProjectUpdatedResponse,
@@ -104,6 +112,12 @@ function normalizeProjectsList(data: ProjectsListResponse | ManagerProjectsListR
     };
 }
 
+function toFiniteKpiNumber(value: unknown): number | null {
+    if (value == null || value === "") return null;
+    const n = typeof value === "number" ? value : Number(value);
+    return Number.isFinite(n) ? n : null;
+}
+
 function normalizeLatestViability(raw: unknown): ProjectDetailResponse["latest_viability"] {
     if (raw == null || typeof raw !== "object") return null;
     const o = raw as Record<string, unknown>;
@@ -117,6 +131,34 @@ function normalizeLatestViability(raw: unknown): ProjectDetailResponse["latest_v
         computed_at: String(o.computed_at ?? ""),
         explanation: o.explanation == null ? null : String(o.explanation),
     };
+}
+
+function normalizeLatestKpi(raw: unknown): ProjectKpiFull | null {
+    if (raw == null || typeof raw !== "object") return null;
+    const o = raw as Record<string, unknown>;
+    const hasProgressField = "progress_pct" in o || "progress_percent" in o || "progress" in o;
+    const progressRaw = hasProgressField
+        ? toFiniteKpiNumber(o.progress_pct ?? o.progress_percent ?? o.progress)
+        : null;
+    const progress_pct = progressRaw != null ? normalizeProgressPctValue(progressRaw) : null;
+    const project_health_score = toFiniteKpiNumber(o.project_health_score ?? o.health_score ?? o.project_health);
+    const capacity_load_pct = toFiniteKpiNumber(o.capacity_load_pct ?? o.load_pct ?? o.capacity_load);
+    const delay_days = toFiniteKpiNumber(o.delay_days);
+    if (
+        progress_pct == null &&
+        project_health_score == null &&
+        capacity_load_pct == null &&
+        delay_days == null
+    ) {
+        return null;
+    }
+    return {
+        ...(hasProgressField && progress_pct != null ? { progress_pct } : {}),
+        ...(project_health_score != null ? { project_health_score } : {}),
+        ...(capacity_load_pct != null ? { capacity_load_pct } : {}),
+        ...(delay_days != null ? { delay_days } : {}),
+        ...(o.computed_at != null ? { computed_at: String(o.computed_at) } : {}),
+    } as ProjectKpiFull;
 }
 
 const WMP_ASSIGNMENT_TYPES: readonly WmpAssignmentType[] = ["full_time", "part_time", "backup", "temporary"];
@@ -160,15 +202,186 @@ export function buildStrictAssignTalentPayload(input: {
     };
 }
 
-function normalizeProjectDetail(data: ProjectDetailResponse | ManagerProjectDetailResponse): ProjectDetailResponse {
+function unwrapProjectDetailPayload(
+    data: ProjectDetailResponse | ManagerProjectDetailResponse,
+): ProjectDetailResponse | ManagerProjectDetailResponse {
+    const r = data as Record<string, unknown>;
+    if (r.project != null && typeof r.project === "object") {
+        return data;
+    }
+    const nested = r.data;
+    if (nested != null && typeof nested === "object" && (nested as Record<string, unknown>).project != null) {
+        return nested as ProjectDetailResponse | ManagerProjectDetailResponse;
+    }
+    return data;
+}
+
+const ARBITRAGE_TYPE_LABELS: Record<ArbitrageOptionType, string> = {
+    reallocation: "Réallocation",
+    delay: "Report",
+    reinforce: "Renforcer",
+    stop_scope: "Stop / Scope",
+};
+
+function asRecord(value: unknown): Record<string, unknown> | null {
+    return value != null && typeof value === "object" && !Array.isArray(value) ? (value as Record<string, unknown>) : null;
+}
+
+function normalizeArbitrageOptionType(raw: unknown): ArbitrageOptionType {
+    const key = String(raw ?? "")
+        .trim()
+        .toLowerCase()
+        .replace(/\s+/g, "_");
+    if (key === "reallocation" || key === "re_allocate") return "reallocation";
+    if (key === "delay" || key === "report") return "delay";
+    if (key === "reinforce" || key === "reinforcement") return "reinforce";
+    if (key === "stop_scope" || key === "stop" || key === "scope" || key === "stop/scope") return "stop_scope";
+    return "reallocation";
+}
+
+function normalizeArbitrageStatus(raw: unknown): ArbitrageOptionStatus {
+    const key = String(raw ?? "proposed")
+        .trim()
+        .toLowerCase();
+    if (key === "selected" || key === "executed" || key === "rejected" || key === "expired") return key;
+    return "proposed";
+}
+
+function normalizeArbitrageConfidence(raw: unknown): number {
+    const n = Number(raw);
+    if (!Number.isFinite(n)) return 0;
+    if (n > 1) return Math.min(1, Math.max(0, n / 100));
+    return Math.min(1, Math.max(0, n));
+}
+
+function parseArbitrageImpactJson(raw: unknown): ArbitrageImpactJson | null {
+    let source: unknown = raw;
+    if (typeof raw === "string") {
+        try {
+            source = JSON.parse(raw) as unknown;
+        } catch {
+            return null;
+        }
+    }
+    const bag = asRecord(source);
+    if (!bag) return null;
+    const out: ArbitrageImpactJson = {};
+    const score = Number(bag.score_delta);
+    if (Number.isFinite(score)) out.score_delta = score;
+    const capacity = Number(bag.capacity_delta);
+    if (Number.isFinite(capacity)) out.capacity_delta = capacity;
+    const alerts = Number(bag.alerts_impact);
+    if (Number.isFinite(alerts)) out.alerts_impact = alerts;
+    const budget = Number(bag.budget_impact);
+    if (Number.isFinite(budget)) out.budget_impact = budget;
+    const timeline = Number(bag.timeline_days);
+    if (Number.isFinite(timeline)) out.timeline_days = timeline;
+    return Object.keys(out).length > 0 ? out : null;
+}
+
+function normalizeArbitrageOption(raw: unknown): ArbitrageOption | null {
+    const bag = asRecord(raw);
+    if (!bag) return null;
+    const id = String(bag.id ?? "").trim();
+    if (!id) return null;
+    const option_type = normalizeArbitrageOptionType(bag.option_type ?? bag.type);
+    const impact_json = parseArbitrageImpactJson(bag.impact_json ?? bag.impact);
+    const impact_score = Number(bag.impact_score ?? impact_json?.score_delta ?? 0);
+    const labelRaw = String(bag.label ?? "").trim();
     return {
-        project: data.project,
-        assignments: data.assignments ?? [],
-        requirements: data.requirements ?? [],
-        active_alerts: data.active_alerts ?? [],
-        latest_viability: normalizeLatestViability(data.latest_viability),
-        latest_kpi: data.latest_kpi ?? null,
-        arbitrage_options: data.arbitrage_options ?? [],
+        id,
+        option_type,
+        label: labelRaw || ARBITRAGE_TYPE_LABELS[option_type],
+        rationale: String(bag.rationale ?? bag.description ?? "").trim(),
+        impact_score: Number.isFinite(impact_score) ? impact_score : 0,
+        impact_json,
+        confidence: normalizeArbitrageConfidence(bag.confidence),
+        status: normalizeArbitrageStatus(bag.status),
+        created_at: bag.created_at != null ? String(bag.created_at) : undefined,
+    };
+}
+
+function normalizeArbitrageOptions(raw: unknown): ArbitrageOption[] {
+    if (!Array.isArray(raw)) return [];
+    return raw.map(normalizeArbitrageOption).filter((o): o is ArbitrageOption => o != null);
+}
+
+function normalizeProjectRisk(raw: unknown, index: number): ProjectRiskItem | null {
+    const bag = asRecord(raw);
+    if (!bag) return null;
+
+    const risk_code = String(bag.risk_code ?? bag.code ?? bag.category ?? bag.risk_type ?? "").trim();
+    const id = String(bag.id ?? bag.risk_id ?? risk_code ?? `risk-${index}`).trim();
+    if (!id && !risk_code) return null;
+
+    const titleRaw = bag.title ?? bag.label ?? bag.name;
+    const title = titleRaw != null && String(titleRaw).trim() !== "" ? String(titleRaw).trim() : null;
+
+    const descRaw = bag.description ?? bag.message ?? bag.rationale ?? bag.detail;
+    const description = descRaw != null && String(descRaw).trim() !== "" ? String(descRaw).trim() : null;
+
+    const scoreRaw = bag.score ?? bag.risk_score;
+    const scoreNum = scoreRaw != null ? Number(scoreRaw) : NaN;
+    const score = Number.isFinite(scoreNum) ? scoreNum : null;
+
+    const severity = String(bag.severity ?? "medium").trim().toLowerCase();
+
+    return {
+        id: id || `risk-${index}`,
+        severity,
+        risk_code: risk_code || id,
+        title,
+        description,
+        score,
+    };
+}
+
+function normalizeProjectRisks(raw: unknown, activeAlerts: AlertItem[]): ProjectRiskItem[] {
+    if (Array.isArray(raw) && raw.length > 0) {
+        return raw
+            .map((item, index) => normalizeProjectRisk(item, index))
+            .filter((r): r is ProjectRiskItem => r != null);
+    }
+
+    if (!activeAlerts.length) return [];
+
+    return activeAlerts
+        .map((alert, index) =>
+            normalizeProjectRisk(
+                {
+                    id: alert.id,
+                    severity: alert.severity,
+                    risk_code: alert.category ?? alert.risk_type ?? alert.impact_area ?? alert.id,
+                    title: alert.title,
+                    description: alert.message,
+                    score: alert.risk_score,
+                },
+                index,
+            ),
+        )
+        .filter((r): r is ProjectRiskItem => r != null);
+}
+
+function normalizeProjectDetail(data: ProjectDetailResponse | ManagerProjectDetailResponse): ProjectDetailResponse {
+    const root = unwrapProjectDetailPayload(data);
+    const bag = root as Record<string, unknown>;
+    const projectObj = bag.project;
+    const projectKpi =
+        projectObj != null && typeof projectObj === "object"
+            ? (projectObj as Record<string, unknown>).latest_kpi
+            : undefined;
+
+    const active_alerts = root.active_alerts ?? [];
+
+    return {
+        project: root.project,
+        assignments: root.assignments ?? [],
+        requirements: root.requirements ?? [],
+        active_alerts,
+        latest_viability: normalizeLatestViability(root.latest_viability),
+        latest_kpi: normalizeLatestKpi(root.latest_kpi ?? projectKpi),
+        arbitrage_options: normalizeArbitrageOptions(root.arbitrage_options),
+        risks: normalizeProjectRisks(bag.risks ?? bag.project_risks, active_alerts),
     };
 }
 

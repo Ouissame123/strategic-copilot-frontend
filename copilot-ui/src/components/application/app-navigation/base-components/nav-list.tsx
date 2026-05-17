@@ -1,21 +1,34 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
+import { useLocation } from "react-router";
 import { cx } from "@/utils/cx";
 import type { NavItemDividerType, NavItemType } from "../config";
+import { isNavPathActive } from "../nav-path-active";
 import { NavItemBase } from "./nav-item";
 
 interface NavListProps {
-    /** URL of the currently active item. */
+    /** URL de repli (tests) ; par défaut `location.pathname`. */
     activeUrl?: string;
-    /** Additional CSS classes to apply to the list. */
     className?: string;
-    /** List of items to display. */
     items: (NavItemType | NavItemDividerType)[];
 }
 
 export const NavList = ({ activeUrl, items, className }: NavListProps) => {
-    const [open, setOpen] = useState(false);
-    const activeItem = items.find((item) => item.href === activeUrl || item.items?.some((subItem) => subItem.href === activeUrl));
-    const [currentItem, setCurrentItem] = useState(activeItem);
+    const location = useLocation();
+    const pathname = activeUrl ?? location.pathname;
+
+    const activeItem = useMemo(
+        () =>
+            items.find(
+                (item) =>
+                    !item.divider &&
+                    (isNavPathActive(pathname, item.href) ||
+                        item.items?.some((subItem) => isNavPathActive(pathname, subItem.href))),
+            ),
+        [items, pathname],
+    );
+
+    const [manualOpenHref, setManualOpenHref] = useState<string | null>(null);
+    const openHref = manualOpenHref ?? activeItem?.href ?? null;
 
     return (
         <ul className={cx("mt-4 flex flex-col px-2 lg:px-4", className)}>
@@ -28,18 +41,25 @@ export const NavList = ({ activeUrl, items, className }: NavListProps) => {
                     );
                 }
 
+                const itemActive = isNavPathActive(pathname, item.href);
+
                 if (item.items?.length) {
                     return (
                         <details
                             key={item.label}
-                            open={activeItem?.href === item.href}
+                            open={openHref === item.href}
                             className="appearance-none py-0.5"
                             onToggle={(e) => {
-                                setOpen(e.currentTarget.open);
-                                setCurrentItem(item);
+                                setManualOpenHref(e.currentTarget.open ? item.href ?? null : null);
                             }}
                         >
-                            <NavItemBase href={item.href} badge={item.badge} icon={item.icon} type="collapsible">
+                            <NavItemBase
+                                href={item.href}
+                                badge={item.badge}
+                                icon={item.icon}
+                                type="collapsible"
+                                current={itemActive}
+                            >
                                 {item.label}
                             </NavItemBase>
 
@@ -51,7 +71,7 @@ export const NavList = ({ activeUrl, items, className }: NavListProps) => {
                                                 href={childItem.href}
                                                 badge={childItem.badge}
                                                 type="collapsible-child"
-                                                current={activeUrl === childItem.href}
+                                                current={isNavPathActive(pathname, childItem.href)}
                                             >
                                                 {childItem.label}
                                             </NavItemBase>
@@ -70,8 +90,7 @@ export const NavList = ({ activeUrl, items, className }: NavListProps) => {
                             badge={item.badge}
                             icon={item.icon}
                             href={item.href}
-                            current={currentItem?.href === item.href}
-                            open={open && currentItem?.href === item.href}
+                            current={itemActive}
                         >
                             {item.label}
                         </NavItemBase>

@@ -70,6 +70,14 @@ export default defineConfig(({ mode }) => {
             rewrite: (p) => `/webhook${p}`,
         },
         "/webhook": webhookProxy,
+        /**
+         * WF_Manager_Project_Tasks — évite CORS en dev (`tasksHttp` → `/n8n-webhook/wmt-*-v1/...`).
+         * Réécrit vers `/webhook/...` sur n8nprod.
+         */
+        "/n8n-webhook": {
+            ...webhookProxy,
+            rewrite: (p) => p.replace(/^\/n8n-webhook/, "/webhook"),
+        },
         /** Workflows rapports n8n (GET/POST `/reports/...`) — même origine que les webhooks. */
         "/reports": webhookProxy,
     };

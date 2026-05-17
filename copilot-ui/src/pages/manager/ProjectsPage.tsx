@@ -1,12 +1,16 @@
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { WorkspacePageShell } from "@/components/workspace/workspace-page-shell";
 import { useWorkspaceTopbarMeta } from "@/layouts/workspace-topbar-meta";
 import { useSearchParams } from "react-router";
 import { useTranslation } from "react-i18next";
-import i18n from "@/i18n";
-import { localeForDateFormatting } from "@/lib/ui-locale";
 import { Button } from "@/components/base/buttons/button";
 import { ManagerProjectsKanbanView } from "@/components/manager/manager-projects-kanban";
+import {
+    ManagerProjectsPortfolioTable,
+    sortPortfolioRows,
+    type PortfolioTableSortKey,
+} from "@/components/manager/manager-projects-portfolio-table";
+import { enrichManagerProjectListItems } from "@/lib/manager-projects-list-derived";
 import { ProjectMissionControlModal } from "@/components/manager/project-mission-control-modal";
 import { useCreateProject, useProjects } from "@/hooks/useProjects";
 import type { ProjectListItem, ProjectStatus } from "@/types/api.types";
@@ -17,17 +21,6 @@ type RiskLevel = "all" | "low" | "medium" | "high";
 type DeadlineChipFilter = "all" | "overdue" | "soon";
 type ProjectsSmartTab = "all" | "critical" | "adjust" | "soon";
 type ProjectsViewMode = "table" | "kanban";
-type ProjectsTableSortKey =
-    | "name"
-    | "status"
-    | "priority"
-    | "milestone_at"
-    | "progress_pct"
-    | "latest_viability_score"
-    | "latest_decision"
-    | "active_alerts_count"
-    | "team_size";
-
 /** Limite unique GET /manager/projects — KPI + tableau dérivés des mêmes `items` / `total`. */
 const MANAGER_PROJECTS_LIST_LIMIT = 500;
 
@@ -59,108 +52,6 @@ function normalizedProjectStatus(project: ProjectListItem): ProjectStatus {
 const PROJECT_KPI_GRID_CLASS =
     "grid grid-cols-1 items-stretch gap-3 md:grid-cols-2 md:gap-4 lg:grid-cols-3 lg:gap-4 xl:grid-cols-6 xl:gap-4";
 
-/** Pastilles statut — palette douce (dashboard premium). */
-function projectStatusBadge(status: string | null | undefined): { label: string; className: string } {
-    const s = (status ?? "").toLowerCase().trim();
-    if (!s) return { label: "—", className: "border-secondary/60 bg-secondary_subtle/50 text-tertiary" };
-    if (s === "active")
-        return {
-            label: "active",
-            className:
-                "border border-emerald-200/80 bg-emerald-50/90 text-emerald-800 dark:border-emerald-800/40 dark:bg-emerald-950/25 dark:text-emerald-200/90",
-        };
-    if (s === "on_hold")
-        return {
-            label: "on_hold",
-            className:
-                "border border-amber-200/80 bg-amber-50/90 text-amber-900/90 dark:border-amber-800/40 dark:bg-amber-950/25 dark:text-amber-200/85",
-        };
-    if (s === "cancelled")
-        return {
-            label: "cancelled",
-            className:
-                "border border-red-200/80 bg-red-50/90 text-red-800 dark:border-red-800/40 dark:bg-red-950/25 dark:text-red-200/85",
-        };
-    if (s === "planned")
-        return {
-            label: "planned",
-            className:
-                "border border-blue-200/80 bg-blue-50/90 text-blue-800 dark:border-blue-800/40 dark:bg-blue-950/25 dark:text-blue-200/85",
-        };
-    if (s === "completed")
-        return {
-            label: "completed",
-            className:
-                "border border-violet-200/70 bg-violet-50/80 text-violet-800 dark:border-violet-800/35 dark:bg-violet-950/20 dark:text-violet-200/80",
-        };
-    return {
-        label: status ?? "—",
-        className: "border border-secondary/60 bg-secondary_subtle/40 text-secondary",
-    };
-}
-
-/** Pastille décision — tons discrets, bordures légères. */
-function decisionBadge(decision: string | null | undefined): { label: string; className: string } {
-    const d = (decision ?? "").toLowerCase().trim();
-    if (!d) return { label: "—", className: "border border-secondary/50 bg-secondary_subtle/30 text-tertiary" };
-    if (d === "stop" || d === "reject")
-        return {
-            label: decision ?? "Stop",
-            className:
-                "border border-red-200/70 bg-red-50/80 font-medium text-red-800/95 dark:border-red-800/35 dark:bg-red-950/20 dark:text-red-200/80",
-        };
-    if (d === "adjust")
-        return {
-            label: "Adjust",
-            className:
-                "border border-amber-200/70 bg-amber-50/80 font-medium text-amber-900/85 dark:border-amber-800/35 dark:bg-amber-950/20 dark:text-amber-200/75",
-        };
-    if (d === "continue" || d === "proceed")
-        return {
-            label: decision ?? "Continue",
-            className:
-                "border border-emerald-200/70 bg-emerald-50/80 font-medium text-emerald-800/95 dark:border-emerald-800/35 dark:bg-emerald-950/20 dark:text-emerald-200/80",
-        };
-    return { label: decision ?? "—", className: "border border-secondary/50 bg-secondary_subtle/30 text-secondary" };
-}
-
-/** Pastille alertes — discret si &gt; 0 (évite rouge vif partout). */
-function alertsCountPresentation(n: number): { className: string } {
-    if (n > 0)
-        return {
-            className:
-                "border border-amber-200/70 bg-amber-50/70 font-medium text-amber-900/80 dark:border-amber-800/35 dark:bg-amber-950/20 dark:text-amber-200/75",
-        };
-    return { className: "border border-transparent bg-transparent text-tertiary" };
-}
-
-/** Barre de progression — piste fine, couleurs atténuées. */
-function projectProgressBarTone(pct: number): { bar: string; text: string; track: string } {
-    if (pct < 35)
-        return {
-            bar: "bg-red-300/75 dark:bg-red-500/35",
-            text: "text-red-700/80 dark:text-red-300/70",
-            track: "bg-red-100/45 dark:bg-red-950/25",
-        };
-    if (pct < 75)
-        return {
-            bar: "bg-amber-300/70 dark:bg-amber-500/32",
-            text: "text-amber-800/78 dark:text-amber-300/65",
-            track: "bg-amber-100/35 dark:bg-amber-950/18",
-        };
-    return {
-        bar: "bg-emerald-300/65 dark:bg-emerald-500/30",
-        text: "text-emerald-800/78 dark:text-emerald-300/65",
-        track: "bg-emerald-100/35 dark:bg-emerald-950/18",
-    };
-}
-
-function viabilityScoreTextClass(score: number): string {
-    if (score >= 8) return "text-emerald-700/90 dark:text-emerald-300/80";
-    if (score >= 6) return "text-amber-800/85 dark:text-amber-300/75";
-    return "text-red-700/90 dark:text-red-300/80";
-}
-
 type ProjectKpiAccent = "slate" | "emerald" | "blue" | "amber" | "red" | "violet";
 
 const PROJECT_KPI_ACCENT: Record<ProjectKpiAccent, string> = {
@@ -182,15 +73,6 @@ function computeRiskLevel(project: ProjectListItem): Exclude<RiskLevel, "all"> {
 
 function normalizeDecisionRaw(project: ProjectListItem): string {
     return String(project.latest_decision ?? "").trim();
-}
-
-function translateDecision(t: TFunction<"common", undefined>, raw: string): string {
-    const d = raw.trim().toLowerCase();
-    if (!d) return t("managerWorkspace.projects.decisionUnknown");
-    if (d === "continue" || d === "proceed") return t("managerWorkspace.projects.decisionContinue");
-    if (d === "adjust") return t("managerWorkspace.projects.decisionAdjust");
-    if (d === "stop" || d === "reject") return t("managerWorkspace.projects.decisionStop");
-    return raw;
 }
 
 function statusLabel(t: TFunction<"common", undefined>, status: ProjectStatus): string {
@@ -261,85 +143,6 @@ function isProjectHiddenByLegacyFilter(project: ProjectListItem, showLegacy: boo
     return false;
 }
 
-function sortKeyIsNull(project: ProjectListItem, key: ProjectsTableSortKey): boolean {
-    switch (key) {
-        case "name":
-            return false;
-        case "status":
-            return false;
-        case "priority":
-            return coerceFiniteNumber(project.priority) == null;
-        case "milestone_at":
-            return project.milestone_at == null || String(project.milestone_at).trim() === "";
-        case "progress_pct":
-            return project.progress_pct == null || String(project.progress_pct).trim() === "" || Number.isNaN(Number(project.progress_pct));
-        case "latest_viability_score":
-            return coerceFiniteNumber(project.latest_viability_score) == null;
-        case "latest_decision":
-            return !normalizeDecisionRaw(project);
-        case "active_alerts_count":
-            return false;
-        case "team_size":
-            return coerceFiniteNumber(project.team_size) == null;
-        default:
-            return false;
-    }
-}
-
-function compareProjectsForSort(a: ProjectListItem, b: ProjectListItem, key: ProjectsTableSortKey, t: TFunction<"common", undefined>): number {
-    const rowA = normalizedProjectStatus(a);
-    const rowB = normalizedProjectStatus(b);
-    switch (key) {
-        case "name": {
-            const na = projectDisplayName(a.name, t).toLowerCase();
-            const nb = projectDisplayName(b.name, t).toLowerCase();
-            return na.localeCompare(nb, undefined, { sensitivity: "base" });
-        }
-        case "status":
-            return rowA.localeCompare(rowB);
-        case "priority":
-            return (coerceFiniteNumber(a.priority) ?? 0) - (coerceFiniteNumber(b.priority) ?? 0);
-        case "milestone_at": {
-            const ta = a.milestone_at ? new Date(a.milestone_at as string).getTime() : NaN;
-            const tb = b.milestone_at ? new Date(b.milestone_at as string).getTime() : NaN;
-            const va = Number.isFinite(ta) ? ta : 0;
-            const vb = Number.isFinite(tb) ? tb : 0;
-            return va - vb;
-        }
-        case "progress_pct":
-            return (coerceFiniteNumber(a.progress_pct) ?? 0) - (coerceFiniteNumber(b.progress_pct) ?? 0);
-        case "latest_viability_score":
-            return (coerceFiniteNumber(a.latest_viability_score) ?? 0) - (coerceFiniteNumber(b.latest_viability_score) ?? 0);
-        case "latest_decision":
-            return normalizeDecisionRaw(a).toLowerCase().localeCompare(normalizeDecisionRaw(b).toLowerCase());
-        case "active_alerts_count":
-            return activeAlertsCountStrict(a) - activeAlertsCountStrict(b);
-        case "team_size":
-            return (coerceFiniteNumber(a.team_size) ?? 0) - (coerceFiniteNumber(b.team_size) ?? 0);
-        default:
-            return 0;
-    }
-}
-
-function sortProjectsWithKey(
-    items: ProjectListItem[],
-    sortKey: ProjectsTableSortKey,
-    sortDir: "asc" | "desc",
-    t: TFunction<"common", undefined>,
-): ProjectListItem[] {
-    const arr = [...items];
-    arr.sort((a, b) => {
-        const nullA = sortKeyIsNull(a, sortKey);
-        const nullB = sortKeyIsNull(b, sortKey);
-        if (nullA && nullB) return 0;
-        if (nullA) return 1;
-        if (nullB) return -1;
-        const cmp = compareProjectsForSort(a, b, sortKey, t);
-        return sortDir === "asc" ? cmp : -cmp;
-    });
-    return arr;
-}
-
 type ProjectKpiStatCardProps = {
     label: string;
     value: number;
@@ -357,36 +160,6 @@ function ProjectKpiStatCard({ label, value, accent }: ProjectKpiStatCardProps) {
     );
 }
 
-function SortableTh({
-    columnKey,
-    currentSortKey,
-    sortDir,
-    onSort,
-    className = "",
-    children,
-}: {
-    columnKey: ProjectsTableSortKey;
-    currentSortKey: ProjectsTableSortKey;
-    sortDir: "asc" | "desc";
-    onSort: (k: ProjectsTableSortKey) => void;
-    className?: string;
-    children: ReactNode;
-}) {
-    const active = currentSortKey === columnKey;
-    return (
-        <th className={`whitespace-nowrap px-4 py-3.5 font-medium ${className}`}>
-            <button
-                type="button"
-                onClick={() => onSort(columnKey)}
-                className="inline-flex items-center gap-1 text-left text-[11px] font-semibold uppercase tracking-wide text-tertiary hover:text-fg-primary"
-            >
-                {children}
-                {active ? <span className="text-[10px] font-bold tabular-nums text-fg-secondary">{sortDir === "asc" ? "↑" : "↓"}</span> : null}
-            </button>
-        </th>
-    );
-}
-
 export default function ProjectsPage() {
     const { t } = useTranslation("common");
     const [searchParams, setSearchParams] = useSearchParams();
@@ -396,7 +169,7 @@ export default function ProjectsPage() {
     const [smartTab, setSmartTab] = useState<ProjectsSmartTab>("all");
     const [advancedFiltersOpen, setAdvancedFiltersOpen] = useState(false);
     const [viewMode, setViewMode] = useState<ProjectsViewMode>("table");
-    const [sortKey, setSortKey] = useState<ProjectsTableSortKey>("milestone_at");
+    const [sortKey, setSortKey] = useState<PortfolioTableSortKey>("time_to_impact_days");
     const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
     const [showLegacyProjects, setShowLegacyProjects] = useState(false);
     const [createMode, setCreateMode] = useState(false);
@@ -494,9 +267,11 @@ export default function ProjectsPage() {
         [afterSmartTab, showLegacyProjects],
     );
 
-    const sortedTableRows = useMemo(
-        () => sortProjectsWithKey(visibleProjects, sortKey, sortDir, t),
-        [visibleProjects, sortKey, sortDir, t],
+    const portfolioRows = useMemo(() => enrichManagerProjectListItems(visibleProjects), [visibleProjects]);
+
+    const sortedPortfolioRows = useMemo(
+        () => sortPortfolioRows(portfolioRows, sortKey, sortDir),
+        [portfolioRows, sortKey, sortDir],
     );
 
     const quickChipsActive = smartTab !== "all";
@@ -509,7 +284,7 @@ export default function ProjectsPage() {
         setSearchParams({});
     }, [setSearchParams]);
 
-    const toggleSort = useCallback((k: ProjectsTableSortKey) => {
+    const toggleSort = useCallback((k: PortfolioTableSortKey) => {
         setSortKey((prev) => {
             if (prev === k) {
                 setSortDir((d) => (d === "asc" ? "desc" : "asc"));
@@ -602,8 +377,6 @@ export default function ProjectsPage() {
 
     useWorkspaceTopbarMeta(t("managerWorkspace.projects.heroTitle"), t("managerWorkspace.projects.heroSubtitle"), topbarTrailing);
 
-    const emDash = t("managerWorkspace.relative.emDash");
-
     return (
         <WorkspacePageShell
             role="manager"
@@ -612,7 +385,7 @@ export default function ProjectsPage() {
             description={false}
             omitHeader
         >
-            <div className="space-y-6">
+            <>
                 {projectsQuery.isLoading ? (
                     <section className={PROJECT_KPI_GRID_CLASS}>
                         {Array.from({ length: 6 }).map((_, i) => (
@@ -832,199 +605,19 @@ export default function ProjectsPage() {
                 {viewMode === "kanban" ? (
                     <ManagerProjectsKanbanView projects={visibleProjects} onOpenProject={openProjectMissionControl} t={t} />
                 ) : (
-                    <div className="max-h-[min(70vh,calc(100vh-360px))] overflow-auto overflow-x-auto rounded-2xl border border-secondary bg-primary shadow-sm">
-                        <table className="min-w-[1040px] w-full border-collapse text-sm">
-                            <thead className="sticky top-0 z-10 border-b border-secondary/80 bg-zinc-50/95 text-left shadow-sm backdrop-blur-sm dark:bg-zinc-900/95">
-                                <tr>
-                                    <SortableTh
-                                        columnKey="name"
-                                        currentSortKey={sortKey}
-                                        sortDir={sortDir}
-                                        onSort={toggleSort}
-                                        className="max-w-[220px]"
-                                    >
-                                        {t("managerWorkspace.projects.colProject")}
-                                    </SortableTh>
-                                    <SortableTh columnKey="status" currentSortKey={sortKey} sortDir={sortDir} onSort={toggleSort}>
-                                        {t("managerWorkspace.projects.colStatus")}
-                                    </SortableTh>
-                                    <SortableTh columnKey="priority" currentSortKey={sortKey} sortDir={sortDir} onSort={toggleSort}>
-                                        {t("managerWorkspace.projects.colPriority")}
-                                    </SortableTh>
-                                    <SortableTh columnKey="milestone_at" currentSortKey={sortKey} sortDir={sortDir} onSort={toggleSort}>
-                                        {t("managerWorkspace.projects.colMilestone")}
-                                    </SortableTh>
-                                    <SortableTh
-                                        columnKey="progress_pct"
-                                        currentSortKey={sortKey}
-                                        sortDir={sortDir}
-                                        onSort={toggleSort}
-                                        className="min-w-[140px]"
-                                    >
-                                        {t("managerWorkspace.projects.colProgress")}
-                                    </SortableTh>
-                                    <SortableTh columnKey="latest_viability_score" currentSortKey={sortKey} sortDir={sortDir} onSort={toggleSort}>
-                                        {t("managerWorkspace.projects.colAiScore")}
-                                    </SortableTh>
-                                    <SortableTh
-                                        columnKey="latest_decision"
-                                        currentSortKey={sortKey}
-                                        sortDir={sortDir}
-                                        onSort={toggleSort}
-                                        className="min-w-[120px]"
-                                    >
-                                        {t("managerWorkspace.projects.colAiDecision")}
-                                    </SortableTh>
-                                    <SortableTh columnKey="active_alerts_count" currentSortKey={sortKey} sortDir={sortDir} onSort={toggleSort}>
-                                        {t("managerWorkspace.projects.colAlerts")}
-                                    </SortableTh>
-                                    <SortableTh columnKey="team_size" currentSortKey={sortKey} sortDir={sortDir} onSort={toggleSort}>
-                                        {t("managerWorkspace.projects.colTeam")}
-                                    </SortableTh>
-                                    <th className="whitespace-nowrap px-4 py-3.5 text-right text-[11px] font-semibold uppercase tracking-wide text-tertiary">
-                                        {t("managerWorkspace.projects.colAction")}
-                                    </th>
-                                </tr>
-                            </thead>
-                            <tbody className="text-fg-primary">
-                                {sortedTableRows.map((project) => {
-                                const rowStatus = normalizedProjectStatus(project);
-                                const st = projectStatusBadge(rowStatus);
-                                const decisionRaw = normalizeDecisionRaw(project);
-                                const decStyle = decisionBadge(decisionRaw || null);
-                                const progress = project.progress_pct;
-                                const progressNull =
-                                    progress == null || String(progress).trim() === "" || Number.isNaN(Number(progress));
-                                const progressNum = progressNull ? null : Number(progress);
-                                const showVerifyBadge =
-                                    !progressNull && progressNum === 0 && rowStatus === "active";
-                                const viability = coerceFiniteNumber(project.latest_viability_score);
-                                const criticalViability = viability != null && viability < 5;
-                                const alertsCount = activeAlertsCountStrict(project);
-                                const alertsStyle = alertsCountPresentation(alertsCount);
-                                const priorityNum = coerceFiniteNumber(project.priority);
-                                const teamNum = coerceFiniteNumber(project.team_size);
-                                const progTone =
-                                    progressNum != null
-                                        ? projectProgressBarTone(Math.round(Math.min(100, Math.max(0, progressNum))))
-                                        : null;
-
-                                return (
-                                    <tr
-                                        key={project.id}
-                                        className="border-b border-secondary/60 transition-colors last:border-b-0 hover:bg-zinc-50/90 dark:border-secondary/50 dark:hover:bg-white/[0.04]"
-                                    >
-                                        <td className="max-w-[220px] px-4 py-3.5 align-middle">
-                                            <span className="line-clamp-2 text-[15px] font-semibold leading-snug tracking-tight text-primary">
-                                                {projectDisplayName(project.name, t)}
-                                            </span>
-                                        </td>
-                                        <td className="whitespace-nowrap px-4 py-3.5 align-middle">
-                                            <span
-                                                className={`inline-flex rounded-full px-2.5 py-0.5 text-[11px] font-medium capitalize ${st.className}`}
-                                            >
-                                                {statusLabel(t, rowStatus)}
-                                            </span>
-                                        </td>
-                                        <td className="whitespace-nowrap px-4 py-3.5 align-middle tabular-nums text-secondary">
-                                            {priorityNum != null ? Math.round(priorityNum) : emDash}
-                                        </td>
-                                        <td className="whitespace-nowrap px-4 py-3.5 align-middle text-secondary">
-                                            {project.milestone_at
-                                                ? new Date(project.milestone_at).toLocaleDateString(localeForDateFormatting(i18n.language))
-                                                : emDash}
-                                        </td>
-                                        <td className="px-4 py-3.5 align-middle">
-                                            {progressNull ? (
-                                                <span className="text-tertiary">{emDash}</span>
-                                            ) : (
-                                                <div className="flex min-w-[120px] flex-col gap-1.5">
-                                                    <div className="flex items-center gap-2.5">
-                                                        <div
-                                                            className={`h-1 flex-1 overflow-hidden rounded-full ${progTone?.track ?? "bg-secondary_subtle"}`}
-                                                            aria-hidden
-                                                        >
-                                                            <div
-                                                                className={`h-full rounded-full ${progTone?.bar ?? "bg-emerald-300/65 dark:bg-emerald-500/30"}`}
-                                                                style={{ width: `${Math.min(100, Math.max(0, progressNum!))}%` }}
-                                                            />
-                                                        </div>
-                                                        <span
-                                                            className={`w-11 shrink-0 text-right text-[11px] font-medium tabular-nums ${progTone?.text ?? "text-secondary"}`}
-                                                        >
-                                                            {Math.round(progressNum!)}%
-                                                        </span>
-                                                    </div>
-                                                    {showVerifyBadge ? (
-                                                        <span className="w-fit rounded-md border border-amber-200/60 bg-amber-50/50 px-1.5 py-0.5 text-[10px] font-medium text-amber-900/75 dark:border-amber-800/30 dark:bg-amber-950/15 dark:text-amber-200/70">
-                                                            {t("managerWorkspace.projects.badgeProgressVerify")}
-                                                        </span>
-                                                    ) : null}
-                                                </div>
-                                            )}
-                                        </td>
-                                        <td className="px-4 py-3.5 align-middle">
-                                            <div className="flex flex-wrap items-center gap-1.5">
-                                                {viability == null ? (
-                                                    <span className="text-tertiary">{emDash}</span>
-                                                ) : (
-                                                    <span className={`text-[15px] font-semibold tabular-nums ${viabilityScoreTextClass(viability)}`}>
-                                                        {viability.toFixed(1)}
-                                                    </span>
-                                                )}
-                                                {criticalViability ? (
-                                                    <span className="rounded-md border border-red-200/60 bg-red-50/60 px-1.5 py-0.5 text-[10px] font-medium text-red-800/90 dark:border-red-800/30 dark:bg-red-950/20 dark:text-red-200/75">
-                                                        {t("managerWorkspace.projects.badgeCriticalRisk")}
-                                                    </span>
-                                                ) : null}
-                                            </div>
-                                        </td>
-                                        <td className="px-4 py-3.5 align-middle">
-                                            <span
-                                                className={`inline-flex rounded-full px-2.5 py-0.5 text-[11px] font-medium ${decStyle.className}`}
-                                            >
-                                                {translateDecision(t, decisionRaw)}
-                                            </span>
-                                        </td>
-                                        <td className="whitespace-nowrap px-4 py-3.5 align-middle">
-                                            <div className="flex items-center gap-2">
-                                                <span
-                                                    className={`tabular-nums text-[13px] ${alertsCount > 0 ? "font-medium text-secondary" : "text-tertiary"}`}
-                                                >
-                                                    {alertsCount}
-                                                </span>
-                                                {alertsCount > 0 ? (
-                                                    <span
-                                                        className={`inline-flex rounded-full px-1.5 py-0.5 text-[10px] font-medium ${alertsStyle.className}`}
-                                                    >
-                                                        {t("managerWorkspace.projects.badgeAlertsCount", { count: alertsCount })}
-                                                    </span>
-                                                ) : null}
-                                            </div>
-                                        </td>
-                                        <td className="whitespace-nowrap px-4 py-3.5 align-middle tabular-nums text-secondary">
-                                            {teamNum != null ? Math.round(teamNum) : 0}
-                                        </td>
-                                        <td className="px-4 py-3.5 text-right align-middle" onClick={(e) => e.stopPropagation()}>
-                                            <button
-                                                type="button"
-                                                className="rounded-lg bg-brand-solid px-3 py-1.5 text-xs font-semibold text-white shadow-sm ring-1 ring-transparent transition hover:bg-brand-solid_hover"
-                                                onClick={() => openProjectMissionControl(project.id)}
-                                            >
-                                                {t("managerWorkspace.projects.viewDetails")}
-                                            </button>
-                                        </td>
-                                    </tr>
-                                );
-                            })}
-                        </tbody>
-                    </table>
-                    {viewMode === "table" && !sortedTableRows.length && !projectsQuery.isLoading ? (
-                        <p className="border-t border-secondary p-4 text-sm text-tertiary">{t("managerWorkspace.projects.empty")}</p>
-                    ) : null}
-                </div>
+                    <ManagerProjectsPortfolioTable
+                        rows={sortedPortfolioRows}
+                        sortKey={sortKey}
+                        sortDir={sortDir}
+                        onSort={toggleSort}
+                        onOpenProject={openProjectMissionControl}
+                        t={t}
+                        statusLabel={(s) => statusLabel(t, s)}
+                        projectDisplayName={(name) => projectDisplayName(name, t)}
+                        empty={!sortedPortfolioRows.length && !projectsQuery.isLoading}
+                    />
                 )}
-            </div>
+            </>
 
             {selectedProjectId ? (
                 <ProjectMissionControlModal

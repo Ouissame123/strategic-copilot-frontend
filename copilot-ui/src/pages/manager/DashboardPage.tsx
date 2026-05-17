@@ -5,7 +5,6 @@ import { useDashboard } from "@/hooks/useDashboard";
 import { Link, useLocation } from "react-router";
 import { Share04 } from "@untitledui/icons";
 import type { DecisionLabel, ProjectKpi } from "@/types/api.types";
-import { usePatchAlert } from "@/hooks/useNotifications";
 import { managerProjectsOpenModalPath } from "@/utils/workspace-routes";
 import { useTranslation } from "react-i18next";
 import i18n from "@/i18n";
@@ -100,14 +99,6 @@ function healthTone(label: string | undefined): string {
     return "text-secondary";
 }
 
-function severityTone(severity: string | undefined): string {
-    const value = (severity ?? "").toLowerCase();
-    if (value === "critical") return "bg-red-50 text-red-700 border-red-200";
-    if (value === "high") return "bg-orange-50 text-orange-700 border-orange-200";
-    if (value === "medium") return "bg-amber-50 text-amber-700 border-amber-200";
-    return "bg-emerald-50 text-emerald-700 border-emerald-200";
-}
-
 type DecisionBadgeCode = "critical" | "high" | "ok" | "other";
 
 function decisionRiskBadge(decision: DecisionLabel | undefined): { code: DecisionBadgeCode; label: string } {
@@ -136,16 +127,6 @@ function fragileProjectRowTone(code: DecisionBadgeCode): string {
     if (code === "ok")
         return "border-l-4 border-l-gray-300 bg-secondary_subtle/50 dark:border-l-gray-600";
     return "border-l-4 border-l-gray-200 bg-primary dark:border-l-gray-700";
-}
-
-/** Carte alerte : focus danger par sévérité */
-function alertSeverityContainerClass(severity: string | undefined): string {
-    const s = (severity ?? "").toLowerCase();
-    if (s === "critical")
-        return "border-l-4 border-l-red-500 bg-red-50/80 shadow-sm shadow-red-500/20 ring-1 ring-red-500/15 dark:bg-red-950/30 dark:shadow-red-900/25";
-    if (s === "high") return "border-l-4 border-l-orange-500 bg-orange-50/60 dark:bg-orange-950/25";
-    if (s === "medium") return "border-l-4 border-l-amber-500 bg-amber-50/50 dark:bg-amber-950/20";
-    return "border-l-4 border-l-gray-300 bg-primary dark:border-l-gray-600";
 }
 
 function pctClamp(num: number, denom: number): number {
@@ -608,11 +589,9 @@ export default function DashboardPage() {
     const { t } = useTranslation(["common", "nav"]);
     const location = useLocation();
     const { data, isLoading, isError, refetch, isRefetching, dataUpdatedAt } = useDashboard("mine");
-    const patchAlert = usePatchAlert();
     const fragileProjects = [...(data?.widgets.fragile_projects ?? [])]
         .sort((a, b) => (a.viability_score ?? 99) - (b.viability_score ?? 99))
         .slice(0, 5);
-    const topAlerts = (data?.widgets.top_alerts ?? []).slice(0, 5);
     const computedAt = data?.meta?.computed_at;
     const visiblePriorities = useMemo(
         () => (data?.priorities ?? []).filter((p) => !shouldHideManagerDashboardRhPriorityPill(p)),
@@ -750,7 +729,7 @@ export default function DashboardPage() {
                             spark={[
                                 clamp(data.kpi_cards.alerts.total_open, 0, 999),
                                 clamp(kpiAlerts, 0, 999),
-                                clamp(topAlerts.length, 0, 999),
+                                clamp(data.kpi_cards.alerts.critical_or_high ?? 0, 0, 999),
                             ]}
                         />
                         <PremiumKpiCard
@@ -768,8 +747,8 @@ export default function DashboardPage() {
                         />
                     </section>
 
-                    <section className="grid items-start gap-4 lg:grid-cols-3">
-                        <article className="rounded-2xl border border-secondary bg-primary p-5 shadow-sm lg:col-span-2">
+                    <section>
+                        <article className="rounded-2xl border border-secondary bg-primary p-5 shadow-sm">
                             <div className="mb-3 flex items-center justify-between">
                                 <h3 className="text-sm font-semibold text-primary">{t("managerWorkspace.dashboard.topFragile")}</h3>
                                 <Link to="/workspace/manager/projects" className="text-xs font-semibold text-brand-secondary hover:underline">
@@ -827,64 +806,6 @@ export default function DashboardPage() {
                             </div>
                         </article>
 
-                        <article className="self-start rounded-2xl border border-secondary bg-primary p-5 shadow-sm">
-                            <div className="mb-3 flex items-center justify-between">
-                                <h3 className="text-sm font-semibold text-primary">{t("managerWorkspace.dashboard.topAlerts")}</h3>
-                                <Link to="/workspace/manager/risks" className="text-xs font-semibold text-brand-secondary hover:underline">
-                                    {t("managerWorkspace.dashboard.viewAlerts")}
-                                </Link>
-                            </div>
-                            <div className="space-y-2">
-                                {topAlerts.map((alert) => {
-                                    const sevKey = String(alert.severity ?? "").toLowerCase();
-                                    const sevLabel =
-                                        sevKey === "critical" || sevKey === "high" || sevKey === "medium" || sevKey === "low"
-                                            ? t(`managerWorkspace.commonSeverity.${sevKey as "critical" | "high" | "medium" | "low"}`)
-                                            : alert.severity;
-                                    return (
-                                    <div
-                                        key={alert.id}
-                                        className={`block rounded-r-lg rounded-l-md px-3 py-3 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md ${alertSeverityContainerClass(alert.severity)}`}
-                                    >
-                                        <div className="flex items-center justify-between gap-2">
-                                            <p className="text-sm font-medium text-primary">
-                                                {alert.project_name ?? t("managerWorkspace.dashboard.projectUndefined")}
-                                            </p>
-                                            <span
-                                                className={`rounded-full border px-2 py-0.5 text-[10px] font-medium uppercase ${severityTone(alert.severity)}`}
-                                            >
-                                                {sevLabel}
-                                            </span>
-                                        </div>
-                                        <p className="mt-1 text-xs text-tertiary">
-                                            {alert.message ?? alert.title ?? t("managerWorkspace.dashboard.alertFallback")}
-                                        </p>
-                                        <p className="mt-1 text-[11px] text-tertiary">
-                                            {t("managerWorkspace.dashboard.alertHours", { hours: alert.age_hours ?? "?" })}
-                                        </p>
-                                        <div className="mt-2 flex items-center justify-between">
-                                            <Link
-                                                to={alert.project_id ? managerProjectsOpenModalPath(alert.project_id) : "/workspace/manager/risks"}
-                                                className="text-[11px] font-semibold text-brand-secondary hover:underline"
-                                            >
-                                                {t("managerWorkspace.dashboard.openProject")}
-                                            </Link>
-                                            <button
-                                                type="button"
-                                                className="rounded-lg border border-secondary bg-primary_alt px-2.5 py-1 text-[11px] font-semibold text-secondary hover:bg-secondary_subtle"
-                                                onClick={() => patchAlert.mutate({ id: alert.id, action: "resolve" })}
-                                            >
-                                                {t("managerWorkspace.dashboard.resolve")}
-                                            </button>
-                                        </div>
-                                    </div>
-                                );
-                                })}
-                                {topAlerts.length === 0 ? (
-                                    <p className="text-sm text-tertiary">{t("managerWorkspace.dashboard.noCriticalAlerts")}</p>
-                                ) : null}
-                            </div>
-                        </article>
                     </section>
 
                     <section className="space-y-5 rounded-2xl border border-secondary bg-primary p-5 shadow-sm">

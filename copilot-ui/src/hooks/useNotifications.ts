@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { invalidateManagerRiskQueries } from "./use-manager-risk-data";
 import { isAxiosError } from "axios";
 import { managerNotificationsApi } from "../api/manager-notifications.api";
 import { alertsApi, notificationsApi, rhActionsApi } from "@/services/notifications.api";
@@ -142,10 +143,8 @@ export const useRiskAlertAction = () => {
         mutationFn: ({ id, body }: { id: string; body: RiskAlertActionRequest }) => managerNotificationsApi.riskAction(id, body),
         onSuccess: async () => {
             await qc.invalidateQueries({ queryKey: ["notifications"] });
-            await qc.invalidateQueries({ queryKey: ["dashboard"] });
-            await qc.invalidateQueries({ queryKey: ["manager-risk-page"] });
-            await qc.invalidateQueries({ queryKey: ["manager", "project-risks"] });
             await qc.invalidateQueries({ queryKey: ["projects"] });
+            await invalidateManagerRiskQueries(qc);
         },
     });
 };

@@ -28,6 +28,15 @@ export async function getProjectTalents(projectId: string) {
 export async function getProjectRisks(projectId: string) {
     return agentsApi.riskKpi({ project_id: projectId, use_ai: true }).then((r) => r.data as unknown as ProjectRisksResponse);
 }
-export async function getProjectViability(projectId: string) {
-    return orchestratorApi.computeViability({ project_id: projectId }).then((r) => r.data as unknown as ProjectViabilityResponse);
+export async function getProjectViability(projectId: string, enterpriseId?: string) {
+    const body = enterpriseId?.trim()
+        ? {
+              project_id: projectId,
+              enterprise_id: enterpriseId.trim(),
+              enable_strategist: true,
+              use_ai: true,
+              force_refresh: true,
+          }
+        : { project_id: projectId, use_ai: true, force_refresh: true };
+    return orchestratorApi.computeViability(body).then((r) => r.data as unknown as ProjectViabilityResponse);
 }

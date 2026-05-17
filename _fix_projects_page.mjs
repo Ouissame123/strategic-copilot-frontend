@@ -1,0 +1,11 @@
+import fs from "fs";
+const p = "copilot-ui/src/pages/manager/ProjectsPage.tsx";
+let s = fs.readFileSync(p, "utf8");
+const marker = "\n}\n\n                                    <SortableTh";
+const junk = s.indexOf(marker);
+if (junk >= 0) s = s.slice(0, junk + 2);
+const badClose = "</" + "motion" + ">";
+const goodClose = "</" + "motion".replace("motion", "div") + ">";
+s = s.split(badClose).join(goodClose);
+fs.writeFileSync(p, s);
+console.log("fixed", junk >= 0);

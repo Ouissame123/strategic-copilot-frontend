@@ -27,10 +27,10 @@ export function ManagerRisksPage() {
             </select>
             {risks.isLoading ? <p>{t("loading")}</p> : null}
             <div className="mt-4 space-y-2">
-                {(risks.data?.alerts ?? []).map((alert) => (
-                    <div key={alert.id} className="rounded-lg border border-secondary p-3">
-                        <p className="font-medium">{alert.title}</p>
-                        <p className="text-sm text-tertiary">{alert.severity}</p>
+                {(risks.data?.items ?? []).map((alert) => (
+                    <div key={alert.alert_id} className="rounded-lg border border-secondary p-3">
+                        <p className="font-medium">{alert.title ?? "—"}</p>
+                        <p className="text-sm text-tertiary">{alert.severity ?? "—"}</p>
                     </div>
                 ))}
             </div>

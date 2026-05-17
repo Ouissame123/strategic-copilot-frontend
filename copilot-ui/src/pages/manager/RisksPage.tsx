@@ -6,7 +6,7 @@ import { WorkspacePageShell } from "@/components/workspace/workspace-page-shell"
 import { useWorkspaceTopbarMeta } from "@/layouts/workspace-topbar-meta";
 import { agentsApi } from "@/api/agents.api";
 import { useDashboard } from "@/hooks/useDashboard";
-import { useManagerRiskData } from "@/hooks/use-manager-risk-data";
+import { invalidateManagerRiskQueries, useManagerRiskData } from "@/hooks/use-manager-risk-data";
 import { useRiskAlertAction } from "@/hooks/useNotifications";
 import { useProjects } from "@/hooks/useProjects";
 import { useWatchdogScan } from "@/hooks/useTeam";
@@ -59,21 +59,10 @@ function severityBadgeClass(sev: string | undefined): string {
     return "border-emerald-200 bg-emerald-50 text-emerald-900 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-100";
 }
 
-function computeGlobalRiskScore(params: {
-    aggregateView: boolean;
-    healthScore: number | null | undefined;
-    criticalOrHigh: number;
-    totalOpen: number;
-    avgRiskFromDetail: number | null | undefined;
-}): number | null {
-    const { aggregateView, healthScore, criticalOrHigh, totalOpen, avgRiskFromDetail } = params;
-    if (!aggregateView) {
-        if (avgRiskFromDetail != null && Number.isFinite(avgRiskFromDetail)) return clamp(avgRiskFromDetail, 0, 10);
-        return null;
-    }
-    if (healthScore == null || !Number.isFinite(healthScore)) return null;
-    const stress = Math.min(3, criticalOrHigh * 0.35 + Math.min(2, (totalOpen || 0) * 0.04));
-    return clamp(10 - healthScore * 0.65 + stress, 0, 10);
+function readAvgRiskScore(summary: { avg_risk_score?: number | null } | null | undefined): number | null {
+    const raw = summary?.avg_risk_score;
+    if (raw == null || !Number.isFinite(Number(raw))) return null;
+    return clamp(Number(raw), 0, 10);
 }
 
 function severityRank(sev: string | undefined): number {
@@ -173,7 +162,7 @@ function priorityQueueIntro(items: DisplayAlert[]): string {
 }
 
 export default function RisksPage() {
-    const { t } = useTranslation("common");
+    const { t } = useTranslation(["common", "nav"]);
     const { push } = useToast();
     const qc = useQueryClient();
     const [projectId, setProjectId] = useState("");
@@ -199,7 +188,7 @@ export default function RisksPage() {
             const top = dashboard.data?.widgets.top_alerts ?? [];
             return top.map(toDisplayFromTop);
         }
-        const rawItems = riskDetail.data?.items ?? riskDetail.data?.alerts ?? [];
+        const rawItems = riskDetail.data?.items ?? [];
         return rawItems.map(toDisplayFromRiskItem);
     }, [aggregateView, dashboard.data?.widgets.top_alerts, riskDetail.data]);
 
@@ -264,24 +253,17 @@ export default function RisksPage() {
         return riskDetail.data?.summary?.total_alerts ?? displayAlerts.length;
     }, [aggregateView, dashboard.data?.widgets?.top_alerts?.length, riskDetail.data?.summary?.total_alerts, displayAlerts.length]);
 
-    const globalRiskScore = useMemo(() => {
-        return computeGlobalRiskScore({
-            aggregateView,
-            healthScore: dashboard.data?.health?.score,
-            criticalOrHigh: dashboard.data?.kpi_cards.alerts.critical_or_high ?? 0,
-            totalOpen: dashboard.data?.kpi_cards.alerts.total_open ?? 0,
-            avgRiskFromDetail: riskDetail.data?.summary?.avg_risk_score,
-        });
-    }, [aggregateView, dashboard.data, riskDetail.data?.summary?.avg_risk_score]);
+    const globalRiskScore = useMemo(
+        () => readAvgRiskScore(riskDetail.data?.summary),
+        [riskDetail.data?.summary],
+    );
 
     const onPatch = ({ id, action, note }: { id: string; action: "resolve" | "dismiss"; note?: string }) => {
         patchAlert.mutate(
             { id, body: { action, note } },
             {
                 onSuccess: async () => {
-                    await qc.invalidateQueries({ queryKey: ["manager-risk-page"] });
-                    await qc.invalidateQueries({ queryKey: ["risks"] });
-                    await qc.invalidateQueries({ queryKey: ["dashboard"] });
+                    await invalidateManagerRiskQueries(qc);
                     push(action === "resolve" ? "Alerte résolue" : "Alerte ignorée", "success");
                     setDrawerOpen(false);
                     setSelectedAlert(null);
@@ -296,9 +278,7 @@ export default function RisksPage() {
             { project_id: pid, use_ai: true },
             {
                 onSuccess: async () => {
-                    await qc.invalidateQueries({ queryKey: ["manager-risk-page"] });
-                    await qc.invalidateQueries({ queryKey: ["risks"] });
-                    await qc.invalidateQueries({ queryKey: ["dashboard"] });
+                    await invalidateManagerRiskQueries(qc);
                     push("Scan Watchdog terminé, données actualisées", "success");
                 },
                 onError: () => push("Échec du scan Watchdog.", "error"),
@@ -311,10 +291,19 @@ export default function RisksPage() {
         setDrawerOpen(true);
     };
 
-    const isLoading = aggregateView ? dashboard.isLoading : riskDetail.isLoading;
-    const isError = aggregateView ? dashboard.isError : riskDetail.isError;
+    const isLoading = aggregateView ? dashboard.isLoading || riskDetail.isLoading : riskDetail.isLoading;
+    const isError = aggregateView ? dashboard.isError || riskDetail.isError : riskDetail.isError;
 
-    useWorkspaceTopbarMeta(t("managerWorkspace.risksPage.heroTitle"), t("managerWorkspace.risksPage.heroSubtitle"));
+    const risksHeaderBadge = useMemo(
+        () => (
+            <span className="inline-flex shrink-0 rounded-full border border-brand-secondary/35 bg-gradient-to-r from-brand-primary/15 to-violet-500/10 px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-brand-secondary shadow-sm">
+                AI Powered
+            </span>
+        ),
+        [],
+    );
+
+    useWorkspaceTopbarMeta(t("nav:managerNavRisks"), t("managerWorkspace.risksPage.heroSubtitle"), risksHeaderBadge);
 
     return (
         <WorkspacePageShell
@@ -373,7 +362,7 @@ export default function RisksPage() {
                             <>
                                 <KpiPremium
                                     label={t("managerWorkspace.risksPage.kpiOpened")}
-                                    value={riskDetail.data?.summary.total_alerts ?? riskDetail.data?.alerts.length ?? 0}
+                                    value={riskDetail.data?.summary.total_alerts ?? riskDetail.data?.items.length ?? 0}
                                     hint={t("managerWorkspace.risksPage.hintSelectedProject")}
                                     tone="neutral"
                                 />

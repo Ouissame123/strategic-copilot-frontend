@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { managerTeamApi, MANAGER_TEAM_TALENT_UUID_RE, normalizeManagerTeamRouteTalentId } from "../api/manager-team.api";
+import { invalidateManagerRiskQueries } from "./use-manager-risk-data";
 
 export const useTeam = (params?: { scope?: "mine" | "enterprise"; search?: string; contract_ending?: boolean; limit?: number }) =>
     useQuery({
@@ -24,9 +25,7 @@ export const useWatchdogScan = () => {
         mutationFn: (body: { talent_id?: string; project_id?: string; use_ai?: boolean }) =>
             managerTeamApi.watchdogScan(body).then((r) => r.data),
         onSuccess: async () => {
-            await qc.invalidateQueries({ queryKey: ["dashboard"] });
-            await qc.invalidateQueries({ queryKey: ["manager-risk-page"] });
-            await qc.invalidateQueries({ queryKey: ["manager", "project-risks"] });
+            await invalidateManagerRiskQueries(qc);
         },
     });
 };

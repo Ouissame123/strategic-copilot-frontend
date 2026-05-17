@@ -27,9 +27,11 @@ function WorkspaceShellHeaderLeading() {
     if (meta.title.trim()) {
         return (
             <div className="min-w-0 flex-1 pr-2 text-start md:pr-4">
-                <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
-                    <h1 className="truncate text-lg font-semibold tracking-tight text-primary md:text-xl">{meta.title}</h1>
-                    {meta.trailing ? <div className="flex shrink-0 sm:justify-end">{meta.trailing}</div> : null}
+                <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
+                    <div className="flex min-w-0 flex-wrap items-center gap-2">
+                        <h1 className="truncate text-lg font-semibold tracking-tight text-primary md:text-xl">{meta.title}</h1>
+                        {meta.trailing ? <div className="flex shrink-0 items-center">{meta.trailing}</div> : null}
+                    </div>
                 </div>
                 {meta.subtitle ? (
                     <p className="mt-0.5 line-clamp-2 text-sm leading-snug text-tertiary md:text-[0.9375rem]">{meta.subtitle}</p>
