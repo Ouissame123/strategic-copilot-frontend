@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent } from "react";
 import { Link, useNavigate } from "react-router";
-import { isAxiosError } from "axios";
 import { useQueryClient } from "@tanstack/react-query";
 import { RefreshCw01, Stars01, Trash01, XClose } from "@untitledui/icons";
 import {
@@ -8,12 +7,39 @@ import {
     friendlyArchiveConversationError,
     friendlyHelperChatSendError,
     isHelperChatUuid,
-    mergeHelperChatReplyIntoConversationCache,
 } from "@/components/copilot/helper-chat-reply-cache";
-import { useConversation, useConversations, useSendMessage } from "@/hooks/useChat";
+import {
+    managerConversationDetailKey,
+    useArchiveConversation,
+    useConversation,
+    useConversations,
+    useProjectConversations,
+    useSendMessage,
+} from "@/hooks/useChat";
+import {
+    clearCopilotPendingMessages,
+    getSessionId,
+    readCopilotPendingMessages,
+    resetCopilotSessionId,
+    writeCopilotPendingMessages,
+} from "@/lib/copilot-session-storage";
+import { useAuth } from "@/hooks/useAuth";
 import { useProjectDetail } from "@/hooks/useProjects";
+import { getErrorCode, isConversationNotFoundError } from "@/lib/helper-chat-errors";
+import {
+    readHelperConversationId,
+    removeHelperConversationStorage,
+    writeHelperConversationId,
+} from "@/lib/helper-conversation-storage";
 import { useToast } from "@/providers/toast-provider";
-import { conversationsApi, type ChatMessage, type ChatSource, type ChatSuggestedAction, type Conversation } from "@/services/chat.api";
+import {
+    extractHelperReplyText,
+    type ChatMessage,
+    type ChatSource,
+    type ChatSuggestedAction,
+    type Conversation,
+    type HelperChatSendBody,
+} from "@/services/chat.api";
 import { normalizeHelperConversationId } from "@/lib/helper-conversation-id";
 import { cx } from "@/utils/cx";
 
@@ -78,78 +104,202 @@ export function ManagerProjectCopilotPanel({
     refreshingProjectSnapshot = false,
 }: ManagerProjectCopilotPanelProps) {
     const { push } = useToast();
+    const { user } = useAuth();
+    const enterpriseId = user?.enterpriseId?.trim() ?? "";
     const qc = useQueryClient();
 
     const [activeId, setActiveId] = useState<string | null>(null);
+    /** Id autorisé pour GET DETAIL (décalé après POST pour éviter 404 immédiat). */
+    const [detailFetchId, setDetailFetchId] = useState<string | null>(null);
     const [input, setInput] = useState("");
     const [errorMsg, setErrorMsg] = useState<string | null>(null);
     const [pendingMessages, setPendingMessages] = useState<ChatMessage[]>([]);
+    const [detailSyncWarning, setDetailSyncWarning] = useState(false);
     const [deletingConversationId, setDeletingConversationId] = useState<string | null>(null);
     const [historyOpen, setHistoryOpen] = useState(false);
+
+    const badConversationIdsRef = useRef<Set<string>>(new Set());
+    const handledErrorRef = useRef<string | null>(null);
+    const pendingMessagesCountRef = useRef(0);
+    const detailInvalidateTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const conversationBootstrapAppliedRef = useRef<string | null>(null);
+    const projectResetKeyRef = useRef<string | null>(null);
+
+    const stableProjectId = projectId?.trim() ?? "";
+
+    const isBadConversationId = useCallback((id: string | null | undefined) => {
+        const cid = id?.trim();
+        return Boolean(cid && badConversationIdsRef.current.has(cid));
+    }, []);
+
+    const quickPromptsKey = useMemo(() => quickPrompts?.join("\0") ?? "", [quickPrompts]);
 
     const prompts = useMemo(() => {
         if (quickPrompts?.length) return quickPrompts;
         if (compact) return MISSION_CONTROL_QUICK_PROMPTS;
         return QUICK_PROMPTS;
-    }, [compact, quickPrompts]);
+    }, [compact, quickPromptsKey, quickPrompts]);
 
     const skipProjectDetailFetch = Boolean(compact && prefetchedContext);
-    const snapshot = useProjectDetail(projectId ?? "", { enabled: Boolean(projectId) && !skipProjectDetailFetch });
+    const snapshot = useProjectDetail(stableProjectId, {
+        enabled: Boolean(stableProjectId) && !skipProjectDetailFetch,
+    });
 
-    const { data: convList } = useConversations("active");
+    const projectConversationsQuery = useProjectConversations(stableProjectId || null, Boolean(stableProjectId));
+    const { data: convList } = useConversations(
+        stableProjectId ? { project_id: stableProjectId, status: "active" } : { status: "active" },
+        !compact,
+    );
+
     const conversationsForProject = useMemo(() => {
         const all = convList?.conversations ?? [];
-        if (!projectId) return all;
-        return all.filter((c) => c.project_id === projectId || c.project_id == null);
-    }, [convList?.conversations, projectId]);
+        if (!stableProjectId) return all;
+        return all.filter((c) => c.project_id === stableProjectId || c.project_id == null);
+    }, [convList?.conversations, stableProjectId]);
 
-    const knownConversationIds = useMemo(
-        () => new Set((convList?.conversations ?? []).map((c) => c.id.toLowerCase())),
-        [convList?.conversations],
-    );
+    useEffect(() => {
+        pendingMessagesCountRef.current = pendingMessages.length;
+    }, [pendingMessages.length]);
 
-    const resetThread = useCallback(() => {
-        setActiveId(null);
-        setPendingMessages([]);
-        setInput("");
-        setErrorMsg(null);
-        setHistoryOpen(false);
+    useEffect(() => {
+        return () => {
+            if (detailInvalidateTimerRef.current) clearTimeout(detailInvalidateTimerRef.current);
+        };
     }, []);
 
     useEffect(() => {
-        resetThread();
-    }, [projectId, resetThread]);
+        if (!stableProjectId) return;
+        const previousProjectId = projectResetKeyRef.current;
+        if (previousProjectId === stableProjectId) return;
+        projectResetKeyRef.current = stableProjectId;
+
+        if (previousProjectId != null) {
+            conversationBootstrapAppliedRef.current = null;
+            badConversationIdsRef.current = new Set();
+            handledErrorRef.current = null;
+            if (detailInvalidateTimerRef.current) clearTimeout(detailInvalidateTimerRef.current);
+            setActiveId(null);
+            setDetailFetchId(null);
+            setPendingMessages([]);
+            setDetailSyncWarning(false);
+            setInput("");
+            setErrorMsg(null);
+            setHistoryOpen(false);
+            return;
+        }
+
+        const storedPending = readCopilotPendingMessages(stableProjectId);
+        if (storedPending.length > 0) {
+            setPendingMessages(storedPending);
+        }
+        if (enterpriseId) {
+            const storedConvId = readHelperConversationId(enterpriseId, stableProjectId);
+            if (storedConvId && !badConversationIdsRef.current.has(storedConvId)) {
+                setActiveId(storedConvId);
+            }
+        }
+    }, [enterpriseId, stableProjectId]);
 
     useEffect(() => {
-        if (!externalPrompt?.text) return;
-        setInput(externalPrompt.text);
-    }, [externalPrompt?.nonce, externalPrompt?.text]);
+        if (!stableProjectId) return;
+        writeCopilotPendingMessages(stableProjectId, pendingMessages);
+    }, [pendingMessages, stableProjectId]);
 
-    const enabled = Boolean(activeId && knownConversationIds.has(activeId.toLowerCase()));
-    const cachedDetail = qc.getQueryData<{ conversation: Conversation; messages: ChatMessage[] }>(["chat-conversation", activeId]);
-    const shouldFetch = enabled && !cachedDetail;
-    const cleanCid = useCallback(() => {
-        setActiveId(null);
-    }, []);
+    useEffect(() => {
+        if (!enterpriseId || !stableProjectId) return;
+        if (!projectConversationsQuery.isSuccess || projectConversationsQuery.isFetching) return;
+        if (conversationBootstrapAppliedRef.current === stableProjectId) return;
+        conversationBootstrapAppliedRef.current = stableProjectId;
 
-    const { data: convDetail, isLoading: detailLoading, error: detailError } = useConversation(
-        shouldFetch ? activeId : null,
-        shouldFetch,
-        cleanCid,
-    );
-    const displayDetail = convDetail ?? cachedDetail;
+        const list = projectConversationsQuery.data;
+        const firstValid = (list?.conversations ?? []).find(
+            (c) => c.id?.trim() && !badConversationIdsRef.current.has(c.id.trim()),
+        );
+
+        if (firstValid?.id) {
+            const cid = firstValid.id.trim();
+            setActiveId((current) => current ?? cid);
+            setDetailFetchId((current) => current ?? cid);
+            writeHelperConversationId(enterpriseId, stableProjectId, cid);
+        } else if (list && list.count > 0) {
+            const skipped = list.conversations?.[0]?.id;
+            if (skipped) console.log("[Copilot] Skip bad conversation id", skipped);
+            removeHelperConversationStorage(enterpriseId, stableProjectId);
+        } else if (pendingMessagesCountRef.current === 0) {
+            setActiveId((current) => (current ? null : current));
+            setDetailFetchId((current) => (current ? null : current));
+            removeHelperConversationStorage(enterpriseId, stableProjectId);
+        }
+    }, [
+        enterpriseId,
+        projectConversationsQuery.isFetching,
+        projectConversationsQuery.isSuccess,
+        stableProjectId,
+    ]);
+
+    const externalPromptNonceRef = useRef<number | undefined>(undefined);
+    const externalPromptNonce = externalPrompt?.nonce;
+    const externalPromptText = externalPrompt?.text ?? "";
+    useEffect(() => {
+        if (externalPromptNonce == null) {
+            externalPromptNonceRef.current = undefined;
+            return;
+        }
+        if (externalPromptNonce === externalPromptNonceRef.current) return;
+        externalPromptNonceRef.current = externalPromptNonce;
+        if (externalPromptText) setInput(externalPromptText);
+    }, [externalPromptNonce, externalPromptText]);
+
+    const detailIdForQuery = detailFetchId?.trim() ?? "";
+    const shouldFetchConversation =
+        Boolean(detailIdForQuery) && !badConversationIdsRef.current.has(detailIdForQuery);
+
+    const {
+        data: convDetail,
+        isLoading: detailLoading,
+        isFetching: detailFetching,
+        isError: conversationQueryError,
+        error: conversationQueryErr,
+    } = useConversation(detailFetchId, shouldFetchConversation);
+
+    const conversationNotFoundKey =
+        conversationQueryError && detailFetchId && isConversationNotFoundError(conversationQueryErr)
+            ? `${detailFetchId}|${getErrorCode(conversationQueryErr)}|${conversationQueryErr instanceof Error ? conversationQueryErr.message : ""}`
+            : "";
+
+    useEffect(() => {
+        if (!conversationNotFoundKey || !detailFetchId) return;
+        if (handledErrorRef.current === detailFetchId) return;
+
+        handledErrorRef.current = detailFetchId;
+        badConversationIdsRef.current.add(detailFetchId);
+        console.log("[Copilot] DETAIL 404 handled once", detailFetchId);
+
+        removeHelperConversationStorage(enterpriseId, stableProjectId);
+        void qc.removeQueries({ queryKey: managerConversationDetailKey(detailFetchId) });
+        setDetailFetchId(null);
+        if (pendingMessagesCountRef.current > 0) {
+            setDetailSyncWarning(true);
+        }
+    }, [conversationNotFoundKey, detailFetchId, enterpriseId, stableProjectId, qc]);
+
+    const conversation = convDetail?.conversation;
     const send = useSendMessage();
+    const archiveConversation = useArchiveConversation();
 
     const removeConversationFromListCache = useCallback(
         (conversation: Conversation) => {
             const realId = conversation.id;
-            qc.setQueryData<{ conversations: Conversation[]; count: number }>(["chat-conversations", "active"], (old) => {
+            qc.setQueryData<{ conversations: Conversation[]; count: number }>(
+                ["manager-conversations", "active", stableProjectId || null, null, null],
+                (old) => {
                 if (!old?.conversations) return old;
                 const next = old.conversations.filter((c) => c.id !== realId);
                 return { ...old, conversations: next, count: next.length };
-            });
+                },
+            );
         },
-        [qc],
+        [qc, stableProjectId],
     );
 
     const confirmAndArchiveConversation = useCallback(
@@ -163,14 +313,19 @@ export function ManagerProjectCopilotPanel({
             }
             setDeletingConversationId(conversation.id);
             try {
-                await conversationsApi.archive(conversation.id, { restore: false });
+                await archiveConversation.mutateAsync({ id: conversation.id, restore: false });
                 removeConversationFromListCache(conversation);
-                void qc.removeQueries({ queryKey: ["chat-conversation", conversation.id] });
-                void qc.removeQueries({ queryKey: ["chat-conversation", normalizeHelperConversationId(conversation.id)] });
+                void qc.removeQueries({ queryKey: managerConversationDetailKey(conversation.id) });
+                void qc.removeQueries({
+                    queryKey: managerConversationDetailKey(normalizeHelperConversationId(conversation.id)),
+                });
                 push("Conversation supprimée avec succès", "success");
                 if (activeId != null && activeId.toLowerCase() === conversation.id.toLowerCase()) {
+                    if (enterpriseId && stableProjectId) removeHelperConversationStorage(enterpriseId, stableProjectId);
                     setActiveId(null);
+                    setDetailFetchId(null);
                     setPendingMessages([]);
+                    setDetailSyncWarning(false);
                     setInput("");
                     setErrorMsg(null);
                 }
@@ -180,103 +335,122 @@ export function ManagerProjectCopilotPanel({
                 setDeletingConversationId(null);
             }
         },
-        [activeId, push, qc, removeConversationFromListCache],
+        [activeId, archiveConversation, enterpriseId, push, qc, removeConversationFromListCache, stableProjectId],
     );
 
-    const scrollRef = useRef<HTMLDivElement>(null);
-    useEffect(() => {
-        scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
-    }, [displayDetail?.messages, pendingMessages]);
+    const scrollContainerRef = useRef<HTMLDivElement>(null);
+    const messagesEndRef = useRef<HTMLDivElement>(null);
 
-    useEffect(() => {
-        if (!activeId || !isAxiosError(detailError)) return;
-        if (detailError.response?.status !== 404) return;
-        setActiveId(null);
-        setPendingMessages([]);
-        push("Conversation introuvable, nouvelle conversation créée.", "neutral");
-    }, [activeId, detailError, push]);
-
-    const handleSend = async (messageOverride?: string) => {
-        const msg = (messageOverride ?? input).trim();
-        if (!msg || send.isPending) return;
-        if (!projectId || !isHelperChatUuid(projectId)) {
-            setErrorMsg("Sélectionne un projet valide pour utiliser le Copilot.");
-            return;
-        }
-        setErrorMsg(null);
-        setInput("");
-
-        const apiMessage =
-            messageContextPrefix?.trim() ? `${messageContextPrefix.trim()}\n\n${msg}` : msg;
-
-        const tempUser: ChatMessage = {
-            id: `temp-${Date.now()}`,
-            conversation_id: activeId ?? "pending",
-            role: "user",
-            content: msg,
-            created_at: new Date().toISOString(),
-        };
-        setPendingMessages((prev) => [...prev, tempUser]);
-
-        try {
-            const body: { message: string; conversation_id?: string; project_id?: string } = { message: apiMessage };
-            const safeConversationId = activeId?.trim();
-            const safeProjectId = projectId.trim();
-            if (safeConversationId && isHelperChatUuid(safeConversationId)) body.conversation_id = safeConversationId;
-            if (isHelperChatUuid(safeProjectId)) body.project_id = safeProjectId;
-
-            const reply = await send.mutateAsync(body);
-            const newCid = reply.conversation_id;
-            if (newCid) {
-                qc.setQueryData(["chat-conversation", newCid], (oldData: unknown) =>
-                    mergeHelperChatReplyIntoConversationCache(oldData, reply),
-                );
-            }
-            await qc.invalidateQueries({ queryKey: ["chat-conversations"] });
-            if (!activeId && reply.conversation_id) {
-                setActiveId(reply.conversation_id);
-            }
-            setPendingMessages([]);
-        } catch (err) {
-            if (isAxiosError(err) && err.response?.status === 404 && activeId) {
-                setInput(msg);
-                setPendingMessages((prev) => prev.filter((m) => m.id !== tempUser.id));
-                setActiveId(null);
-                setErrorMsg("Cette conversation n'existe plus. Réessaie, une nouvelle conversation sera créée.");
+    const handleSend = useCallback(
+        async (messageOverride?: string) => {
+            const msg = (messageOverride ?? input).trim();
+            if (!msg || send.isPending) return;
+            if (!projectId || !isHelperChatUuid(projectId)) {
+                setErrorMsg("Sélectionne un projet valide pour utiliser le Copilot.");
                 return;
             }
-            if (isAxiosError(err) && err.response?.status === 400 && activeId?.trim()) {
-                try {
-                    const retryBody: { message: string; project_id?: string } = { message: apiMessage };
-                    if (isHelperChatUuid(projectId.trim())) retryBody.project_id = projectId.trim();
-                    const retryReply = await send.mutateAsync(retryBody);
-                    if (retryReply.conversation_id) {
-                        qc.setQueryData(["chat-conversation", retryReply.conversation_id], (oldData: unknown) =>
-                            mergeHelperChatReplyIntoConversationCache(oldData, retryReply),
-                        );
-                    }
-                    setActiveId(retryReply.conversation_id);
-                    setPendingMessages([]);
-                    return;
-                } catch (retryErr) {
-                    setPendingMessages((prev) => prev.filter((m) => m.id !== tempUser.id));
-                    setInput(msg);
-                    setErrorMsg(friendlyHelperChatSendError(retryErr));
-                    return;
-                }
+            const safeProjectId = projectId.trim();
+            if (!enterpriseId) {
+                setErrorMsg("Identifiant entreprise manquant — reconnecte-toi.");
+                return;
             }
-            setPendingMessages((prev) => prev.filter((m) => m.id !== tempUser.id));
-            setInput(msg);
-            setErrorMsg(friendlyHelperChatSendError(err));
-        }
-    };
+            setErrorMsg(null);
+            setInput("");
 
-    const startNewConversation = () => {
+            const apiMessage =
+                messageContextPrefix?.trim() ? `${messageContextPrefix.trim()}\n\n${msg}` : msg;
+
+            const localUserId = `local-user-${Date.now()}`;
+            const localUser: ChatMessage = {
+                id: localUserId,
+                conversation_id: activeId ?? "pending",
+                role: "user",
+                content: msg,
+                created_at: new Date().toISOString(),
+                local: true,
+            };
+            setPendingMessages((prev) => [...prev, localUser]);
+
+            const sessionId = getSessionId(safeProjectId);
+            const body: HelperChatSendBody = {
+                enterprise_id: enterpriseId,
+                project_id: safeProjectId,
+                message: apiMessage,
+                session_id: sessionId,
+            };
+            const convIdForSend =
+                activeId && isHelperChatUuid(activeId) && !isBadConversationId(activeId) ? activeId : undefined;
+            if (convIdForSend) {
+                body.conversation_id = convIdForSend;
+            }
+
+            try {
+                console.log("[Copilot] POST only user action");
+                const reply = await send.mutateAsync(body);
+                const newCid = reply.conversation_id?.trim();
+                if (!newCid) return;
+
+                conversationBootstrapAppliedRef.current = stableProjectId;
+                writeHelperConversationId(enterpriseId, safeProjectId, newCid);
+                setActiveId(newCid);
+                setDetailFetchId(null);
+                setDetailSyncWarning(false);
+
+                const assistantContent = extractHelperReplyText(reply);
+                if (assistantContent) {
+                    setPendingMessages((prev) => [
+                        ...prev,
+                        {
+                            id: `local-assistant-${Date.now()}`,
+                            conversation_id: newCid,
+                            role: "assistant",
+                            content: assistantContent,
+                            intent: reply.intent,
+                            confidence: reply.confidence,
+                            suggested_actions: reply.suggested_actions,
+                            details: reply.details,
+                            sources: reply.sources,
+                            created_at: new Date().toISOString(),
+                            local: true,
+                        },
+                    ]);
+                }
+
+                if (detailInvalidateTimerRef.current) clearTimeout(detailInvalidateTimerRef.current);
+                detailInvalidateTimerRef.current = setTimeout(() => {
+                    detailInvalidateTimerRef.current = null;
+                    if (badConversationIdsRef.current.has(newCid)) return;
+                    setDetailFetchId(newCid);
+                    void qc.invalidateQueries({ queryKey: managerConversationDetailKey(newCid) });
+                }, 1200);
+            } catch (err) {
+                setPendingMessages((prev) => prev.filter((m) => m.id !== localUserId));
+                setInput(msg);
+                setErrorMsg(friendlyHelperChatSendError(err));
+            }
+        },
+        [activeId, enterpriseId, input, isBadConversationId, messageContextPrefix, projectId, qc, send, stableProjectId],
+    );
+
+    const startNewConversation = useCallback(() => {
+        if (stableProjectId) {
+            resetCopilotSessionId(stableProjectId);
+            clearCopilotPendingMessages(stableProjectId);
+        }
+        if (enterpriseId && stableProjectId) removeHelperConversationStorage(enterpriseId, stableProjectId);
+        conversationBootstrapAppliedRef.current = null;
+        if (detailInvalidateTimerRef.current) clearTimeout(detailInvalidateTimerRef.current);
         setActiveId(null);
+        setDetailFetchId(null);
         setPendingMessages([]);
+        setDetailSyncWarning(false);
         setInput("");
         setErrorMsg(null);
-    };
+    }, [enterpriseId, stableProjectId]);
+
+    const fillInputFromPrompt = useCallback((label: string) => {
+        setInput(label);
+    }, []);
 
     const refreshProjectContext = useCallback(() => {
         if (!projectId) return;
@@ -285,13 +459,33 @@ export function ManagerProjectCopilotPanel({
             return;
         }
         void qc.invalidateQueries({ queryKey: ["project-detail", projectId] });
-        void qc.invalidateQueries({ queryKey: ["chat-conversations"] });
+        void qc.invalidateQueries({ queryKey: ["manager-conversations"] });
     }, [onRefreshProjectSnapshot, projectId, qc]);
 
-    const allMessages = useMemo(
-        () => [...(displayDetail?.messages ?? []), ...pendingMessages],
-        [displayDetail?.messages, pendingMessages],
+    const backendMessages = convDetail?.messages ?? [];
+    const visibleMessages = backendMessages.length > 0 ? backendMessages : pendingMessages;
+    const hasMessages = visibleMessages.length > 0;
+    const isSending = send.isPending;
+    const loadingHistory = Boolean(
+        detailFetchId &&
+            shouldFetchConversation &&
+            (detailLoading || detailFetching) &&
+            backendMessages.length === 0 &&
+            pendingMessages.length === 0,
     );
+    const showQuickReplies = !hasMessages && !isSending;
+    const showEmptyState = !hasMessages && !isSending;
+
+    useEffect(() => {
+        if (backendMessages.length > 0) {
+            setDetailSyncWarning(false);
+        }
+    }, [backendMessages.length]);
+
+    const messagesLength = visibleMessages.length;
+    useEffect(() => {
+        messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    }, [messagesLength]);
 
     if (!projectId) {
         return (
@@ -334,7 +528,16 @@ export function ManagerProjectCopilotPanel({
                     >
                         <button
                             type="button"
-                            onClick={() => setActiveId(c.id)}
+                            onClick={() => {
+                                const cid = c.id.trim();
+                                if (isBadConversationId(cid)) {
+                                    console.log("[Copilot] Skip bad conversation id", cid);
+                                    return;
+                                }
+                                setDetailSyncWarning(false);
+                                setActiveId(cid);
+                                setDetailFetchId(cid);
+                            }}
                             className="min-w-0 flex-1 rounded-l-xl px-2.5 py-2 text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-solid"
                         >
                             <div className="truncate font-semibold text-primary">{c.title || "Sans titre"}</div>
@@ -383,17 +586,17 @@ export function ManagerProjectCopilotPanel({
 
     const messageArea = (
         <div
-            ref={scrollRef}
+            ref={scrollContainerRef}
             className={cx(
                 "min-h-0 flex-1 overflow-y-auto overscroll-contain",
                 compact ? "space-y-2.5 px-3 py-2.5" : "space-y-3 px-1 py-3 sm:min-h-[240px] sm:px-3",
             )}
         >
-            {detailLoading ? (
+            {loadingHistory ? (
                 <p className="py-3 text-center text-xs text-tertiary">{compact ? "Chargement de l’échange…" : "Chargement…"}</p>
             ) : null}
 
-            {!detailLoading && allMessages.length === 0 ? (
+            {!detailLoading && showEmptyState ? (
                 compact ? (
                     <div className="flex flex-1 flex-col items-center justify-center px-4 py-5 text-center">
                         <Stars01 className="mb-2 size-7 text-brand-secondary/70" aria-hidden />
@@ -417,7 +620,7 @@ export function ManagerProjectCopilotPanel({
                                 <button
                                     key={label}
                                     type="button"
-                                    onClick={() => setInput(label)}
+                                    onClick={() => fillInputFromPrompt(label)}
                                     className="rounded-2xl border border-secondary/80 bg-primary px-4 py-3 text-left text-sm text-secondary shadow-sm transition hover:border-brand-secondary/50 hover:bg-brand-primary/5 hover:text-primary"
                                 >
                                     {label}
@@ -428,11 +631,12 @@ export function ManagerProjectCopilotPanel({
                 )
             ) : null}
 
-            {allMessages.map((m) => (
+            {visibleMessages.map((m) => (
                 <MessageBubble key={m.id} message={m} compact={compact} />
             ))}
 
             {typingIndicator}
+            <div ref={messagesEndRef} className="h-px shrink-0" aria-hidden />
         </div>
     );
 
@@ -487,8 +691,8 @@ export function ManagerProjectCopilotPanel({
                 <div className="min-w-0">
                     <p className="text-[10px] font-semibold uppercase tracking-widest text-tertiary">Projet</p>
                     <h2 className="mt-0.5 truncate text-xl font-bold tracking-tight text-primary sm:text-2xl">{displayName}</h2>
-                    {displayDetail?.conversation?.title ? (
-                        <p className="mt-1 truncate text-xs text-tertiary">Conversation : {displayDetail.conversation.title}</p>
+                    {conversation?.title ? (
+                        <p className="mt-1 truncate text-xs text-tertiary">Conversation : {conversation.title}</p>
                     ) : null}
                 </div>
                 <div className="flex flex-wrap gap-2">
@@ -570,21 +774,23 @@ export function ManagerProjectCopilotPanel({
                     </div>
                 </div>
 
-                <div>
-                    <p className="text-[10px] font-semibold uppercase tracking-wider text-tertiary">Questions suggérées</p>
-                    <div className="mt-2 flex flex-col gap-1.5">
-                        {prompts.map((label) => (
-                            <button
-                                key={`ins-${label}`}
-                                type="button"
-                                onClick={() => setInput(label)}
-                                className="rounded-lg border border-transparent px-2 py-1.5 text-left text-[11px] leading-snug text-secondary transition hover:border-secondary hover:bg-secondary_subtle/80"
-                            >
-                                {label}
-                            </button>
-                        ))}
+                {showQuickReplies ? (
+                    <div>
+                        <p className="text-[10px] font-semibold uppercase tracking-wider text-tertiary">Questions suggérées</p>
+                        <div className="mt-2 flex flex-col gap-1.5">
+                            {prompts.map((label) => (
+                                <button
+                                    key={`ins-${label}`}
+                                    type="button"
+                                    onClick={() => fillInputFromPrompt(label)}
+                                    className="rounded-lg border border-transparent px-2 py-1.5 text-left text-[11px] leading-snug text-secondary transition hover:border-secondary hover:bg-secondary_subtle/80"
+                                >
+                                    {label}
+                                </button>
+                            ))}
+                        </div>
                     </div>
-                </div>
+                ) : null}
             </div>
         </aside>
     );
@@ -643,7 +849,15 @@ export function ManagerProjectCopilotPanel({
                                     <button
                                         type="button"
                                         onClick={() => {
-                                            setActiveId(c.id);
+                                            const cid = c.id.trim();
+                                            if (isBadConversationId(cid)) {
+                                                console.log("[Copilot] Skip bad conversation id", cid);
+                                                return;
+                                            }
+                                            setPendingMessages([]);
+                                            setDetailSyncWarning(false);
+                                            setActiveId(cid);
+                                            setDetailFetchId(cid);
                                             setHistoryOpen(false);
                                         }}
                                         className="min-w-0 flex-1 rounded-l-xl px-2.5 py-2 text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-solid"
@@ -672,7 +886,7 @@ export function ManagerProjectCopilotPanel({
             </div>
         ) : null;
 
-    const compactQuickPromptChips = compact ? (
+    const compactQuickPromptChips = compact && showQuickReplies ? (
         <div className="shrink-0 border-b border-secondary/60 bg-primary px-3 py-2.5">
             <p className="mb-1.5 text-[9px] font-semibold uppercase tracking-wider text-tertiary">Questions rapides</p>
             <div className="flex flex-wrap gap-1.5">

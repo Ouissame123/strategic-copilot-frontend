@@ -333,8 +333,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         hasPermission,
     };
 
-    if (!hydrated) return null;
-    return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+    return (
+        <AuthContext.Provider value={value}>
+            {!hydrated ? (
+                <div className="flex min-h-screen items-center justify-center bg-primary text-tertiary">
+                    <p className="text-sm">Chargement de la session…</p>
+                </div>
+            ) : (
+                children
+            )}
+        </AuthContext.Provider>
+    );
 }
 
 export function useAuth(): AuthContextType {

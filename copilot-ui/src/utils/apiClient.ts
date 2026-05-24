@@ -3,6 +3,7 @@
  * Pour requêtes avec refresh automatique sur 401, utiliser `httpRequest` / `httpGet` dans `@/api/api.ts`.
  */
 
+import { authStorage } from "@/lib/auth-storage";
 import { ApiError } from "@/api/errors";
 
 export { ApiError };
@@ -35,8 +36,9 @@ export function buildApiUrlForDebug(path: string): string {
 }
 
 function getAuthHeaders(): Record<string, string> {
-    if (!authToken) return {};
-    return { Authorization: `Bearer ${authToken}` };
+    const t = authToken?.trim() || authStorage.getAccessToken()?.trim() || null;
+    if (!t) return {};
+    return { Authorization: `Bearer ${t}` };
 }
 
 export function setApiAuthToken(token: string | null) {

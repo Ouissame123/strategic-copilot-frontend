@@ -1,13 +1,16 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { ArbitrageOption, ProjectDetailResponse, ProjectListItem } from "@/types/api.types";
+import { useQueryClient } from "@tanstack/react-query";
+import type { ArbitrageOption, ExecuteResponse, ProjectDetailResponse, ProjectListItem } from "@/types/api.types";
 import {
     arbitrageOptionsFromMap,
     buildStrategistFragileSignalsFromDetail,
     dedupeArbitrageOptions,
     hasProposedArbitrageOptions,
+    invalidateAfterStrategistArbitrage,
     isFragileProjectForStrategistPropose,
     mergeProposeArbitrageOptions,
     mergeArbitrageOptionsById,
+    parseStrategistExecuteResponse,
     readStrategistArbitrageErrorMessage,
 } from "@/lib/strategist-arbitrage";
 import { useExecuteArbitrage, useStrategistPropose } from "@/hooks/useProjects";
@@ -33,6 +36,7 @@ export function useProjectStrategistArbitrage({
 }: UseProjectStrategistArbitrageParams) {
     const [optionsById, setOptionsById] = useState<Record<string, ArbitrageOption>>({});
     const autoProposeKeyRef = useRef<string | null>(null);
+    const qc = useQueryClient();
 
     const strategistPropose = useStrategistPropose();
     const executeArbitrage = useExecuteArbitrage();
@@ -42,11 +46,20 @@ export function useProjectStrategistArbitrage({
         autoProposeKeyRef.current = null;
     }, [projectId]);
 
+    const arbitrageOptionsSig = useMemo(
+        () => JSON.stringify(detail?.arbitrage_options ?? []),
+        [detail?.arbitrage_options],
+    );
+
+    const arbitrageOptionsFromApi = useMemo(
+        () => detail?.arbitrage_options ?? [],
+        [arbitrageOptionsSig],
+    );
+
     useEffect(() => {
-        const fromApi = detail?.arbitrage_options ?? [];
-        if (!fromApi.length) return;
-        setOptionsById((prev) => mergeArbitrageOptionsById(prev, fromApi));
-    }, [detail?.arbitrage_options]);
+        if (!arbitrageOptionsFromApi.length) return;
+        setOptionsById((prev) => mergeArbitrageOptionsById(prev, arbitrageOptionsFromApi));
+    }, [arbitrageOptionsFromApi]);
 
     const fragileSignals = useMemo(
         () => buildStrategistFragileSignalsFromDetail(detail, listProject),
@@ -54,6 +67,8 @@ export function useProjectStrategistArbitrage({
     );
 
     const allOptions = useMemo(() => arbitrageOptionsFromMap(optionsById), [optionsById]);
+    const allOptionsRef = useRef(allOptions);
+    allOptionsRef.current = allOptions;
     const displayOptions = useMemo(() => dedupeArbitrageOptions(allOptions), [allOptions]);
     const isFragile = useMemo(() => isFragileProjectForStrategistPropose(fragileSignals), [fragileSignals]);
 
@@ -69,7 +84,7 @@ export function useProjectStrategistArbitrage({
                 throw new Error("missing_enterprise_or_project");
             }
 
-            if (opts.skipIfProposed && hasProposedArbitrageOptions(allOptions)) {
+            if (opts.skipIfProposed && hasProposedArbitrageOptions(allOptionsRef.current)) {
                 return { skipped: true as const, options: [] as ArbitrageOption[] };
             }
 
@@ -82,7 +97,7 @@ export function useProjectStrategistArbitrage({
             applyProposeResponse(incoming, opts.force);
             return { skipped: false as const, options: incoming };
         },
-        [allOptions, applyProposeResponse, enterpriseId, projectId, strategistPropose],
+        [applyProposeResponse, enterpriseId, projectId, strategistPropose],
     );
 
     const recalculate = useCallback(() => runPropose({ force: true }), [runPropose]);
@@ -93,7 +108,7 @@ export function useProjectStrategistArbitrage({
         if (!open || !simulationTabActive || !projectId || detailLoading) return;
         if (!enterpriseId?.trim()) return;
         if (!isFragile) return;
-        if (hasProposedArbitrageOptions(allOptions)) return;
+        if (hasProposedArbitrageOptions(allOptionsRef.current)) return;
         if (strategistPropose.isPending) return;
 
         const sessionKey = projectId.trim();
@@ -101,10 +116,9 @@ export function useProjectStrategistArbitrage({
         autoProposeKeyRef.current = sessionKey;
 
         void runPropose({ force: false, skipIfProposed: true }).catch(() => {
-            autoProposeKeyRef.current = null;
+            /* Ne pas réinitialiser la clé : évite une boucle de propose / re-render dans le modal. */
         });
     }, [
-        allOptions,
         detailLoading,
         enterpriseId,
         isFragile,
@@ -124,17 +138,19 @@ export function useProjectStrategistArbitrage({
     }, []);
 
     const acceptOption = useCallback(
-        async (opt: ArbitrageOption) => {
+        async (opt: ArbitrageOption): Promise<ExecuteResponse> => {
             const enterprise_id = enterpriseId?.trim();
             if (!enterprise_id) throw new Error("missing_enterprise");
-            await executeArbitrage.mutateAsync({
+            const raw = await executeArbitrage.mutateAsync({
                 enterprise_id,
                 option_id: opt.id,
                 action: "execute",
             });
             patchOptionStatus(opt.id, "executed");
+            await invalidateAfterStrategistArbitrage(qc, projectId);
+            return parseStrategistExecuteResponse(raw);
         },
-        [enterpriseId, executeArbitrage, patchOptionStatus],
+        [enterpriseId, executeArbitrage, patchOptionStatus, projectId, qc],
     );
 
     const rejectOption = useCallback(

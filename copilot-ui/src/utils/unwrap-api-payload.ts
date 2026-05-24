@@ -12,6 +12,17 @@ export function unwrapDataPayload(raw: unknown): Record<string, unknown> {
     return r;
 }
 
+/** Réponse n8n : tableau racine, `data[]`, ou champ `json`. */
+export function unwrapN8nRoot(raw: unknown): Record<string, unknown> {
+    if (Array.isArray(raw) && raw.length > 0) return unwrapN8nRoot(raw[0]);
+    const r = asRecord(raw);
+    const json = r.json;
+    if (json && typeof json === "object" && !Array.isArray(json)) return asRecord(json);
+    const data = r.data;
+    if (Array.isArray(data) && data.length > 0) return asRecord(data[0]);
+    return unwrapDataPayload(raw);
+}
+
 export function firstArray(root: Record<string, unknown>, keys: string[]): unknown[] {
     for (const k of keys) {
         const v = root[k];

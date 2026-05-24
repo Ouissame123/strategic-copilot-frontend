@@ -130,7 +130,7 @@ export function ManagerProjectDetailBody({ project, onOpenRh }: ManagerProjectDe
 
     const traces = useMemo(() => buildAgentTraces(project), [project]);
     const recomputeMutation = useRecomputeAgent(project.id);
-    const rhActionsQuery = useRhActionsListQuery();
+    const rhActionsQuery = useRhActionsListQuery({ enabled: true });
     const staleDays = useMemo(() => {
         const staleRuns = traces
             .filter((trace) => trace.freshness === "stale")

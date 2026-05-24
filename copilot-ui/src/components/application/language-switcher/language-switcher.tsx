@@ -1,22 +1,36 @@
-import { useMemo } from "react";
+import { useCallback, useMemo } from "react";
 import { ChevronDown } from "@untitledui/icons";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/base/buttons/button";
 import { Dropdown } from "@/components/base/dropdown/dropdown";
-import { writeStoredUiLang, type UiLang } from "@/lib/ui-locale";
+import { applyDocumentUiLang, writeStoredUiLang, type UiLang } from "@/lib/ui-locale";
 
 const LANGUAGES = [
     { code: "fr", labelKey: "language.fr" },
     { code: "en", labelKey: "language.en" },
-    { code: "ar", labelKey: "language.ar" },
 ] as const;
+
+function resolveUiLang(code: string): UiLang | null {
+    if (code === "fr" || code === "en") return code;
+    return null;
+}
 
 export const LanguageSwitcher = () => {
     const { i18n, t } = useTranslation("common");
 
     const activeLanguage = useMemo(() => {
-        return LANGUAGES.find((l) => i18n.language.startsWith(l.code)) ?? LANGUAGES[0];
-    }, [i18n.language]);
+        const lng = i18n.resolvedLanguage ?? i18n.language;
+        return LANGUAGES.find((l) => lng.startsWith(l.code)) ?? LANGUAGES[0];
+    }, [i18n.language, i18n.resolvedLanguage]);
+
+    const selectLanguage = useCallback(
+        (code: UiLang) => {
+            writeStoredUiLang(code);
+            applyDocumentUiLang(code);
+            void i18n.changeLanguage(code);
+        },
+        [i18n],
+    );
 
     return (
         <Dropdown.Root>
@@ -31,17 +45,11 @@ export const LanguageSwitcher = () => {
                 {t(activeLanguage.labelKey)}
             </Button>
             <Dropdown.Popover className="min-w-[13rem] rounded-xl p-1 shadow-lg ring-1 ring-secondary/80">
+                {/* Dropdown.Menu est en selectionMode="none" par défaut → onAction, pas onSelectionChange */}
                 <Dropdown.Menu
-                    selectedKeys={new Set([activeLanguage.code])}
-                    onSelectionChange={(keys) => {
-                        if (keys === "all") return;
-                        const key = [...keys][0];
-                        if (!key) return;
-                        const code = String(key);
-                        if (code === "fr" || code === "en" || code === "ar") {
-                            writeStoredUiLang(code as UiLang);
-                            void i18n.changeLanguage(code);
-                        }
+                    onAction={(key) => {
+                        const code = resolveUiLang(String(key));
+                        if (code) selectLanguage(code);
                     }}
                 >
                     {LANGUAGES.map((lang) => (

@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import type { TFunction } from "i18next";
-import i18n from "@/i18n";
+import { useTranslation } from "react-i18next";
 import { localeForDateFormatting } from "@/lib/ui-locale";
 import {
     reasonCodeRank,
@@ -46,6 +46,15 @@ function viabilityClass(score: number): string {
     if (score >= 8) return "text-emerald-700 dark:text-emerald-300";
     if (score >= 6) return "text-amber-800 dark:text-amber-300";
     return "text-rose-700 dark:text-rose-300";
+}
+
+function translateDecisionLabel(t: TFunction<"common", undefined>, raw: string): string {
+    const d = raw.trim().toLowerCase();
+    if (!d) return t("managerWorkspace.projects.decisionUnknown");
+    if (d === "continue" || d === "proceed") return t("managerWorkspace.projects.decisionContinue");
+    if (d === "adjust") return t("managerWorkspace.projects.decisionAdjust");
+    if (d === "stop" || d === "reject") return t("managerWorkspace.projects.decisionStop");
+    return raw;
 }
 
 function formatHorizon(row: ManagerProjectPortfolioItem, t: TFunction<"common", undefined>): string {
@@ -146,6 +155,9 @@ export function ManagerProjectsPortfolioTable({
     projectDisplayName: (name: string) => string;
     empty: boolean;
 }) {
+    const { i18n } = useTranslation("common");
+    const dateLocale = localeForDateFormatting(i18n.resolvedLanguage ?? i18n.language);
+
     return (
         <div className="max-h-[min(70vh,calc(100vh-360px))] overflow-auto overflow-x-auto rounded-2xl border border-secondary bg-primary shadow-sm">
             <table className="min-w-[960px] w-full border-collapse text-sm">
@@ -181,7 +193,7 @@ export function ManagerProjectsPortfolioTable({
                         const progress = coerceFiniteNumber(row.progress_pct);
                         const reasonKey = `reason_${row.reason_code}` as const;
                         const milestoneLabel = row.milestone_at
-                            ? new Date(row.milestone_at).toLocaleDateString(localeForDateFormatting(i18n.language))
+                            ? new Date(row.milestone_at).toLocaleDateString(dateLocale)
                             : null;
 
                         return (
@@ -219,7 +231,7 @@ export function ManagerProjectsPortfolioTable({
                                                 <span
                                                     className={`inline-flex rounded-full border px-2 py-0.5 text-[10px] font-medium ${decisionBadgeClass(decision)}`}
                                                 >
-                                                    {decision}
+                                                    {translateDecisionLabel(t, decision)}
                                                 </span>
                                             ) : null}
                                         </div>
@@ -280,7 +292,9 @@ export function ManagerProjectsPortfolioTable({
                                 </td>
                                 <td className="px-4 py-3.5 align-top">
                                     <p className="line-clamp-3 text-[13px] leading-snug text-secondary">
-                                        {row.top_arbitrage ?? t("managerWorkspace.projects.arbitrageNone")}
+                                        {row.top_arbitrage
+                                            ? t(`managerWorkspace.projects.${row.top_arbitrage}`)
+                                            : t("managerWorkspace.projects.arbitrageNone")}
                                     </p>
                                 </td>
                                 <td className="px-4 py-3.5 text-right align-top">

@@ -47,14 +47,22 @@ export interface ProjectKpi {
 }
 export interface TopAlert {
     id: string;
+    /** UUID `risk_alerts.id` — requis pour PATCH risk-alerts */
+    alert_id?: string;
+    risk_alert_id?: string;
     severity: string;
     title?: string;
     message?: string;
+    description?: string;
+    rationale?: string;
+    reason?: string;
     status?: string;
     project_id?: string;
     project_name?: string;
     risk_type?: string;
+    category?: string;
     risk_score?: number;
+    priority_order?: number;
     age_hours?: number;
     impact_area?: string;
     created_at?: string;
@@ -67,7 +75,14 @@ export interface NotificationItem {
     message: string;
     created_at: string;
     /** Champs optionnels renvoyés par certains webhooks (alertes risque, etc.). */
+    /** UUID `risk_alerts.id` — prioritaire pour PATCH risk-alerts (ne pas confondre avec `id` notification). */
+    risk_alert_id?: string;
+    /** Alias backend (`alert_id`). */
+    alert_id?: string;
+    project_id?: string;
+    talent_id?: string;
     project_name?: string;
+    talent_name?: string;
     risk_type?: string;
     risk_score?: number;
     age_hours?: number;
@@ -252,15 +267,22 @@ export interface AlertItem {
     title: string;
     status?: string;
     message?: string;
+    description?: string;
+    rationale?: string;
+    reason?: string;
     project_id?: string;
     project_name?: string;
     risk_type?: string;
     risk_score?: number;
+    priority_order?: number;
+    age_hours?: number;
     detected_at?: string;
     source_agent?: string;
     impact_area?: string;
     /** Alias optionnel renvoyé par certains workflows */
     alert_id?: string;
+    /** UUID `risk_alerts.id` — prioritaire pour PATCH risk-alerts */
+    risk_alert_id?: string;
     /** Catégorie métier (ex. skill_gap) */
     category?: string;
 }
@@ -453,7 +475,7 @@ export interface TalentDetailResponse {
 
 export interface NotificationsResponse { items: NotificationItem[]; total: number }
 export interface AckNotificationResponse { success: boolean }
-export interface RiskAlertActionRequest { action: "resolve" | "dismiss"; note?: string }
+export interface RiskAlertActionRequest { action: "resolve" | "dismiss" | "ignore" | "reopen"; note?: string }
 export interface RiskAlertActionResponse { success: boolean }
 export interface CopilotDecisionsResponse { decisions: CopilotDecisionItem[]; by_decision: Record<DecisionLabel, number> }
 export interface RhActionsResponse { items: RhActionItem[]; total: number }
@@ -465,7 +487,33 @@ export interface RhActionPatchRequest {
 export interface RhActionPatchResponse { success: boolean }
 
 export interface ConversationItem { id: string; project_id?: string; status: string; title: string; last_message_at?: string }
+/** Legacy — certains workflows renvoient `items`. */
 export interface ConversationsResponse { items: ConversationItem[]; total: number }
+
+/** WF_Manager_Conversations — élément liste. */
+export interface ManagerConversationListItem {
+    id: string;
+    project_id: string | null;
+    project_name?: string | null;
+    title: string | null;
+    message_count: number;
+    status: "active" | "archived" | string;
+    started_at: string;
+    last_message_at: string | null;
+    last_message_preview?: string | null;
+    last_message_role?: string | null;
+    is_owner?: boolean;
+}
+
+/** WF_Manager_Conversations — GET list. */
+export interface ManagerConversationsListResponse {
+    status?: string;
+    workflow?: string;
+    operation?: string;
+    enterprise_id?: string;
+    count: number;
+    conversations: ManagerConversationListItem[];
+}
 export interface ConversationDetailResponse { conversation: ConversationItem; messages: Array<{ id: string; role: string; content: string; created_at: string }> }
 export interface ArchiveConversationRequest { restore?: boolean }
 export interface ArchiveConversationResponse { success: boolean }
@@ -581,9 +629,28 @@ export interface ExecuteRequest {
     option_id: string;
     action: "execute" | "reject";
 }
-export interface ExecuteResponse { success: boolean; decision_id?: string }
+export type StrategistExecuteActionTaken = "scope_reduced" | "project_paused" | "no_action_possible";
 
-export interface HelperChatRequest { message: string; project_id?: string; conversation_id?: string }
+/** Réponse structurée WF_Strategist_Accept (notamment Stop / Scope). */
+export interface ExecuteResponse {
+    status?: string;
+    workflow?: string;
+    action_type?: string;
+    action_taken?: StrategistExecuteActionTaken | string;
+    user_message?: string;
+    decision_id?: string;
+    dropped_requirements_count?: number;
+    project_paused?: boolean;
+    success?: boolean;
+    meta?: { computed_at?: string };
+}
+
+export interface HelperChatRequest {
+    message: string;
+    enterprise_id?: string;
+    project_id?: string;
+    conversation_id?: string;
+}
 export interface HelperChatResponse { conversation_id: string; answer: string; citations?: string[] }
 export interface ValidationsRequest { project_id?: string; use_ai?: boolean }
 export interface ValidationsResponse { queued: boolean; validation_id?: string }

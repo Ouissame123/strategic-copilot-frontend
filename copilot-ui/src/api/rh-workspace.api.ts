@@ -12,7 +12,7 @@ function readEnv(key: string, fallback: string): string {
 
 /** Synthèse dashboard RH (KPI globaux). */
 export async function fetchRhDashboardSummary(options?: ApiClientOptions): Promise<unknown> {
-    const path = readEnv("VITE_RH_DASHBOARD_URL", "/api/rh/dashboard");
+    const path = readEnv("VITE_RH_DASHBOARD_URL", "/webhook/rh/dashboard");
     return apiGet<unknown>(path, options);
 }
 

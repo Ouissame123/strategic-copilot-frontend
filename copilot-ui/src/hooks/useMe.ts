@@ -2,7 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { isAxiosError } from "axios";
 import { useNavigate } from "react-router";
 import { authStorage } from "@/lib/auth-storage";
-import { imageFileToPngBlob, uploadUserAvatarPng } from "@/lib/supabase-avatar-upload";
+import { uploadAvatarToStorage } from "@/lib/supabase-avatar-upload";
 import { authMeApi } from "@/services/auth.api";
 import type { MeResponse } from "@/services/auth.api";
 import { useAuth } from "@/providers/auth-provider";
@@ -40,8 +40,7 @@ export const useUploadAvatar = () => {
     const { syncSession } = useAuth();
     return useMutation({
         mutationFn: async ({ userId, file }: { userId: string; file: File }) => {
-            const png = await imageFileToPngBlob(file);
-            const publicBase = await uploadUserAvatarPng(userId, png);
+            const publicBase = await uploadAvatarToStorage(userId, file);
             const finalUrl = `${publicBase}?t=${Date.now()}`;
             const { data } = await authMeApi.updateProfile({ avatar_url: finalUrl });
             return { data, finalUrl };

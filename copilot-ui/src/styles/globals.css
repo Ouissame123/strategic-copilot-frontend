@@ -1,5 +1,6 @@
 @import "tailwindcss";
 @import "./theme.css";
+@import "./workspace-saas.css";
 @import "./typography.css";
 
 @plugin "@tailwindcss/typography";
@@ -44,6 +45,24 @@ html {
 
 html.dark-mode {
     color-scheme: dark;
+}
+
+html.theme-transition,
+html.theme-transition *,
+html.theme-transition *::before,
+html.theme-transition *::after {
+    transition-property: background-color, border-color, color, fill, stroke, box-shadow;
+    transition-duration: 0.18s;
+    transition-timing-function: ease;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    html.theme-transition,
+    html.theme-transition *,
+    html.theme-transition *::before,
+    html.theme-transition *::after {
+        transition-duration: 0.01ms !important;
+    }
 }
 
 html,

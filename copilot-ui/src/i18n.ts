@@ -1,15 +1,23 @@
 import i18n from "i18next";
 import { initReactI18next } from "react-i18next";
-import { readStoredUiLang } from "./lib/ui-locale";
+import { applyDocumentUiLang, readStoredUiLang } from "./lib/ui-locale";
 import { managerWorkspaceLocales } from "./i18n/manager-workspace-locales";
 
 const fallbackLng = "fr";
+const initialLng = readStoredUiLang("fr");
 
 i18n.use(initReactI18next).init({
-    lng: readStoredUiLang("fr"),
+    lng: initialLng,
     fallbackLng,
+    supportedLngs: ["fr", "en"],
+    nonExplicitSupportedLngs: true,
     ns: ["common", "nav", "portfolio", "dashboard", "projects", "decisionLog", "users", "copilot", "dataCrud"],
     defaultNS: "common",
+    react: {
+        useSuspense: false,
+        bindI18n: "languageChanged loaded",
+        bindI18nStore: "added removed",
+    },
     interpolation: {
         escapeValue: false,
     },
@@ -125,6 +133,13 @@ i18n.use(initReactI18next).init({
                     tabProfiles: "Profils",
                     tabGaps: "Écarts",
                     tabStaffing: "Staffing",
+                },
+                rhPlaceholder: {
+                    eyebrow: "Espace RH",
+                    description:
+                        "Cette section est en refonte. Les services API, hooks et la navigation restent opérationnels pour la prochaine interface.",
+                    comingSoon: "Interface premium à venir",
+                    hint: "Les workflows n8n et les appels backend existants sont conservés.",
                 },
                 rhDash: {
                     description: "Vue synthèse RH — cartes et aperçus issus des endpoints dédiés.",
@@ -260,6 +275,7 @@ i18n.use(initReactI18next).init({
                 rhNavGaps: "Écarts critiques",
                 rhNavTraining: "Plans de formation",
                 rhNavManagerRequests: "Demandes managers",
+                rhNavWorkforceArbitration: "Workforce Arbitration",
                 rhNavMobility: "Mobilité & réaffectation",
                 rhNavAlerts: "Alertes organisationnelles",
                 managerWorkspace: "Espace projets",
@@ -890,6 +906,13 @@ i18n.use(initReactI18next).init({
                     tabGaps: "Gaps",
                     tabStaffing: "Staffing",
                 },
+                rhPlaceholder: {
+                    eyebrow: "HR workspace",
+                    description:
+                        "This section is being rebuilt. API services, hooks, and navigation remain ready for the next interface.",
+                    comingSoon: "Premium interface coming soon",
+                    hint: "Existing n8n workflows and backend calls are preserved.",
+                },
                 rhDash: {
                     description: "HR summary — cards and previews from dedicated endpoints.",
                     kpiTotalEmployees: "Employees (total)",
@@ -1024,6 +1047,7 @@ i18n.use(initReactI18next).init({
                 rhNavGaps: "Critical gaps",
                 rhNavTraining: "Training plans",
                 rhNavManagerRequests: "Manager requests",
+                rhNavWorkforceArbitration: "Workforce Arbitration",
                 rhNavMobility: "Mobility & reallocation",
                 rhNavAlerts: "Organizational alerts",
                 managerWorkspace: "Project workspace",
@@ -1651,6 +1675,13 @@ i18n.use(initReactI18next).init({
                     tabGaps: "الفجوات",
                     tabStaffing: "التوظيف",
                 },
+                rhPlaceholder: {
+                    eyebrow: "مساحة الموارد البشرية",
+                    description:
+                        "يتم إعادة بناء هذا القسم. خدمات API والخطافات والتنقل جاهزة للواجهة القادمة.",
+                    comingSoon: "واجهة مميزة قريبًا",
+                    hint: "سير عمل n8n واستدعاءات الخادم الحالية محفوظة.",
+                },
                 rhDash: {
                     description: "ملخص الموارد البشرية — بطاقات ومعاينات من نقاط النهاية المخصصة.",
                     kpiTotalEmployees: "الموظفون (الإجمالي)",
@@ -1785,6 +1816,7 @@ i18n.use(initReactI18next).init({
                 rhNavGaps: "الفجوات الحرجة",
                 rhNavTraining: "خطط التدريب",
                 rhNavManagerRequests: "طلبات المدراء",
+                rhNavWorkforceArbitration: "Workforce Arbitration",
                 rhNavMobility: "التنقل وإعادة التخصيص",
                 rhNavAlerts: "تنبيهات المؤسسة",
                 managerWorkspace: "مساحة المشاريع",
@@ -2300,6 +2332,11 @@ i18n.use(initReactI18next).init({
             },
         },
     },
+});
+
+applyDocumentUiLang(initialLng);
+i18n.on("languageChanged", (lng) => {
+    applyDocumentUiLang(lng);
 });
 
 export default i18n;

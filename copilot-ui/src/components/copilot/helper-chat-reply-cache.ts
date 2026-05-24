@@ -5,6 +5,148 @@ export { HELPER_CHAT_UUID_RE, isHelperChatUuid, normalizeHelperConversationId } 
 
 export type ConversationDetailCache = { conversation: Conversation; messages: ChatMessage[] };
 
+function sortChatMessagesChronologically(messages: ChatMessage[]): ChatMessage[] {
+    return [...messages].sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+}
+
+/** Normalise GET `/manager/conversations/:id` (enveloppe WF ou forme plate). */
+export function normalizeConversationDetailResponse(raw: unknown): ConversationDetailCache {
+    if (raw == null || typeof raw !== "object") {
+        return {
+            conversation: {
+                id: "",
+                title: null,
+                project_id: null,
+                message_count: 0,
+                status: "active",
+                created_at: new Date().toISOString(),
+                last_message_at: null,
+            },
+            messages: [],
+        };
+    }
+    const root = raw as Record<string, unknown>;
+    const block =
+        root.conversation != null || Array.isArray(root.messages)
+            ? root
+            : root.data != null && typeof root.data === "object"
+              ? (root.data as Record<string, unknown>)
+              : root;
+
+    const convRaw = block.conversation;
+    const convObj = convRaw && typeof convRaw === "object" ? (convRaw as Record<string, unknown>) : {};
+    const conversation: Conversation = {
+        id: String(convObj.id ?? "").trim(),
+        title: convObj.title != null ? String(convObj.title) : null,
+        project_id: convObj.project_id != null ? String(convObj.project_id) : null,
+        project_name: convObj.project_name != null ? String(convObj.project_name) : undefined,
+        message_count: Number(convObj.message_count) || 0,
+        status: convObj.status === "archived" ? "archived" : "active",
+        created_at: String(convObj.created_at ?? convObj.started_at ?? new Date().toISOString()),
+        last_message_at: convObj.last_message_at != null ? String(convObj.last_message_at) : null,
+    };
+
+    const rawMessages = Array.isArray(block.messages) ? block.messages : [];
+    const messages: ChatMessage[] = [];
+    for (const row of rawMessages) {
+        if (!row || typeof row !== "object") continue;
+        const r = row as Record<string, unknown>;
+        const id = String(r.id ?? "").trim();
+        const content = String(r.content ?? r.message ?? "").trim();
+        if (!id || !content) continue;
+        const roleRaw = String(r.role ?? "user").toLowerCase();
+        const role: ChatMessage["role"] =
+            roleRaw === "assistant" || roleRaw === "system" ? roleRaw : "user";
+        messages.push({
+            id,
+            conversation_id: String(r.conversation_id ?? conversation.id ?? "").trim() || conversation.id,
+            role,
+            content,
+            intent: r.intent != null ? String(r.intent) : undefined,
+            confidence: typeof r.confidence === "number" ? r.confidence : undefined,
+            suggested_actions: Array.isArray(r.suggested_actions) ? (r.suggested_actions as ChatMessage["suggested_actions"]) : undefined,
+            details: Array.isArray(r.details) ? r.details.map((d) => String(d ?? "")).filter(Boolean) : undefined,
+            sources: Array.isArray(r.sources) ? (r.sources as ChatMessage["sources"]) : undefined,
+            created_at: String(r.created_at ?? r.createdAt ?? new Date().toISOString()),
+        });
+    }
+
+    return {
+        conversation,
+        messages: sortChatMessagesChronologically(messages),
+    };
+}
+
+/** Historique backend + bulles optimistes (ids non présents côté serveur). */
+export function mergeBackendAndOptimisticMessages(backend: ChatMessage[], optimistic: ChatMessage[]): ChatMessage[] {
+    const backendIds = new Set(backend.map((m) => m.id));
+    const pendingOnly = optimistic.filter((m) => !backendIds.has(m.id));
+    return sortChatMessagesChronologically([...backend, ...pendingOnly]);
+}
+
+export type BuildChatTurnFromReplyOptions = {
+    reply: ChatReply;
+    /** Texte affiché dans la bulle utilisateur (sans préfixe contexte métier). */
+    visibleUserText: string;
+    fallbackUserMessageId?: string;
+};
+
+/** Paire user + assistant à afficher immédiatement après POST `/api/helper/chat`. */
+export function buildChatTurnFromHelperReply(opts: BuildChatTurnFromReplyOptions): ChatMessage[] {
+    const { reply, visibleUserText, fallbackUserMessageId = `temp-user-${Date.now()}` } = opts;
+    const cid = reply.conversation_id?.trim() || "pending";
+    const nowIso = new Date().toISOString();
+
+    const suggestedFromReply = Array.isArray(reply.suggested_actions)
+        ? reply.suggested_actions
+              .map((a) => ({
+                  label: String(a?.label ?? "").trim(),
+                  type: String(a?.type ?? "").trim(),
+                  payload: a?.payload,
+                  target_id: typeof a?.target_id === "string" ? a.target_id : undefined,
+                  duration_days: typeof a?.duration_days === "number" ? a.duration_days : undefined,
+              }))
+              .filter((a) => a.label)
+        : [];
+
+    const detailsFromReply = Array.isArray(reply.details)
+        ? reply.details.map((d) => String(d ?? "").trim()).filter(Boolean)
+        : [];
+
+    const sourcesFromReply = Array.isArray(reply.sources)
+        ? reply.sources
+              .map((s) => ({
+                  type: String((s as { type?: unknown }).type ?? "unknown"),
+                  id: String((s as { id?: unknown }).id ?? "").trim(),
+                  label: String((s as { label?: unknown }).label ?? "").trim() || "Source",
+              }))
+              .filter((s) => s.id.length > 0)
+        : [];
+
+    const userMsg: ChatMessage = {
+        id: reply.user_message_id?.trim() || fallbackUserMessageId,
+        conversation_id: cid,
+        role: "user",
+        content: visibleUserText,
+        created_at: nowIso,
+    };
+
+    const assistantMsg: ChatMessage = {
+        id: reply.assistant_message_id?.trim() || `temp-assistant-${Date.now()}`,
+        conversation_id: cid,
+        role: "assistant",
+        content: reply.reply,
+        intent: reply.intent,
+        confidence: reply.confidence,
+        suggested_actions: suggestedFromReply.length ? suggestedFromReply : undefined,
+        details: detailsFromReply.length ? detailsFromReply : undefined,
+        sources: sourcesFromReply.length ? sourcesFromReply : undefined,
+        created_at: nowIso,
+    };
+
+    return mergeBackendAndOptimisticMessages([], [userMsg, assistantMsg]);
+}
+
 /**
  * Fusionne une réponse POST helper chat dans le cache React Query `["chat-conversation", id]`.
  * Même logique que l’historique Helper manager (dédoublonnage + tri chronologique).

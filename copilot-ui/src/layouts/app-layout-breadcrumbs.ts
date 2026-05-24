@@ -102,6 +102,9 @@ export function resolveBreadcrumbs(pathname: string, t: Translate, options?: Bre
     if (matchPath({ path: "/workspace/rh/manager-requests", end: true }, pathname)) {
         return [hub(), { label: t("nav:rhNavManagerRequests") }];
     }
+    if (matchPath({ path: "/workspace/rh/workforce-arbitration", end: true }, pathname)) {
+        return [hub(), { label: t("nav:rhNavWorkforceArbitration") }];
+    }
     if (matchPath({ path: "/workspace/rh/mobility", end: true }, pathname)) {
         return [hub(), { label: t("nav:rhNavMobility") }];
     }

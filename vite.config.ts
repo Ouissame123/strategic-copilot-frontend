@@ -69,7 +69,19 @@ export default defineConfig(({ mode }) => {
             ...webhookProxy,
             rewrite: (p) => `/webhook${p}`,
         },
+        /** WMN Alert v3 (`PATCH /wmn-alert-v3/manager/risk-alerts/:id`) → `/webhook/wmn-alert-v3/...`. */
+        "/wmn-alert-v3": {
+            ...webhookProxy,
+            rewrite: (p) => `/webhook/wmn-alert-v3${p}`,
+        },
+        /** WF_RH_* : `/rh/analytics` → `/webhook/rh/analytics` (aligné comptes `/rh/users`). */
+        "/rh": {
+            ...webhookProxy,
+            rewrite: (p) => `/webhook${p}`,
+        },
         "/webhook": webhookProxy,
+        /** WF_RH_Talents détail (`wf-rh-talents-detail-v1`) — mode test n8n (`webhook-test/...`). */
+        "/webhook-test": webhookProxy,
         /**
          * WF_Manager_Project_Tasks — évite CORS en dev (`tasksHttp` → `/n8n-webhook/wmt-*-v1/...`).
          * Réécrit vers `/webhook/...` sur n8nprod.

@@ -11,6 +11,7 @@ import type {
     ReportType,
     ServiceHealth,
 } from "./types";
+import { labelReportType } from "./utils";
 
 const REPORT_TYPES: ReportType[] = [
     "board_pack",
@@ -130,12 +131,18 @@ export function mapN8nReportToHistoryItem(raw: N8nReportHistoryItem, meta?: { fo
             ? Number(nestedMeta.file_size)
             : undefined;
 
+    const title =
+        String(raw.name ?? "").trim() ||
+        (projectName ? `${labelReportType(type)} — ${projectName}` : labelReportType(type));
+
     return {
         reportId: raw.report_id,
+        title,
         type,
         format,
         status,
-        fileUrl,
+        apiStatus: String(raw.status ?? "").trim().toLowerCase() || undefined,
+        fileUrl: fileUrl?.trim() || null,
         fileSize:
             raw.size_bytes != null && Number.isFinite(raw.size_bytes)
                 ? raw.size_bytes

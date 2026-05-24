@@ -1,8 +1,11 @@
+import { useCallback, useMemo } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
     generateBoardPack,
     generateProjectDossier,
-    getReportsHistory,
+    buildReportsHistoryRequestUrl,
+    deleteReport,
+    fetchReportsHistory,
     getReportsSummary,
     scheduleReport,
     sendReportEmail,
@@ -10,7 +13,11 @@ import {
     type ScheduleReportPayload,
     type SendReportEmailPayload,
 } from "@/api/reports.api";
+import { coerceReportType } from "@/components/reports/adapters";
+import type { ReportFormat, ReportHistoryItem, ReportStatus } from "@/components/reports/types";
+import { labelReportType } from "@/components/reports/utils";
 
+/** Ligne brute API / table `reports_history` (usage interne régénération, e-mail). */
 export type N8nReportHistoryItem = {
     report_id: string;
     name: string;
@@ -18,20 +25,70 @@ export type N8nReportHistoryItem = {
     generated_at: string;
     status: string;
     size_bytes?: number;
-    /** URL directe du PDF (Supabase / n8n). */
     file_url?: string;
-    /** Alias historique — aligné sur `file_url` lors de la normalisation. */
     download_url?: string;
     project_id?: string;
     metadata?: Record<string, unknown>;
+};
+
+export type ReportsHistoryQueryResult = {
+    /** Rapports affichés dans l’onglet Historique (PDF avec URL, statut non bloquant). */
+    display: ReportHistoryItem[];
+    /** Tous les rapports normalisés (filtre « Échecs »). */
+    all: ReportHistoryItem[];
 };
 
 function asRecord(v: unknown): Record<string, unknown> | null {
     return v && typeof v === "object" && !Array.isArray(v) ? (v as Record<string, unknown>) : null;
 }
 
-/** Fusionne les champs souvent encapsulés par n8n (`json`, `body`). */
-function flattenN8nRow(raw: unknown): Record<string, unknown> | null {
+function coerceReportFormat(raw: unknown): ReportFormat {
+    const s = String(raw ?? "pdf")
+        .trim()
+        .toLowerCase();
+    if (s === "csv") return "csv";
+    if (s === "excel" || s === "xlsx") return "excel";
+    if (s === "print") return "print";
+    return "pdf";
+}
+
+/** Corps JSON : racine, `data` / `body` / `payload`, ou tableau n8n. */
+function unwrapHistoryEnvelope(payload: unknown): Record<string, unknown> | null {
+    let node: unknown = payload;
+    if (typeof node === "string") {
+        try {
+            node = JSON.parse(node) as unknown;
+        } catch {
+            return null;
+        }
+    }
+
+    if (Array.isArray(node)) {
+        if (node.length === 0) return null;
+        const first = node[0];
+        const firstRec = asRecord(first);
+        if (firstRec && Array.isArray(firstRec.reports)) return unwrapHistoryEnvelope(first);
+        const looksLikeReportRow = node.some((row) => {
+            const r = asRecord(row);
+            return r && (r.reportId != null || r.report_id != null);
+        });
+        if (looksLikeReportRow) return { success: true, reports: node, count: node.length };
+        return unwrapHistoryEnvelope(first);
+    }
+
+    const rec = asRecord(node);
+    if (!rec) return null;
+    if (Array.isArray(rec.reports)) return rec;
+
+    for (const key of ["data", "body", "payload", "result"] as const) {
+        const nested = asRecord(rec[key]);
+        if (nested && Array.isArray(nested.reports)) return nested;
+    }
+
+    return rec;
+}
+
+function flattenRow(raw: unknown): Record<string, unknown> | null {
     const r = asRecord(raw);
     if (!r) return null;
     const fromJson = asRecord(r.json);
@@ -41,112 +98,135 @@ function flattenN8nRow(raw: unknown): Record<string, unknown> | null {
     return r;
 }
 
-function normalizeHistoryItem(raw: unknown): N8nReportHistoryItem | null {
-    const r = flattenN8nRow(raw);
-    if (!r) return null;
-    const reportId = r.report_id ?? r.reportId ?? r.id ?? r.uuid;
-    if (reportId == null || String(reportId).trim() === "") return null;
+function extractFileUrl(r: Record<string, unknown>): string {
+    const direct = String(
+        r.file_url ?? r.fileUrl ?? r.download_url ?? r.downloadUrl ?? r.url ?? r.public_url ?? "",
+    ).trim();
+    if (direct) return direct;
     const meta = asRecord(r.metadata);
-    const fileUrlFromMeta =
-        meta != null
-            ? String(meta.file_url ?? meta.fileUrl ?? meta.url ?? meta.public_url ?? meta.download_url ?? "").trim() || undefined
-            : undefined;
-    const fileUrlRaw = r.file_url ?? r.fileUrl ?? r.download_url ?? r.url ?? r.public_url ?? fileUrlFromMeta;
-    const fileUrl =
-        fileUrlRaw != null && String(fileUrlRaw).trim() !== "" ? String(fileUrlRaw).trim() : undefined;
-    const projectIdRaw = r.project_id ?? r.projectId;
+    if (!meta) return "";
+    return String(
+        meta.file_url ?? meta.fileUrl ?? meta.url ?? meta.public_url ?? meta.download_url ?? meta.downloadUrl ?? "",
+    ).trim();
+}
+
+function isEligibleForDisplay(fileUrl: string, statusRaw: string): boolean {
+    if (!fileUrl) return false;
+    const st = statusRaw.trim().toLowerCase();
+    if (["failed", "error", "cancelled"].includes(st)) return false;
+    if (["generating", "pending", "processing"].includes(st)) return false;
+    return true;
+}
+
+function coerceUiStatus(statusRaw: string, hasFile: boolean): ReportStatus {
+    const st = statusRaw.trim().toLowerCase();
+    if (st === "failed" || st === "error") return "failed";
+    if (st === "generating" || st === "pending" || st === "processing") return "generating";
+    if (st === "archived") return "archived";
+    if (st === "generated" || st === "ready" || st === "completed" || st === "success" || st === "done") return "ready";
+    return hasFile ? "ready" : "generating";
+}
+
+function mapRowToHistoryItem(r: Record<string, unknown>, options?: { requirePdf?: boolean }): ReportHistoryItem | null {
+    const fileUrl = extractFileUrl(r);
+    const statusRaw = String(r.apiStatus ?? r.status ?? "").trim().toLowerCase();
+    const requirePdf = options?.requirePdf !== false;
+
+    if (requirePdf && !isEligibleForDisplay(fileUrl, statusRaw)) return null;
+
+    const generatedAt = String(r.generatedAt ?? r.generated_at ?? r.created_at ?? r.createdAt ?? "").trim();
+    const reportId =
+        String(r.reportId ?? r.report_id ?? r.id ?? r.report_history_id ?? "").trim() ||
+        (fileUrl && generatedAt ? `hist:${fileUrl}:${generatedAt}` : fileUrl ? `hist:${fileUrl}` : "");
+
+    if (!reportId) return null;
+
+    const type = coerceReportType(String(r.type ?? r.report_type ?? "board_pack"));
+    const status = coerceUiStatus(statusRaw, Boolean(fileUrl));
+    const projectId = r.projectId != null ? String(r.projectId) : r.project_id != null ? String(r.project_id) : null;
+    const projectName =
+        r.projectName != null
+            ? String(r.projectName)
+            : r.project_name != null
+              ? String(r.project_name)
+              : null;
+
+    const title =
+        String(r.title ?? r.name ?? r.filename ?? "").trim() ||
+        (projectName ? `${labelReportType(type)} — ${projectName}` : labelReportType(type));
+
+    const sizeRaw = r.fileSize ?? r.size_bytes ?? r.file_size ?? r.sizeBytes;
+    const fileSize = sizeRaw != null && Number.isFinite(Number(sizeRaw)) ? Number(sizeRaw) : null;
+    const meta = asRecord(r.metadata);
+
     return {
-        report_id: String(reportId),
-        name: String(r.name ?? r.title ?? r.filename ?? `Rapport ${r.type ?? r.report_type ?? r.reportType ?? ""}`).trim() || "Rapport",
-        type: String(r.type ?? r.kind ?? r.report_type ?? r.reportType ?? "—"),
-        generated_at: String(r.generated_at ?? r.generatedAt ?? r.created_at ?? r.createdAt ?? ""),
-        status: String(r.status ?? "Prêt"),
-        size_bytes:
-            r.size_bytes != null
-                ? Number(r.size_bytes)
-                : r.sizeBytes != null
-                  ? Number(r.sizeBytes)
-                  : r.size != null
-                    ? Number(r.size)
-                    : r.file_size != null
-                      ? Number(r.file_size)
-                      : r.fileSize != null
-                        ? Number(r.fileSize)
-                        : undefined,
-        file_url: fileUrl,
-        download_url: fileUrl,
-        project_id: projectIdRaw != null ? String(projectIdRaw) : undefined,
-        ...(meta ? { metadata: meta } : {}),
+        reportId,
+        title,
+        type,
+        format: coerceReportFormat(r.format),
+        status,
+        apiStatus: statusRaw || undefined,
+        fileUrl: fileUrl || null,
+        fileSize,
+        generatedAt: generatedAt || new Date().toISOString(),
+        generatedBy: r.generatedBy != null ? String(r.generatedBy) : r.generated_by != null ? String(r.generated_by) : null,
+        projectId,
+        projectName,
+        period: r.period != null ? String(r.period) : null,
+        language: r.language != null ? String(r.language) : "fr",
+        metadata: meta,
     };
 }
 
-/** Clés souvent utilisées par n8n / REST pour une liste de rapports. */
-const REPORT_LIST_KEYS = [
-    "data",
-    "result",
-    "history",
-    "reports",
-    "reports_history",
-    "items",
-    "entries",
-    "rows",
-    "records",
-] as const;
-
-function collectReportArraysFromRecord(rec: Record<string, unknown>): unknown[][] {
-    const out: unknown[][] = [];
-    for (const k of REPORT_LIST_KEYS) {
-        const v = rec[k as string];
-        if (Array.isArray(v)) out.push(v);
-    }
-    return out;
+export function historyItemToN8n(item: ReportHistoryItem): N8nReportHistoryItem {
+    return {
+        report_id: item.reportId,
+        name: item.title,
+        type: item.type,
+        generated_at: item.generatedAt,
+        status: item.apiStatus ?? "generated",
+        file_url: item.fileUrl ?? undefined,
+        download_url: item.fileUrl ?? undefined,
+        project_id: item.projectId ?? undefined,
+        size_bytes: item.fileSize ?? undefined,
+        metadata: item.metadata ?? undefined,
+    };
 }
 
-function longestArray(arrays: unknown[][]): unknown[] {
-    if (!arrays.length) return [];
-    return arrays.reduce((best, cur) => (cur.length > best.length ? cur : best));
+/** Parse GET /webhook/reports/history — `reports[]` snake_case ou camelCase. */
+export function parseReportsHistoryResponse(payload: unknown): ReportsHistoryQueryResult {
+    const data = unwrapHistoryEnvelope(payload);
+    const rawReports = data && Array.isArray(data.reports) ? (data.reports as unknown[]) : [];
+
+    const normalized = rawReports
+        .map((row) => flattenRow(row))
+        .filter((r): r is Record<string, unknown> => r != null)
+        .map((r) => mapRowToHistoryItem(r, { requirePdf: false }))
+        .filter((x): x is ReportHistoryItem => x != null);
+
+    const display = normalized
+        .filter((item) => isEligibleForDisplay(String(item.fileUrl ?? "").trim(), String(item.apiStatus ?? item.status ?? "")))
+        .sort((a, b) => new Date(b.generatedAt).getTime() - new Date(a.generatedAt).getTime());
+
+    const all = [...normalized].sort((a, b) => new Date(b.generatedAt).getTime() - new Date(a.generatedAt).getTime());
+
+    return { display, all };
 }
 
-/**
- * Extrait le tableau de rapports depuis la charge utile GET /reports/history.
- * Plusieurs clés peuvent contenir un tableau (ex. `items` = dernier seul, `history` = liste complète) :
- * on retient le tableau le plus long pour éviter d’afficher une seule ligne.
- */
-function extractReportsArray(payload: unknown, depth = 0): unknown[] {
-    if (depth > 8) return [];
-    if (typeof payload === "string") {
-        try {
-            return extractReportsArray(JSON.parse(payload) as unknown, depth + 1);
-        } catch {
-            return [];
-        }
-    }
-    if (Array.isArray(payload)) return payload;
-    const o = asRecord(payload);
-    if (!o) return [];
-
-    const atRoot = collectReportArraysFromRecord(o);
-    if (atRoot.length) return longestArray(atRoot);
-
-    const nestedCandidates = [asRecord(o.data), asRecord(o.json), asRecord(o.body), asRecord(o.payload), asRecord(o.result)];
-    for (const nested of nestedCandidates) {
-        if (!nested) continue;
-        const inner = collectReportArraysFromRecord(nested);
-        if (inner.length) return longestArray(inner);
-    }
-    for (const nested of nestedCandidates) {
-        if (nested) {
-            const deeper = extractReportsArray(nested, depth + 1);
-            if (deeper.length) return deeper;
-        }
-    }
-    return [];
+export function sortReportsByGeneratedAtDesc(items: N8nReportHistoryItem[]): N8nReportHistoryItem[] {
+    return [...items].sort((a, b) => new Date(b.generated_at).getTime() - new Date(a.generated_at).getTime());
 }
 
-export function normalizeReportsHistoryPayload(payload: unknown): N8nReportHistoryItem[] {
-    return extractReportsArray(payload)
-        .map(normalizeHistoryItem)
-        .filter((x): x is N8nReportHistoryItem => x != null);
+export function filterGeneratedReportsForHistory(items: N8nReportHistoryItem[]): N8nReportHistoryItem[] {
+    return sortReportsByGeneratedAtDesc(
+        items.filter((r) => {
+            const st = String(r.status ?? "")
+                .trim()
+                .toLowerCase();
+            const url = String(r.file_url ?? r.download_url ?? "").trim();
+            return url && (st === "generated" || st === "ready");
+        }),
+    );
 }
 
 export function useReportsN8n(enterpriseId: string | undefined) {
@@ -159,6 +239,12 @@ export function useReportsN8n(enterpriseId: string | undefined) {
         void qc.invalidateQueries({ queryKey: ["reports-summary", eid] });
     };
 
+    const loadHistory = async () => {
+        if (!eid) return;
+        await qc.invalidateQueries({ queryKey: ["reports-history", eid] });
+        await qc.refetchQueries({ queryKey: ["reports-history", eid], type: "active" });
+    };
+
     const summaryQuery = useQuery({
         queryKey: ["reports-summary", eid],
         queryFn: () => getReportsSummary(eid!).then((r) => r.data),
@@ -169,20 +255,66 @@ export function useReportsN8n(enterpriseId: string | undefined) {
 
     const historyQuery = useQuery({
         queryKey: ["reports-history", eid],
-        queryFn: () => getReportsHistory(eid!).then((r) => normalizeReportsHistoryPayload(r.data)),
+        queryFn: async () => {
+            const limit = 50;
+            console.log("REPORTS HISTORY PRIMARY URL:", buildReportsHistoryRequestUrl(eid!, limit));
+
+            const data = await fetchReportsHistory(eid!, { limit });
+            const body = unwrapHistoryEnvelope(data) ?? asRecord(data);
+
+            console.log("REPORTS HISTORY RAW RESPONSE:", data);
+            console.log("REPORTS HISTORY RESPONSE REPORTS:", body?.reports);
+            console.log("REPORTS HISTORY COUNT:", body?.count);
+
+            const parsed = parseReportsHistoryResponse(data);
+            console.log("reports.display.length:", parsed.display.length);
+            console.table(parsed.display);
+
+            return parsed;
+        },
         enabled: Boolean(eid),
         retry: false,
         staleTime: 15_000,
+        refetchOnMount: "always",
     });
+
+    const reports = useMemo(
+        (): ReportsHistoryQueryResult => ({
+            display: historyQuery.data?.display ?? [],
+            all: historyQuery.data?.all ?? [],
+        }),
+        [historyQuery.data],
+    );
+
+    const removeReportFromHistoryCache = useCallback(
+        (reportId: string) => {
+            if (!eid) return;
+            qc.setQueryData<ReportsHistoryQueryResult>(["reports-history", eid], (old) => {
+                if (!old) return old;
+                const id = reportId.trim();
+                return {
+                    display: old.display.filter((r) => r.reportId !== id),
+                    all: old.all.filter((r) => r.reportId !== id),
+                };
+            });
+        },
+        [qc, eid],
+    );
 
     const boardPackMutation = useMutation({
         mutationFn: (body: Record<string, unknown>) => generateBoardPack(body).then((r) => r.data as GenerateReportResponse),
-        onSuccess: () => invalidate(),
+        onSuccess: async () => {
+            invalidate();
+            await loadHistory();
+        },
     });
 
     const projectDossierMutation = useMutation({
         mutationFn: (body: Record<string, unknown>) => generateProjectDossier(body).then((r) => r.data as GenerateReportResponse),
-        onSuccess: () => invalidate(),
+        onSuccess: async () => {
+            invalidate();
+            await loadHistory();
+        },
     });
 
     const sendEmailMutation = useMutation({
@@ -193,14 +325,31 @@ export function useReportsN8n(enterpriseId: string | undefined) {
         mutationFn: (body: ScheduleReportPayload) => scheduleReport(body).then((r) => r.data),
     });
 
+    const deleteReportMutation = useMutation({
+        mutationFn: (reportId: string) => {
+            if (!eid) throw new Error("enterprise_id requis");
+            return deleteReport(eid, reportId);
+        },
+        onSuccess: (data, reportId) => {
+            if (data.success) {
+                removeReportFromHistoryCache(reportId);
+                void qc.invalidateQueries({ queryKey: ["reports-summary", eid] });
+            }
+        },
+    });
+
     return {
         enterpriseId: eid,
         summaryQuery,
         historyQuery,
+        reports,
+        loadHistory,
+        removeReportFromHistoryCache,
         boardPackMutation,
         projectDossierMutation,
         sendEmailMutation,
         scheduleMutation,
+        deleteReportMutation,
         invalidate,
     };
 }

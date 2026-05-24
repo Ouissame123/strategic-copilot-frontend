@@ -1,5 +1,6 @@
 import { useMemo } from "react";
 import { useTranslation } from "react-i18next";
+import { GitBranch } from "lucide-react";
 import {
     AlertCircle,
     AlertTriangle,
@@ -13,34 +14,10 @@ import {
     UsersCheck,
 } from "@untitledui/icons";
 import type { NavItemType } from "@/components/application/app-navigation/config";
-import { useRhActionsListQuery } from "@/hooks/use-rh-actions-query";
-import { asRecord } from "@/utils/unwrap-api-payload";
-
-function parseActionRows(raw: unknown): Array<Record<string, unknown>> {
-    if (Array.isArray(raw)) return raw.map((x) => asRecord(x));
-    const r = asRecord(raw);
-    if (Array.isArray(r.items)) return r.items.map((x) => asRecord(x));
-    if (Array.isArray(r.data)) return r.data.map((x) => asRecord(x));
-    return [];
-}
-
-function countPendingRequests(raw: unknown): number {
-    const rows = parseActionRows(raw);
-    let n = 0;
-    for (const row of rows) {
-        const s = String(row.status ?? row.state ?? "")
-            .trim()
-            .toLowerCase();
-        if (s === "pending" || s === "open" || s === "new" || s === "submitted" || s === "en_attente") n += 1;
-    }
-    return n;
-}
 
 /** Navigation latérale RH uniquement — URLs sous `/workspace/rh/*`. */
 export function useRhWorkspaceNavItems(): NavItemType[] {
     const { t } = useTranslation("nav");
-    const { data } = useRhActionsListQuery();
-    const pending = useMemo(() => countPendingRequests(data), [data]);
 
     return useMemo(
         () => [
@@ -54,12 +31,16 @@ export function useRhWorkspaceNavItems(): NavItemType[] {
                 label: t("rhNavManagerRequests"),
                 href: "/workspace/rh/manager-requests",
                 icon: FileCheck02,
-                badge: pending > 0 ? String(pending) : undefined,
+            },
+            {
+                label: t("rhNavWorkforceArbitration"),
+                href: "/workspace/rh/workforce-arbitration",
+                icon: GitBranch,
             },
             { label: t("rhNavMobility"), href: "/workspace/rh/mobility", icon: Share04 },
             { label: t("rhNavAlerts"), href: "/workspace/rh/org-alerts", icon: AlertCircle },
             { label: t("profile"), href: "/workspace/rh/profile", icon: User01 },
         ],
-        [t, pending],
+        [t],
     );
 }

@@ -11,7 +11,16 @@ import { readMissionControlHttpErrorMessage, readUserFacingApiErrorMessage } fro
 import { useAuth } from "@/providers/auth-provider";
 import { useProjectViabilityRefresh } from "@/hooks/use-project-viability-refresh";
 import { useProjectStrategistArbitrage } from "@/hooks/use-project-strategist-arbitrage";
+import {
+    formatMissionProjectStatusLabel,
+    pushStrategistStopScopeExecuteToast,
+    resolveArbitrageOptionType,
+    resolveCopilotDisplayDecision,
+    resolveCopilotDisplayInsight,
+} from "@/lib/strategist-arbitrage";
+import { ProjectLifecycleStepper, type ProjectLifecycleProject } from "@/components/projects/ProjectLifecycleStepper";
 import { WhatIfResultPanel, type WhatIfResponse } from "@/components/projects/WhatIfResultPanel";
+import { useProjectTasks } from "@/hooks/use-project-tasks";
 import { useDecisions } from "@/hooks/useDecisions";
 import { useTeam } from "@/hooks/useTeam";
 import type { CopilotDecision } from "@/services/decisions.api";
@@ -42,9 +51,11 @@ export type ProjectMissionControlModalProps = {
     projectId: string | null;
     listProject: ProjectListItem | undefined;
     onClose: () => void;
+    initialWorkspaceTab?: MissionControlWorkspaceTabId;
 };
 
-type WorkspaceTabId = "overview" | "team" | "tasks" | "risks" | "simulation" | "decisions";
+export type MissionControlWorkspaceTabId = "overview" | "team" | "tasks" | "risks" | "simulation" | "decisions";
+type WorkspaceTabId = MissionControlWorkspaceTabId;
 type MobileMissionTabId = WorkspaceTabId | "copilot";
 
 function clamp(n: number, lo: number, hi: number): number {
@@ -280,7 +291,13 @@ function TeamHeatmap({
     );
 }
 
-export function ProjectMissionControlModal({ open, projectId, listProject, onClose }: ProjectMissionControlModalProps) {
+export function ProjectMissionControlModal({
+    open,
+    projectId,
+    listProject,
+    onClose,
+    initialWorkspaceTab,
+}: ProjectMissionControlModalProps) {
     const enabled = open && Boolean(projectId);
     const pid = projectId ?? "";
     const { user } = useAuth();
@@ -310,6 +327,7 @@ export function ProjectMissionControlModal({ open, projectId, listProject, onClo
     const assignTalent = useAssignTalent();
     const unassignTalent = useUnassignTalent();
     const whatIf = useWhatIf();
+    const tasksQuery = useProjectTasks(pid, enabled);
     const { mutate: runViabilityRefresh, isPending: viabilityRefreshing } = useProjectViabilityRefresh();
     const viabilityScanKeyRef = useRef<string | null>(null);
     const [editPayload, setEditPayload] = useState({ status: "active" as ProjectStatus, priority: 5, milestone_at: "" });
@@ -344,10 +362,11 @@ export function ProjectMissionControlModal({ open, projectId, listProject, onClo
 
     useEffect(() => {
         if (open) {
-            setMobileMissionTab("overview");
-            setWorkspaceTab("overview");
+            const tab = initialWorkspaceTab ?? "overview";
+            setWorkspaceTab(tab);
+            setMobileMissionTab(tab);
         }
-    }, [open, projectId]);
+    }, [open, projectId, initialWorkspaceTab]);
 
     useEffect(() => {
         if (!open || !projectId) return;
@@ -504,8 +523,17 @@ export function ProjectMissionControlModal({ open, projectId, listProject, onClo
     const delayDays = readLatestKpiDelayDays(latestKpi);
     const alertCount = detail.data?.active_alerts?.length ?? 0;
     const projectName = detail.data?.project.name ?? listProject?.name ?? tm("projectNameFallback");
-    const decisionBadge = detail.data?.latest_viability?.decision ?? listProject?.latest_decision ?? "—";
-    const viabilityDecision = detail.data?.latest_viability?.decision ?? listProject?.latest_decision ?? null;
+    const latestDecisionRaw = detail.data?.latest_viability?.decision ?? listProject?.latest_decision ?? null;
+    const decisionBadge = latestDecisionRaw ?? "—";
+    const viabilityDecision = latestDecisionRaw;
+    const projectStatusRaw = detail.data?.project.status ?? listProject?.status ?? null;
+    const statusBadgeLabel = formatMissionProjectStatusLabel(projectStatusRaw, {
+        planned: tm("statusOptionPlanned"),
+        active: tm("statusOptionActive"),
+        onHold: tm("statusOptionOnHold"),
+        completed: tm("statusOptionCompleted"),
+        cancelled: tm("statusOptionCancelled"),
+    });
 
     const executiveSummary = useMemo(
         () =>
@@ -520,26 +548,30 @@ export function ProjectMissionControlModal({ open, projectId, listProject, onClo
     );
 
     const copilotPrefetched: CopilotPrefetchedProjectContext = useMemo(() => {
-        const recommendation = formatMissionViabilityExplanation(
+        const explanation = formatMissionViabilityExplanation(
             detail.data?.latest_viability?.explanation,
             viabilityScore,
             viabilityDecision,
         );
         return {
             displayName: projectName,
-            decision: decisionBadge,
+            decision: resolveCopilotDisplayDecision(projectStatusRaw, latestDecisionRaw, {
+                onHold: tm("statusOptionOnHold"),
+            }),
             score: viabilityFormatted.display,
             alertsCount: detail.data?.active_alerts?.length ?? 0,
-            aiRecommendation: recommendation,
+            aiRecommendation: resolveCopilotDisplayInsight(projectStatusRaw, explanation, tm("copilotOnHoldInsight")),
         };
     }, [
         projectName,
-        decisionBadge,
+        projectStatusRaw,
+        latestDecisionRaw,
         viabilityFormatted.display,
         detail.data?.latest_viability?.explanation,
         detail.data?.active_alerts?.length,
         viabilityScore,
         viabilityDecision,
+        tm,
     ]);
 
     const whatIfPreviewText = useMemo(() => {
@@ -548,6 +580,104 @@ export function ProjectMissionControlModal({ open, projectId, listProject, onClo
         if (!raw || !Number.isFinite(n) || n <= 0) return tm("whatIfPreviewEmpty");
         return tm("whatIfPreviewActive", { pct: n });
     }, [whatIfAllocationPct, tm]);
+
+    const allocationAdditional = useMemo((): number | null => {
+        const raw = whatIfAllocationPct.trim();
+        if (raw === "") return null;
+        return Number(raw);
+    }, [whatIfAllocationPct]);
+
+    const canSimulate = useMemo(
+        () =>
+            allocationAdditional !== null &&
+            allocationAdditional !== undefined &&
+            !Number.isNaN(Number(allocationAdditional)) &&
+            Number(allocationAdditional) > 0,
+        [allocationAdditional],
+    );
+
+    const [whatIfValidationError, setWhatIfValidationError] = useState<string | null>(null);
+
+    const clearWhatIfResults = useCallback(() => {
+        whatIf.reset();
+    }, [whatIf]);
+
+    useEffect(() => {
+        if (!canSimulate) {
+            clearWhatIfResults();
+            setWhatIfValidationError(null);
+        }
+    }, [canSimulate, clearWhatIfResults]);
+
+    const handleSimulate = useCallback(() => {
+        if (!canSimulate || allocationAdditional == null) {
+            setWhatIfValidationError(tm("whatIfAllocRequired"));
+            clearWhatIfResults();
+            return;
+        }
+        setWhatIfValidationError(null);
+        whatIf.mutate({
+            projectId: pid,
+            modifications: {
+                allocation_pct: allocationAdditional,
+            },
+        });
+    }, [canSimulate, allocationAdditional, pid, whatIf, tm, clearWhatIfResults]);
+
+    const lifecyclePatchSource = useMemo(() => {
+        const project = detail.data?.project;
+        const rowMatches =
+            listProject &&
+            (String(listProject.id).trim() === String(projectId).trim() ||
+                normalizeId(listProject.id) === normalizeId(projectId));
+        return project ?? (rowMatches ? listProject : undefined);
+    }, [detail.data?.project, listProject, projectId]);
+
+    const lifecycleProject = useMemo((): ProjectLifecycleProject | null => {
+        const src = lifecyclePatchSource;
+        if (!src) return null;
+        const p = detail.data?.project;
+        const completedRaw = p && typeof p === "object" ? (p as { completed_at?: string | null }).completed_at : null;
+        return {
+            id: pid,
+            status: statusForSelect(src.status),
+            progress_pct: progressPct ?? Number(src.progress_pct) ?? 0,
+            milestone_at: src.milestone_at ?? null,
+            completed_at: completedRaw ?? (statusForSelect(src.status) === "completed" ? new Date().toISOString() : null),
+            start_date: p?.start_date ?? (src as { start_date?: string | null }).start_date ?? null,
+        };
+    }, [lifecyclePatchSource, detail.data?.project, pid, progressPct]);
+
+    const lifecycleTasks = useMemo(
+        () => (tasksQuery.data?.tasks ?? []).map((task) => ({ id: task.id, status: task.status })),
+        [tasksQuery.data?.tasks],
+    );
+
+    const handleLifecycleComplete = useCallback(async () => {
+        const src = lifecyclePatchSource;
+        if (!src) return;
+        await updateProject.mutateAsync({
+            projectId: pid,
+            body: {
+                status: "completed",
+                priority: clamp(Number(src.priority ?? 5) || 5, 1, 10),
+                milestone_at: src.milestone_at ?? null,
+            },
+        });
+    }, [lifecyclePatchSource, pid, updateProject]);
+
+    const handleLifecyclePause = useCallback(async () => {
+        const src = lifecyclePatchSource;
+        if (!src) return;
+        await updateProject.mutateAsync({
+            projectId: pid,
+            body: {
+                status: "on_hold",
+                priority: clamp(Number(src.priority ?? 5) || 5, 1, 10),
+                milestone_at: src.milestone_at ?? null,
+            },
+        });
+    }, [lifecyclePatchSource, pid, updateProject]);
 
     if (!open || !projectId) return null;
 
@@ -588,7 +718,6 @@ export function ProjectMissionControlModal({ open, projectId, listProject, onClo
               year: "numeric",
           })
         : "—";
-    const statusBadge = detail.data?.project.status ?? listProject?.status ?? "—";
     const priorityBadge = detail.data?.project.priority ?? listProject?.priority ?? "—";
 
     const copilotColumn = (
@@ -990,37 +1119,43 @@ export function ProjectMissionControlModal({ open, projectId, listProject, onClo
                         {whatIfPreviewText}
                     </p>
 
+                    {!canSimulate ? (
+                        <p
+                            className="mt-3 rounded-lg border border-amber-200/80 bg-amber-50/60 px-3 py-2.5 text-xs leading-relaxed text-amber-950 dark:border-amber-800/40 dark:bg-amber-950/25 dark:text-amber-100 sm:text-sm"
+                            role="status"
+                        >
+                            {whatIfValidationError ?? tm("whatIfAllocRequired")}
+                        </p>
+                    ) : null}
+
                     <div className="mt-4 flex flex-col-reverse gap-2 sm:flex-row sm:items-center sm:justify-end">
                         <button
                             type="button"
                             className="rounded-lg border border-secondary bg-primary px-4 py-2 text-sm font-semibold text-fg-secondary shadow-xs transition hover:-translate-y-px hover:bg-secondary_subtle hover:shadow-sm active:translate-y-0"
-                            onClick={() => setWhatIfAllocationPct("")}
+                            onClick={() => {
+                                setWhatIfAllocationPct("");
+                                setWhatIfValidationError(null);
+                                clearWhatIfResults();
+                            }}
                         >
                             {tm("reset")}
                         </button>
                         <button
                             type="button"
                             className="rounded-lg bg-brand-solid px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:-translate-y-px hover:bg-brand-solid_hover hover:shadow-md disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:translate-y-0 disabled:hover:shadow-sm"
-                            disabled={whatIf.isPending}
-                            onClick={() => {
-                                whatIf.mutate({
-                                    projectId: pid,
-                                    modifications: {
-                                        allocation_pct: Number(whatIfAllocationPct) || 0,
-                                    },
-                                });
-                            }}
+                            disabled={!canSimulate || whatIf.isPending}
+                            onClick={handleSimulate}
                         >
                             {whatIf.isPending ? tm("simulateRunning") : tm("runSimulation")}
                         </button>
                     </div>
 
-                    {whatIf.data ? (
+                    {whatIf.data && canSimulate ? (
                         <div className="mt-4 border-t border-secondary/80 pt-4">
                             <WhatIfResultPanel data={whatIf.data as WhatIfResponse} />
                         </div>
                     ) : null}
-                    {whatIf.isError ? (
+                    {whatIf.isError && canSimulate ? (
                         <p className="mt-3 text-sm text-utility-error-600">
                             {readUserFacingApiErrorMessage(whatIf.error, tm("simulationFailedHelp"))}
                         </p>
@@ -1037,8 +1172,20 @@ export function ProjectMissionControlModal({ open, projectId, listProject, onClo
                         return;
                     }
                     try {
-                        await strategistArbitrage.acceptOption(opt);
-                        pushToast(tm("arbitrageAcceptedToast", { label: opt.label || opt.id }), "success");
+                        const response = await strategistArbitrage.acceptOption(opt);
+                        const isStopScope = resolveArbitrageOptionType(opt) === "stop_scope";
+                        if (isStopScope && response.action_taken) {
+                            pushStrategistStopScopeExecuteToast(
+                                pushToast,
+                                response,
+                                tm("arbitrageAcceptedToast", { label: opt.label || opt.id }),
+                                { pausedDescription: tm("arbitrageStopScopePausedDesc") },
+                            );
+                            setWorkspaceTab("overview");
+                            setMobileMissionTab("overview");
+                        } else {
+                            pushToast(tm("arbitrageAcceptedToast", { label: opt.label || opt.id }), "success", 8000);
+                        }
                     } catch (error) {
                         pushToast(strategistArbitrage.readError(error), "error");
                         throw error;
@@ -1123,8 +1270,23 @@ export function ProjectMissionControlModal({ open, projectId, listProject, onClo
         </div>
     );
 
+    const lifecycleStepperBlock = lifecycleProject ? (
+        <div className="shrink-0 px-3 pt-2 lg:px-4">
+            <div className="mx-auto mb-4 w-full max-w-5xl">
+                <ProjectLifecycleStepper
+                    project={lifecycleProject}
+                    tasks={lifecycleTasks}
+                    onComplete={handleLifecycleComplete}
+                    onPause={handleLifecyclePause}
+                    readonly={updateProject.isPending}
+                />
+            </div>
+        </div>
+    ) : null;
+
     const centerColumn = (
         <div className="flex min-h-0 min-w-0 flex-col overflow-hidden border-secondary/50 lg:border-r">
+            {lifecycleStepperBlock}
             {workspaceNav}
             {workspaceScroll}
         </div>
@@ -1148,7 +1310,7 @@ export function ProjectMissionControlModal({ open, projectId, listProject, onClo
                             </h2>
                             <div className="mt-2 flex flex-wrap gap-1.5">
                                 <span className="rounded-full border border-secondary bg-secondary_subtle px-2.5 py-0.5 text-[11px] font-medium capitalize text-fg-primary">
-                                    {String(statusBadge)}
+                                    {statusBadgeLabel}
                                 </span>
                                 <span className="rounded-full border border-brand-secondary/35 bg-brand-primary/10 px-2.5 py-0.5 text-[11px] font-semibold text-fg-primary">
                                     {String(decisionBadge)}
@@ -1178,6 +1340,7 @@ export function ProjectMissionControlModal({ open, projectId, listProject, onClo
                 </header>
 
                 <div className="flex min-h-0 flex-1 flex-col overflow-hidden lg:hidden">
+                    {lifecycleStepperBlock}
                     <nav
                         className="flex shrink-0 gap-1 overflow-x-auto border-b border-secondary bg-secondary_subtle/40 px-2 py-2"
                         aria-label={tm("navMissionMobileAria")}

@@ -37,9 +37,19 @@ export interface ManagerProjectDerivedFields {
     score_trend_7d: number | null;
     /** TODO BACK: expose `time_to_impact_days` (impact métier, pas seulement jalon). */
     time_to_impact_days: number | null;
-    /** TODO BACK: expose `top_arbitrage` (libellé option Strategist / dernière reco). */
-    top_arbitrage: string | null;
+    /**
+     * Clé i18n `managerWorkspace.projects.<key>` (heuristique UI).
+     * TODO BACK: expose `top_arbitrage` (libellé option Strategist / dernière reco).
+     */
+    top_arbitrage: TopArbitrageKey | null;
 }
+
+export type TopArbitrageKey =
+    | "arbitrage_stop"
+    | "arbitrage_overdue"
+    | "arbitrage_adjust"
+    | "arbitrage_alerts"
+    | "arbitrage_milestone";
 
 export type ManagerProjectPortfolioItem = ProjectListItem & ManagerProjectDerivedFields;
 
@@ -104,26 +114,24 @@ export function deriveReasonCode(project: ProjectListItem, now = Date.now()): Ma
     return "stable";
 }
 
-/** Heuristique Copilot / Strategist en attendant le champ API. */
-export function deriveTopArbitrage(project: ProjectListItem, reason: ManagerProjectReasonCode): string | null {
+/** Heuristique Copilot / Strategist — clé i18n, pas de texte figé par langue. */
+export function deriveTopArbitrage(project: ProjectListItem, reason: ManagerProjectReasonCode): TopArbitrageKey | null {
     const decision = normalizeDecision(project);
 
-    // TODO BACK: expose top_arbitrage (dernière option Strategist validée ou proposée).
-
     if (decision === "stop" || decision === "reject" || reason === "decision_stop") {
-        return "Arbitrer un repli ou un arrêt de périmètre";
+        return "arbitrage_stop";
     }
     if (reason === "overdue_milestone") {
-        return "Arbitrer le retard : date, scope ou renfort ciblé";
+        return "arbitrage_overdue";
     }
     if (reason === "decision_adjust" || decision === "adjust") {
-        return "Ajuster le plan ou la charge avant le prochain jalon";
+        return "arbitrage_adjust";
     }
     if (reason === "low_viability" || reason === "high_alert_load") {
-        return "Prioriser le traitement des alertes et sécuriser la viabilité";
+        return "arbitrage_alerts";
     }
     if (reason === "milestone_soon") {
-        return "Valider le jalon et lever les blocages ouverts";
+        return "arbitrage_milestone";
     }
     return null;
 }

@@ -1,72 +1,121 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { isAxiosError } from "axios";
+import { normalizeConversationDetailResponse } from "@/components/copilot/helper-chat-reply-cache";
 import { normalizeHelperConversationId } from "@/lib/helper-conversation-id";
-import { chatApi, conversationsApi } from "@/services/chat.api";
+import {
+    chatApi,
+    conversationsApi,
+    normalizeManagerConversationsList,
+    type ConversationsListParams,
+    type ConversationsListResult,
+    type HelperChatSendBody,
+} from "@/services/chat.api";
 
-export const useConversations = (status: "active" | "archived" = "active") =>
-    useQuery({
-        queryKey: ["chat-conversations", status],
-        queryFn: () => conversationsApi.list({ status }).then((r) => r.data),
+export type { ConversationsListParams, HelperChatSendBody };
+export {
+    clearCopilotPendingMessages,
+    getSessionId,
+    readCopilotPendingMessages,
+    resetCopilotSessionId,
+    writeCopilotPendingMessages,
+} from "@/lib/copilot-session-storage";
+
+export const managerConversationsListKey = (params?: ConversationsListParams) =>
+    [
+        "manager-conversations",
+        params?.status ?? "active",
+        params?.project_id ?? null,
+        params?.search ?? null,
+        params?.limit ?? null,
+    ] as const;
+
+const listKey = managerConversationsListKey;
+
+export const managerConversationDetailKey = (id: string | null) => ["manager-conversation", id] as const;
+
+const detailKey = managerConversationDetailKey;
+
+/** GET /manager/conversations — liste (filtrée par projet côté appelant). */
+export function useConversations(params?: ConversationsListParams, queryEnabled = true) {
+    const status = params?.status ?? "active";
+    const projectScoped = Boolean(params?.project_id?.trim());
+    return useQuery({
+        queryKey: listKey({ ...params, status }),
+        queryFn: async (): Promise<ConversationsListResult> => {
+            const res = await conversationsApi.list({ status, ...params });
+            return res.data;
+        },
+        enabled: queryEnabled && (projectScoped ? Boolean(params!.project_id!.trim()) : true),
         staleTime: 30_000,
     });
+}
 
-export const useConversation = (id: string | null, enabled = true, onNotFound?: () => void) =>
-    useQuery({
-        queryKey: ["chat-conversation", id],
+/** Conversation active du projet : GET `/manager/conversations?project_id&status=active&limit=1`. */
+export function useProjectConversations(projectId: string | null, queryEnabled = true) {
+    const pid = projectId?.trim() ?? "";
+    return useQuery({
+        queryKey: listKey({ project_id: pid, status: "active", limit: 1 }),
+        queryFn: async (): Promise<ConversationsListResult> => {
+            const res = await conversationsApi.list({ project_id: pid, status: "active", limit: 1 });
+            return res.data;
+        },
+        enabled: queryEnabled && Boolean(pid),
+        staleTime: 30_000,
+        refetchOnMount: true,
+    });
+}
+
+/** GET /manager/conversations/:id — historique messages. */
+export function useConversation(conversationId: string | null, enabled = true) {
+    const id = conversationId?.trim() ?? "";
+    return useQuery({
+        queryKey: detailKey(id || null),
         queryFn: async () => {
-            try {
-                return (await conversationsApi.get(id!)).data;
-            } catch (err) {
-                if (isAxiosError(err) && err.response?.status === 404 && onNotFound) onNotFound();
-                throw err;
-            }
+            const res = await conversationsApi.get(id);
+            return normalizeConversationDetailResponse(res.data);
         },
         enabled: Boolean(id) && enabled,
         staleTime: 10_000,
         retry: false,
         refetchOnWindowFocus: false,
+        refetchOnMount: false,
     });
+}
 
-export const useSendMessage = () => {
-    const qc = useQueryClient();
+/** POST /api/helper/chat — invalidation LIST/DETAIL gérée par le panneau (évite boucles). */
+export function useSendMessage() {
     return useMutation({
-        mutationFn: (body: Parameters<typeof chatApi.send>[0]) => chatApi.send(body).then((r) => r.data),
-        onSuccess: (data) => {
-            void qc.invalidateQueries({ queryKey: ["chat-conversation", data.conversation_id] });
-            void qc.invalidateQueries({ queryKey: ["chat-conversations"] });
-        },
+        mutationFn: (body: HelperChatSendBody) => conversationsApi.send(body).then((r) => r.data),
     });
-};
+}
 
-export const useArchiveConversation = () => {
+/** PATCH /manager/conversations/:id/archive */
+export function useArchiveConversation() {
     const qc = useQueryClient();
     return useMutation({
         mutationFn: async ({ id, restore }: { id: string; restore: boolean }) => {
             const cid = normalizeHelperConversationId(id);
-            try {
-                return (await conversationsApi.archive(cid, { restore: Boolean(restore) })).data;
-            } catch (e) {
-                if (!isAxiosError(e)) throw e;
-                const st = e.response?.status;
-                const transient = st == null || st >= 500;
-                if (!transient || restore) throw e;
-                await qc.refetchQueries({ queryKey: ["chat-conversations", "active"] });
-                const updated = qc.getQueryData<{ conversations: { id: string }[] }>(["chat-conversations", "active"]);
-                if (updated === undefined) throw e;
-                const stillThere = (updated.conversations ?? []).some((c) => c.id.toLowerCase() === cid);
-                if (stillThere) throw e;
-                void qc.removeQueries({ queryKey: ["chat-conversation", id] });
-                void qc.removeQueries({ queryKey: ["chat-conversation", cid] });
-                void qc.invalidateQueries({ queryKey: ["chat-conversations"] });
-                return { __archiveReconciled: true as const, id: cid };
-            }
+            return (await conversationsApi.archive(cid, { restore: Boolean(restore) })).data;
         },
-        onSuccess: (data, { id }) => {
-            if (data && typeof data === "object" && "__archiveReconciled" in data && data.__archiveReconciled) return;
+        onSuccess: (_data, { id }) => {
             const nid = normalizeHelperConversationId(id);
-            void qc.removeQueries({ queryKey: ["chat-conversation", id] });
-            void qc.removeQueries({ queryKey: ["chat-conversation", nid] });
-            void qc.invalidateQueries({ queryKey: ["chat-conversations"] });
+            void qc.removeQueries({ queryKey: detailKey(id) });
+            void qc.removeQueries({ queryKey: detailKey(nid) });
+            void qc.invalidateQueries({ queryKey: ["manager-conversations"] });
         },
     });
-};
+}
+
+/** @deprecated Utiliser `useConversations` — clé alignée historique sidebar. */
+export const useConversationsLegacyKey = (
+    status: "active" | "archived" | "all" = "active",
+    extra?: Omit<ConversationsListParams, "status">,
+) =>
+    useQuery({
+        queryKey: ["chat-conversations", status, extra?.project_id ?? null, extra?.search ?? null, extra?.limit ?? null],
+        queryFn: async () => {
+            const res = await conversationsApi.list({ status, ...extra });
+            return res.data;
+        },
+        staleTime: 30_000,
+    });

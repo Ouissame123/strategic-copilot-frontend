@@ -1,3 +1,4 @@
+import { managerRiskAlertsApi } from "./manager-risk-alerts.api";
 import { httpClient } from "../lib/http-client";
 import { isAxiosError, type AxiosResponse } from "axios";
 import type {
@@ -5,7 +6,11 @@ import type {
     RhActionsResponse, RiskAlertActionRequest, RiskAlertActionResponse,
 } from "../types/api.types";
 
-const NOTIF_LIST = "/webhook/manager/notifications";
+/** Aligné sur webhookIds n8n WMN v3 (sans modifier les workflows). */
+const NOTIF_LIST = "/webhook/wmn-list-notif-v3/manager/notifications";
+const NOTIF_LIST_LEGACY = "/webhook/manager/notifications";
+const NOTIF_ACK_BASE = "/webhook/wmn-ack-v3/manager/notifications";
+const NOTIF_ACK_LEGACY = "/webhook/manager/notifications";
 
 function isNotifListRetryable(status: number): boolean {
     return status === 404 || status >= 500;
@@ -41,6 +46,9 @@ export const managerNotificationsApi = {
         try {
             return await httpClient.get<NotificationsResponse>(NOTIF_LIST, cfg);
         } catch (error) {
+            if (isAxiosError(error) && error.response?.status === 404) {
+                return await httpClient.get<NotificationsResponse>(NOTIF_LIST_LEGACY, cfg);
+            }
             if (!isAxiosError(error) || !isNotifListRetryable(error.response?.status ?? 0)) throw error;
         }
         const dash = await httpClient.get<DashboardResponse>("/webhook/manager/dashboard", {
@@ -51,9 +59,23 @@ export const managerNotificationsApi = {
         const filtered = applyNotificationQueryFilters(raw, params);
         return syntheticNotificationsResponse({ items: filtered, total: filtered.length });
     },
-    ack: (id: string) => httpClient.patch<AckNotificationResponse>(`/webhook/manager/notifications/${id}/ack`, {}),
-    riskAction: (id: string, body: RiskAlertActionRequest) =>
-        httpClient.patch<RiskAlertActionResponse>(`/webhook/manager/risk-alerts/${id}`, body),
+    ack: async (id: string) => {
+        const cfg = { skipGlobalHttpErrorToast: true as const };
+        const path = `${NOTIF_ACK_BASE}/${encodeURIComponent(id)}/ack`;
+        try {
+            return await httpClient.patch<AckNotificationResponse>(path, {}, cfg);
+        } catch (error) {
+            if (isAxiosError(error) && error.response?.status === 404) {
+                return await httpClient.patch<AckNotificationResponse>(
+                    `${NOTIF_ACK_LEGACY}/${encodeURIComponent(id)}/ack`,
+                    {},
+                    cfg,
+                );
+            }
+            throw error;
+        }
+    },
+    riskAction: (id: string, body: RiskAlertActionRequest) => managerRiskAlertsApi.patch(id, body),
     decisions: (params?: { project_id?: string; scope?: string; limit?: number }) =>
         httpClient.get<CopilotDecisionsResponse>("/webhook/manager/copilot-decisions", {
             params,

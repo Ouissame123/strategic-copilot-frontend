@@ -2,24 +2,35 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { isAxiosError } from "axios";
 import { useTranslation } from "react-i18next";
 import type { ScheduleReportPayload } from "@/api/reports.api";
+import { ReportTemplateCard, type ReportFormat, type ReportHistoryItem, type ReportTemplate } from "@/components/reports";
 import {
-    ReportTemplateCard,
-    ReportsHistoryTable,
-    type ReportFormat,
-    type ReportHistoryItem,
-    type ReportTemplate,
-} from "@/components/reports";
+    FAVORITES_STORAGE_KEY,
+    QuickActionsBar,
+    ReportPreviewPanel,
+    ReportsAutomationDrawer,
+    ReportsAutomationSection,
+    ReportsHeader,
+    ReportsHistoryTimeline,
+    ReportsQuickFilters,
+    ReportsTabs,
+    templateMatchesAudience,
+    type AutomationDrawerValues,
+    type ReportAudience,
+} from "@/components/manager/reports";
 import {
-    coerceReportType,
-    enrichTemplatesWithHistory,
-    mapN8nReportToHistoryItem,
-    type ReportTemplateDefInput,
-} from "@/components/reports/adapters";
+    frequencyLabel,
+    loadAutomations,
+    mapFrequencyToApi,
+    mapTemplateToApiType,
+    saveAutomations,
+    type ReportAutomation,
+} from "@/components/manager/reports/reports-automation";
+import { coerceReportType, enrichTemplatesWithHistory, type ReportTemplateDefInput } from "@/components/reports/adapters";
 import { labelReportType } from "@/components/reports/utils";
 import { WorkspacePageShell } from "@/components/workspace/workspace-page-shell";
 import { useWorkspaceTopbarMeta } from "@/layouts/workspace-topbar-meta";
 import { useReportsData } from "@/hooks/useReports";
-import { useReportsN8n, type N8nReportHistoryItem } from "@/hooks/use-reports-n8n";
+import { historyItemToN8n, useReportsN8n, type N8nReportHistoryItem } from "@/hooks/use-reports-n8n";
 import { useAuth } from "@/providers/auth-provider";
 import { useToast } from "@/providers/toast-provider";
 import type { CopilotDecision } from "@/services/decisions.api";
@@ -129,30 +140,18 @@ function reportGenerationErrorMessage(err: unknown, tr: (k: string) => string): 
     return tr("errReportGeneration");
 }
 
-function pdfUrlFromN8nReport(r: N8nReportHistoryItem): string | undefined {
-    const direct = String(r.file_url ?? r.download_url ?? "").trim();
-    if (direct) return direct;
-    const m = r.metadata;
-    if (m && typeof m === "object" && !Array.isArray(m)) {
-        const o = m as Record<string, unknown>;
-        const u = String(o.file_url ?? o.fileUrl ?? o.url ?? o.public_url ?? o.download_url ?? "").trim();
-        if (u) return u;
-    }
-    return undefined;
-}
-
 /** PDF disponible + statut non bloquant (aligné historique : generated, ready, etc.). */
-function isEligibleReportForEmail(r: N8nReportHistoryItem): boolean {
-    const rid = String(r.report_id ?? "").trim();
+function isEligibleReportForEmailItem(r: ReportHistoryItem): boolean {
+    const rid = String(r.reportId ?? "").trim();
     if (!rid) return false;
-    if (!pdfUrlFromN8nReport(r)) return false;
-    const st = String(r.status ?? "").trim().toLowerCase();
+    if (!String(r.fileUrl ?? "").trim()) return false;
+    const st = String(r.apiStatus ?? "").trim().toLowerCase();
     return !["failed", "error", "cancelled"].includes(st);
 }
 
-function formatReportSelectLabel(r: N8nReportHistoryItem, locale: string): string {
-    const typeLabel = labelReportType(coerceReportType(r.type));
-    const d = new Date(r.generated_at);
+function formatReportSelectLabelFromItem(r: ReportHistoryItem, locale: string): string {
+    const typeLabel = labelReportType(r.type);
+    const d = new Date(r.generatedAt);
     const t = d.getTime();
     const dateStr = Number.isFinite(t)
         ? d.toLocaleString(locale === "ar" ? "ar" : locale === "en" ? "en-GB" : "fr-FR", {
@@ -186,6 +185,21 @@ function loadHistory(): ReportHistoryRow[] {
 
 function saveHistory(rows: ReportHistoryRow[]) {
     localStorage.setItem(HISTORY_KEY, JSON.stringify(rows.slice(0, MAX_HISTORY)));
+}
+
+function loadFavorites(): Set<string> {
+    try {
+        const raw = localStorage.getItem(FAVORITES_STORAGE_KEY);
+        if (!raw) return new Set();
+        const parsed = JSON.parse(raw) as string[];
+        return new Set(Array.isArray(parsed) ? parsed : []);
+    } catch {
+        return new Set();
+    }
+}
+
+function saveFavorites(ids: Set<string>) {
+    localStorage.setItem(FAVORITES_STORAGE_KEY, JSON.stringify([...ids]));
 }
 
 function buildDecisionsCsv(decisions: CopilotDecision[]): string {
@@ -283,7 +297,6 @@ function aiRecommendationBullets(
     if (fragile > 0) {
         out.push(tr("aiBulletFragile", { count: fragile, boardPack: tr("boardPackInAiBullets") }));
     }
-    if (!out.length) out.push(tr("aiBulletStable"));
     return out.slice(0, 5);
 }
 
@@ -319,6 +332,13 @@ export default function ReportsPage() {
     const [scheduleProjectId, setScheduleProjectId] = useState("all");
     const [reportsTab, setReportsTab] = useState<"generation" | "history" | "automation">("generation");
     const [generatingTemplateId, setGeneratingTemplateId] = useState<string | null>(null);
+    const [audienceFilter, setAudienceFilter] = useState<ReportAudience>("all");
+    const [favorites, setFavorites] = useState<Set<string>>(() => loadFavorites());
+    const [automations, setAutomations] = useState<ReportAutomation[]>(() => loadAutomations());
+    const [automationDrawerOpen, setAutomationDrawerOpen] = useState(false);
+    const [editingAutomation, setEditingAutomation] = useState<ReportAutomation | null>(null);
+    const [mobilePreviewOpen, setMobilePreviewOpen] = useState(false);
+    const [deletingReportId, setDeletingReportId] = useState<string | null>(null);
 
     const { user } = useAuth();
     const enterpriseId = (user?.enterpriseId ?? (import.meta.env.VITE_MANAGER_ENTERPRISE_ID as string | undefined) ?? "").trim();
@@ -341,7 +361,7 @@ export default function ReportsPage() {
                     title: tr("templateBoardPackTitle"),
                     description: tr("templateBoardPackDesc"),
                     data: tr("templateBoardPackData"),
-                    formats: ["PDF", "CSV"] as const,
+                    formats: ["PDF", "CSV", "Excel"] as const,
                     pdfOnly: false,
                 },
                 {
@@ -349,7 +369,7 @@ export default function ReportsPage() {
                     title: tr("templateGlobalTitle"),
                     description: tr("templateGlobalDesc"),
                     data: tr("templateGlobalData"),
-                    formats: ["CSV", "Excel"] as const,
+                    formats: ["PDF", "CSV", "Excel"] as const,
                     pdfOnly: false,
                 },
                 {
@@ -357,7 +377,7 @@ export default function ReportsPage() {
                     title: tr("templateProjectTitle"),
                     description: tr("templateProjectDesc"),
                     data: tr("templateProjectData"),
-                    formats: ["PDF", "CSV"] as const,
+                    formats: ["PDF", "CSV", "Excel"] as const,
                     pdfOnly: false,
                 },
                 {
@@ -365,7 +385,7 @@ export default function ReportsPage() {
                     title: tr("templateRhTitle"),
                     description: tr("templateRhDesc"),
                     data: tr("templateRhData"),
-                    formats: ["CSV"] as const,
+                    formats: ["PDF", "CSV", "Excel"] as const,
                     pdfOnly: false,
                 },
                 {
@@ -373,7 +393,7 @@ export default function ReportsPage() {
                     title: tr("templateRisksTitle"),
                     description: tr("templateRisksDesc"),
                     data: tr("templateRisksData"),
-                    formats: ["CSV"] as const,
+                    formats: ["PDF", "CSV", "Excel"] as const,
                     pdfOnly: false,
                 },
                 {
@@ -381,7 +401,7 @@ export default function ReportsPage() {
                     title: tr("templateDecisionsTitle"),
                     description: tr("templateDecisionsDesc"),
                     data: tr("templateDecisionsData"),
-                    formats: ["CSV"] as const,
+                    formats: ["PDF", "CSV", "Excel"] as const,
                     pdfOnly: false,
                 },
             ] as const,
@@ -485,10 +505,12 @@ export default function ReportsPage() {
         tr,
     ]);
 
-    const aiBullets = useMemo(
-        () => (includeAi ? aiRecommendationBullets(data, decisionsInRange, tr) : []),
-        [includeAi, data, decisionsInRange, tr],
-    );
+    const aiBullets = useMemo(() => {
+        if (!includeAi || isLoading) return [];
+        return aiRecommendationBullets(data, decisionsInRange, tr);
+    }, [includeAi, isLoading, data, decisionsInRange, tr]);
+
+    const previewDataReady = !isLoading;
 
     const volumeBars = useMemo(() => {
         const ms = rangeToMs(range);
@@ -779,42 +801,43 @@ export default function ReportsPage() {
         [exportAlerts, exportDecisions, exportEnterprise, exportProject, exportRh, exportFormat, push, runBoardPack, runProjectDossier, tr],
     );
 
-    const serverHistory = useMemo(() => reportsN8n.historyQuery.data ?? [], [reportsN8n.historyQuery.data]);
+    /** Historique serveur — camelCase, déjà normalisé dans use-reports-n8n (reports.display / reports.all). */
+    const historyDisplay = reportsN8n.reports.display;
+    const historyAll = reportsN8n.reports.all;
 
-    /** Même source que l’historique + dernier PDF de session si le GET /history n’est pas encore à jour. */
-    const serverHistoryWithLastGenerated = useMemo(() => {
-        const base = [...serverHistory];
-        const lid = lastGenerated?.report_id?.trim();
-        const url = lastGenerated?.file_url?.trim();
-        if (lid && url && !base.some((r) => String(r.report_id).trim() === lid)) {
-            base.unshift({
-                report_id: lid,
-                name: "",
-                type: lastGenerated?.type ?? "board_pack",
-                generated_at: new Date().toISOString(),
-                status: "generated",
-                file_url: url,
-            });
-        }
-        return base;
-    }, [serverHistory, lastGenerated]);
+    const historyN8nForTemplates = useMemo(() => historyDisplay.map(historyItemToN8n), [historyDisplay]);
 
     const reportsWithPdfForEmail = useMemo(() => {
-        const eligible = serverHistoryWithLastGenerated.filter(isEligibleReportForEmail);
-        return [...eligible].sort((a, b) => {
-            const ta = new Date(a.generated_at).getTime();
-            const tb = new Date(b.generated_at).getTime();
-            if (!Number.isFinite(tb) && !Number.isFinite(ta)) return 0;
-            if (!Number.isFinite(tb)) return -1;
-            if (!Number.isFinite(ta)) return 1;
-            return tb - ta;
-        });
-    }, [serverHistoryWithLastGenerated]);
+        const list = [...historyDisplay];
+        const lid = lastGenerated?.report_id?.trim();
+        const url = lastGenerated?.file_url?.trim();
+        if (lid && url && !list.some((r) => r.reportId === lid)) {
+            list.unshift({
+                reportId: lid,
+                title: labelReportType(coerceReportType(lastGenerated?.type)),
+                type: coerceReportType(lastGenerated?.type),
+                format: "pdf",
+                status: "ready",
+                apiStatus: "generated",
+                fileUrl: url,
+                fileSize: null,
+                generatedAt: new Date().toISOString(),
+                generatedBy: null,
+                projectId: null,
+                projectName: null,
+                period: null,
+                language: "fr",
+            });
+        }
+        return list
+            .filter(isEligibleReportForEmailItem)
+            .sort((a, b) => new Date(b.generatedAt).getTime() - new Date(a.generatedAt).getTime());
+    }, [historyDisplay, lastGenerated]);
     const boardPackBusy = reportsN8n.boardPackMutation.isPending;
     const dossierBusy = reportsN8n.projectDossierMutation.isPending;
 
     useEffect(() => {
-        if (emailReportId && !reportsWithPdfForEmail.some((r) => r.report_id === emailReportId)) {
+        if (emailReportId && !reportsWithPdfForEmail.some((r) => r.reportId === emailReportId)) {
             setEmailReportId("");
         }
     }, [emailReportId, reportsWithPdfForEmail]);
@@ -868,13 +891,8 @@ export default function ReportsPage() {
     );
 
     const enrichedTemplates = useMemo(
-        () => enrichTemplatesWithHistory(reportTemplateDefInputs, serverHistoryWithLastGenerated),
-        [reportTemplateDefInputs, serverHistoryWithLastGenerated],
-    );
-
-    const mappedServerReports = useMemo(
-        () => serverHistoryWithLastGenerated.map((r) => mapN8nReportToHistoryItem(r)),
-        [serverHistoryWithLastGenerated],
+        () => enrichTemplatesWithHistory(reportTemplateDefInputs, historyN8nForTemplates),
+        [reportTemplateDefInputs, historyN8nForTemplates],
     );
 
     useEffect(() => {
@@ -903,7 +921,11 @@ export default function ReportsPage() {
 
     const handleReportCardPreview = useCallback((tpl: ReportTemplate) => {
         setSelectedTemplate(tpl.id);
-        document.getElementById("executive-report-preview")?.scrollIntoView({ behavior: "smooth", block: "start" });
+        if (typeof window !== "undefined" && window.matchMedia("(max-width: 1023px)").matches) {
+            setMobilePreviewOpen(true);
+        } else {
+            document.getElementById("executive-report-preview")?.scrollIntoView({ behavior: "smooth", block: "start" });
+        }
     }, []);
 
     const handleReportCardSchedule = useCallback(
@@ -915,6 +937,8 @@ export default function ReportsPage() {
             } else {
                 setScheduleType("board_pack");
             }
+            setEditingAutomation(null);
+            setAutomationDrawerOpen(true);
         },
         [paramProject],
     );
@@ -932,10 +956,9 @@ export default function ReportsPage() {
 
     const onHistoryItemRegenerate = useCallback(
         (item: ReportHistoryItem) => {
-            const raw = serverHistoryWithLastGenerated.find((r) => r.report_id === item.reportId);
-            if (raw) onServerRegenerate(raw);
+            onServerRegenerate(historyItemToN8n(item));
         },
-        [serverHistoryWithLastGenerated, onServerRegenerate],
+        [onServerRegenerate],
     );
 
     const onHistoryItemResend = useCallback(
@@ -950,6 +973,33 @@ export default function ReportsPage() {
         [enterpriseId, push, tr],
     );
 
+    const onHistoryItemDelete = useCallback(
+        async (item: ReportHistoryItem) => {
+            if (!enterpriseId) {
+                push(tr("serverNoEnterpriseBody"), "error");
+                return;
+            }
+            if (!window.confirm("Supprimer ce rapport ?")) return;
+
+            setDeletingReportId(item.reportId);
+            try {
+                const data = await reportsN8n.deleteReportMutation.mutateAsync(item.reportId);
+                if (data.success) {
+                    if (emailReportId === item.reportId) setEmailReportId("");
+                    push("Rapport supprimé", "success");
+                } else {
+                    push(data.message ?? "Erreur lors de la suppression", "error");
+                }
+            } catch (err) {
+                console.error("Delete report error:", err);
+                push("Erreur réseau lors de la suppression", "error");
+            } finally {
+                setDeletingReportId(null);
+            }
+        },
+        [enterpriseId, reportsN8n.deleteReportMutation, emailReportId, push, tr],
+    );
+
     const onSendReportEmail = useCallback(() => {
         if (!enterpriseId) {
             push(tr("toastEmailNeedEnterprise"), "error");
@@ -959,8 +1009,8 @@ export default function ReportsPage() {
             push(tr("toastEmailPickReport"), "error");
             return;
         }
-        const selected = reportsWithPdfForEmail.find((r) => r.report_id === emailReportId.trim());
-        if (!selected || !pdfUrlFromN8nReport(selected)) {
+        const selected = reportsWithPdfForEmail.find((r) => r.reportId === emailReportId.trim());
+        if (!selected?.fileUrl?.trim()) {
             push(tr("toastEmailPickUrl"), "error");
             return;
         }
@@ -1022,6 +1072,200 @@ export default function ReportsPage() {
         tr,
     ]);
 
+    const toggleFavorite = useCallback((templateId: string) => {
+        setFavorites((prev) => {
+            const next = new Set(prev);
+            if (next.has(templateId)) next.delete(templateId);
+            else next.add(templateId);
+            saveFavorites(next);
+            return next;
+        });
+    }, []);
+
+    const handleCardFormatSelect = useCallback((fmt: ReportFormat) => {
+        if (fmt === "pdf") setExportFormat("pdf");
+        else if (fmt === "excel") setExportFormat("xlsx");
+        else setExportFormat("csv");
+    }, []);
+
+    const filteredTemplates = useMemo(
+        () => enrichedTemplates.filter((tpl) => templateMatchesAudience(tpl.id, audienceFilter)),
+        [enrichedTemplates, audienceFilter],
+    );
+
+    const tabCounts = useMemo(
+        () => ({
+            generation: 0,
+            history: historyDisplay.length,
+            automation: automations.filter((s) => s.active).length,
+        }),
+        [historyDisplay.length, automations],
+    );
+
+    const automationKpis = useMemo(() => {
+        const now = new Date();
+        const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).getTime();
+        const monthReports = historyDisplay.filter((r) => {
+            const t = new Date(r.generatedAt).getTime();
+            return Number.isFinite(t) && t >= monthStart;
+        });
+        const ready = monthReports.filter((r) => r.status === "ready").length;
+        const total = monthReports.length;
+        const successRate = total ? Math.round((ready / total) * 100) : null;
+        const latest = historyDisplay.find((r) => r.generatedAt) ?? null;
+        let lastSentLabel = "Aucun envoi";
+        if (latest?.generatedAt) {
+            const t = new Date(latest.generatedAt).getTime();
+            if (Number.isFinite(t)) {
+                const diffH = Math.floor((Date.now() - t) / 3600000);
+                lastSentLabel =
+                    diffH < 1 ? "il y a moins d'1 h" : diffH < 24 ? `il y a ${diffH} h` : `il y a ${Math.floor(diffH / 24)} j`;
+            }
+        }
+        return { sentThisMonth: monthReports.length, successRate, lastSentLabel };
+    }, [historyDisplay]);
+
+    const historySparkline = useMemo(() => {
+        const days = 7;
+        const now = Date.now();
+        const dayMs = 86400000;
+        return Array.from({ length: days }, (_, i) => {
+            const start = now - (days - i) * dayMs;
+            const end = start + dayMs;
+            return historyDisplay.filter((r) => {
+                const t = new Date(r.generatedAt).getTime();
+                return Number.isFinite(t) && t >= start && t < end;
+            }).length;
+        });
+    }, [historyDisplay]);
+
+    const weeklyReportCount = useMemo(() => {
+        const weekAgo = Date.now() - 7 * 86400000;
+        return historyDisplay.filter((r) => new Date(r.generatedAt).getTime() >= weekAgo).length;
+    }, [historyDisplay]);
+
+    const healthLabel = data.health?.score != null ? `${data.health.score.toFixed(1)}/10` : "—";
+
+    const selectedTemplateTitle =
+        templateDefs.find((x) => x.id === selectedTemplate)?.title ?? tr("previewDefaultReportTitle");
+
+    const templateTitleFromKey = useCallback((key: ReportAutomation["templateKey"]) => {
+        const map: Record<ReportAutomation["templateKey"], string> = {
+            board_pack: tr("templateBoardPackTitle"),
+            global_enterprise: tr("templateGlobalTitle"),
+            project_dossier: tr("templateProjectTitle"),
+            hr_talents: tr("templateRhTitle"),
+            risks_alerts: tr("templateRisksTitle"),
+            decisions_ai: tr("templateDecisionsTitle"),
+        };
+        return map[key] ?? key;
+    }, [tr]);
+
+    const audienceLabelFromKey = useCallback((aud: Exclude<ReportAudience, "all">) => {
+        const map: Record<Exclude<ReportAudience, "all">, string> = {
+            direction: "Direction",
+            rh: "RH",
+            project: "Projet",
+            risks: "Risques",
+        };
+        return map[aud];
+    }, []);
+
+    const buildAutomationFromDrawer = useCallback(
+        (values: AutomationDrawerValues, id: string): ReportAutomation => {
+            const auto: ReportAutomation = {
+                id,
+                title: templateTitleFromKey(values.templateKey),
+                templateKey: values.templateKey,
+                audience: values.audience,
+                audienceLabel: audienceLabelFromKey(values.audience),
+                recipients: parseRecipients(values.recipients),
+                frequency: values.frequency,
+                dayOfWeek: values.frequency === "weekly" ? Number(values.dayOfWeek) : undefined,
+                dayOfMonth: values.frequency === "monthly" ? Number(values.dayOfMonth) : undefined,
+                time: values.time,
+                language: values.language,
+                format: values.format,
+                active: true,
+                lastSentLabel: "—",
+                nextSentLabel: frequencyLabel({
+                    id,
+                    title: "",
+                    templateKey: values.templateKey,
+                    audience: values.audience,
+                    audienceLabel: "",
+                    recipients: [],
+                    frequency: values.frequency,
+                    dayOfWeek: Number(values.dayOfWeek),
+                    dayOfMonth: Number(values.dayOfMonth),
+                    time: values.time,
+                    language: values.language,
+                    format: values.format,
+                    active: true,
+                    lastSentLabel: "",
+                    nextSentLabel: "",
+                }),
+            };
+            return auto;
+        },
+        [audienceLabelFromKey, templateTitleFromKey],
+    );
+
+    const onAutomationDrawerSave = useCallback(
+        (values: AutomationDrawerValues, editingId: string | null) => {
+            const id = editingId ?? uuidv4();
+            const nextItem = buildAutomationFromDrawer(values, id);
+            setAutomations((prev) => {
+                const next = editingId ? prev.map((a) => (a.id === editingId ? { ...nextItem, lastSentLabel: a.lastSentLabel, active: a.active } : a)) : [...prev, nextItem];
+                saveAutomations(next);
+                return next;
+            });
+            setAutomationDrawerOpen(false);
+            setEditingAutomation(null);
+
+            const apiType = mapTemplateToApiType(values.templateKey);
+            const rec = parseRecipients(values.recipients);
+            if (apiType && values.frequency !== "daily" && enterpriseId && rec.length) {
+                const payload: ScheduleReportPayload = {
+                    enterprise_id: enterpriseId,
+                    report_type: apiType,
+                    frequency: mapFrequencyToApi(values.frequency),
+                    recipients: rec,
+                    language: values.language,
+                };
+                if (apiType === "project_dossier" && scheduleProjectId !== "all") {
+                    payload.project_id = scheduleProjectId;
+                }
+                reportsN8n.scheduleMutation.mutate(payload, {
+                    onSuccess: () => push(tr("toastScheduleOk"), "success"),
+                    onError: (err) => push(axiosErrorMessage(err, tr("toastScheduleFail")), "error"),
+                });
+            } else if (values.frequency === "daily") {
+                push("Planification quotidienne enregistrée (envoi local).", "success");
+            } else if (!rec.length) {
+                push(tr("toastScheduleNeedRecipients"), "error");
+            } else {
+                push("Automatisation enregistrée.", "success");
+            }
+        },
+        [
+            buildAutomationFromDrawer,
+            enterpriseId,
+            scheduleProjectId,
+            reportsN8n.scheduleMutation,
+            push,
+            tr,
+        ],
+    );
+
+    const onHistoryPreview = useCallback(
+        (item: ReportHistoryItem) => {
+            if (item.fileUrl) openReportPdfUrl(item.fileUrl);
+            else push(tr("toastNoDownloadLink"), "error");
+        },
+        [push, tr],
+    );
+
     return (
         <WorkspacePageShell
             role="manager"
@@ -1031,39 +1275,8 @@ export default function ReportsPage() {
             omitHeader
         >
             <div className="space-y-6 lg:space-y-8 print:space-y-4">
-                <div
-                    className="flex flex-col gap-1 rounded-2xl border border-secondary bg-secondary_subtle/40 p-1 sm:flex-row sm:items-stretch print:hidden"
-                    role="tablist"
-                    aria-label={tr("tabsAria")}
-                >
-                    {(
-                        [
-                            { id: "generation" as const, label: tr("tabGeneration"), hint: tr("tabGenerationHint") },
-                            { id: "history" as const, label: tr("tabHistory"), hint: tr("tabHistoryHint") },
-                            { id: "automation" as const, label: tr("tabAutomation"), hint: tr("tabAutomationHint") },
-                        ] as const
-                    ).map((tab) => (
-                        <button
-                            key={tab.id}
-                            type="button"
-                            role="tab"
-                            id={`reports-tab-trigger-${tab.id}`}
-                            aria-controls={`reports-tab-panel-${tab.id}`}
-                            aria-selected={reportsTab === tab.id}
-                            title={tab.hint}
-                            onClick={() => setReportsTab(tab.id)}
-                            className={cx(
-                                "flex flex-1 flex-col items-center justify-center rounded-xl px-3 py-2.5 text-center transition sm:py-3",
-                                reportsTab === tab.id
-                                    ? "bg-primary text-primary shadow-sm ring-1 ring-secondary/40"
-                                    : "text-secondary hover:bg-primary/60 hover:text-primary",
-                            )}
-                        >
-                            <span className="text-sm font-semibold">{tab.label}</span>
-                            <span className="mt-0.5 hidden text-[10px] text-tertiary sm:inline">{tab.hint}</span>
-                        </button>
-                    ))}
-                </div>
+                <ReportsHeader title={tr("shellTitle")} subtitle={tr("pageHeroSubtitle")} />
+                <ReportsTabs active={reportsTab} counts={tabCounts} onChange={setReportsTab} />
 
                 {isError ? (
                     <div
@@ -1092,13 +1305,28 @@ export default function ReportsPage() {
 
                 {reportsTab === "generation" && !isLoading ? (
                     <div
-                        className="space-y-8 print:space-y-6"
+                        className="space-y-8 pb-28 print:space-y-6 xl:pb-0"
                         id="reports-tab-panel-generation"
                         role="tabpanel"
                         aria-labelledby="reports-tab-trigger-generation"
                     >
-                        {/* Actions principales */}
-                        <section className="rounded-2xl border border-secondary bg-primary p-4 shadow-sm lg:p-5 print:hidden">
+                        <QuickActionsBar
+                            onBoardPack={runBoardPack}
+                            onProjectPdf={runProjectDossier}
+                            onExportCsv={exportDecisions}
+                            onPrint={onPrint}
+                            onDownloadLastPdf={
+                                lastGenerated?.file_url ? () => openReportPdfUrl(lastGenerated.file_url!) : undefined
+                            }
+                            boardPackBusy={boardPackBusy}
+                            dossierBusy={dossierBusy}
+                            boardPackDisabled={!enterpriseId}
+                            projectPdfDisabled={!enterpriseId || paramProject === "all"}
+                            exportDisabled={isLoading}
+                            hasLastPdf={Boolean(lastGenerated?.file_url)}
+                        />
+                        {/* legacy-actions-hidden */}
+                        <section className="hidden rounded-2xl border border-secondary bg-primary p-4 shadow-sm lg:p-5 print:hidden">
                             <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
                                 <div>
                                     <h2 className="text-sm font-semibold text-primary">{tr("actionsQuickTitle")}</h2>
@@ -1161,23 +1389,80 @@ export default function ReportsPage() {
                         <section className="print:hidden">
                             <h2 className="text-sm font-semibold text-primary">{tr("templatesSectionTitle")}</h2>
                             <p className="mt-1 text-xs text-tertiary">{tr("templatesSectionSubtitle")}</p>
-                            <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
-                                {enrichedTemplates.map((tpl) => (
-                                    <ReportTemplateCard
-                                        key={tpl.id}
-                                        template={tpl}
-                                        onGenerate={handleReportCardGenerate}
-                                        onPreview={handleReportCardPreview}
-                                        onSchedule={handleReportCardSchedule}
-                                        loading={generatingTemplateId === tpl.id && (boardPackBusy || dossierBusy)}
-                                    />
-                                ))}
+                            <div className="mt-4 grid grid-cols-1 items-start gap-6 xl:grid-cols-[1fr_360px]">
+                                <div>
+                                    <ReportsQuickFilters value={audienceFilter} onChange={setAudienceFilter} />
+                                    <div className="mt-4 grid grid-cols-1 gap-5 md:grid-cols-2 2xl:grid-cols-3">
+                                    {filteredTemplates.map((tpl) => (
+                                        <ReportTemplateCard
+                                            key={tpl.id}
+                                            template={tpl}
+                                            onGenerate={handleReportCardGenerate}
+                                            onPreview={handleReportCardPreview}
+                                            onSchedule={handleReportCardSchedule}
+                                            onFormatSelect={handleCardFormatSelect}
+                                            isFavorite={favorites.has(tpl.id)}
+                                            onToggleFavorite={() => toggleFavorite(tpl.id)}
+                                            loading={generatingTemplateId === tpl.id && (boardPackBusy || dossierBusy)}
+                                        />
+                                    ))}
+                                    </div>
+                                </div>
+                                <aside className="hidden xl:block">
+                                    <div className="sticky top-24 xl:top-28">
+                                        <ReportPreviewPanel
+                                            variant="embedded"
+                                            templateTitle={selectedTemplateTitle}
+                                            sections={previewStats.sections}
+                                            pageEst={previewStats.pageEst}
+                                            projectsIncluded={Number(previewStats.projectsIncluded)}
+                                            decisionsCount={previewStats.decisionsCount}
+                                            alertsCount={previewStats.alertsCount}
+                                            talents={previewStats.talents}
+                                            healthLabel={healthLabel}
+                                            volumeBars={volumeBars}
+                                            aiBullets={aiBullets}
+                                            includeCharts={includeCharts}
+                                            includeAi={includeAi}
+                                            dataReady={previewDataReady}
+                                            generating={boardPackBusy || dossierBusy}
+                                            generateDisabled={!enterpriseId}
+                                            onGenerate={() => {
+                                                const tpl = enrichedTemplates.find((t) => t.id === selectedTemplate);
+                                                if (tpl) handleReportCardGenerate(tpl);
+                                            }}
+                                        />
+                                    </div>
+                                </aside>
                             </div>
+                            <ReportPreviewPanel
+                                variant="mobileBar"
+                                templateTitle={selectedTemplateTitle}
+                                sections={previewStats.sections}
+                                pageEst={previewStats.pageEst}
+                                projectsIncluded={Number(previewStats.projectsIncluded)}
+                                decisionsCount={previewStats.decisionsCount}
+                                alertsCount={previewStats.alertsCount}
+                                talents={previewStats.talents}
+                                healthLabel={healthLabel}
+                                volumeBars={volumeBars}
+                                aiBullets={aiBullets}
+                                includeCharts={includeCharts}
+                                includeAi={includeAi}
+                                dataReady={previewDataReady}
+                                generating={boardPackBusy || dossierBusy}
+                                generateDisabled={!enterpriseId}
+                                onGenerate={() => {
+                                    const tpl = enrichedTemplates.find((t) => t.id === selectedTemplate);
+                                    if (tpl) handleReportCardGenerate(tpl);
+                                }}
+                                mobileOpen={mobilePreviewOpen}
+                                onMobileOpenChange={setMobilePreviewOpen}
+                            />
                         </section>
 
-                        {/* Params + Preview */}
-                        <div className="grid gap-6 lg:grid-cols-12">
-                            <section className="rounded-2xl border border-secondary bg-primary p-4 shadow-sm lg:col-span-5 lg:p-5">
+                        <section className="mt-8 space-y-6 print:hidden">
+                        <section className="rounded-2xl border border-secondary bg-primary p-4 shadow-sm lg:p-5">
                                 <h2 className="text-sm font-semibold text-primary">{tr("advancedParamsTitle")}</h2>
                                 <div className="mt-4 grid gap-3 text-sm">
                                     <label className="grid gap-1">
@@ -1259,10 +1544,8 @@ export default function ReportsPage() {
                                 </div>
                             </section>
 
-                            <section
-                                id="executive-report-preview"
-                                className="rounded-2xl border border-secondary bg-primary p-4 shadow-sm ring-1 ring-secondary/30 lg:col-span-7 lg:p-5"
-                            >
+                            {/* legacy preview removed */}
+                            <section className="hidden" aria-hidden id="executive-report-preview-legacy-deleted">
                                 <h2 className="text-sm font-semibold text-primary">{tr("previewReportTitle")}</h2>
                                 <div className="mt-4 overflow-hidden rounded-xl border border-dashed border-secondary bg-gradient-to-br from-primary to-brand-primary_alt/10 p-4">
                                     <div className="rounded-lg border border-secondary bg-primary px-4 py-6 shadow-inner">
@@ -1336,9 +1619,7 @@ export default function ReportsPage() {
                                         ) : null}
                                     </div>
                                 </div>
-                                <p className="mt-3 text-[11px] text-tertiary">{tr("previewFootnote")}</p>
                             </section>
-                        </div>
 
                         {/* Project dossier PDF */}
                         <section className="rounded-2xl border border-secondary bg-primary p-4 shadow-sm lg:p-5">
@@ -1381,6 +1662,7 @@ export default function ReportsPage() {
                                 <p className="mt-2 text-xs text-amber-800 dark:text-amber-200">{tr("enterpriseIdRequiredPdf")}</p>
                             ) : null}
                         </section>
+                        </section>
                     </div>
                 ) : null}
 
@@ -1414,13 +1696,22 @@ export default function ReportsPage() {
                                 </div>
                             </div>
                         ) : (
-                            <ReportsHistoryTable
-                                reports={mappedServerReports}
-                                loading={Boolean(enterpriseId && reportsN8n.historyQuery.isLoading)}
+                            <ReportsHistoryTimeline
+                                reports={historyDisplay}
+                                allReports={historyAll}
+                                loading={Boolean(
+                                    enterpriseId &&
+                                        (reportsN8n.historyQuery.isLoading || reportsN8n.historyQuery.isFetching),
+                                )}
+                                sparkline={historySparkline}
+                                weeklyCount={weeklyReportCount}
                                 onDownload={onHistoryItemDownload}
-                                onResend={onHistoryItemResend}
+                                onPreview={onHistoryPreview}
+                                onShare={onHistoryItemResend}
                                 onRegenerate={onHistoryItemRegenerate}
-                                pageSize={20}
+                                onDelete={onHistoryItemDelete}
+                                deletingReportId={deletingReportId}
+                                onGenerateFirst={() => setReportsTab("generation")}
                             />
                         )}
 
@@ -1440,25 +1731,53 @@ export default function ReportsPage() {
                         role="tabpanel"
                         aria-labelledby="reports-tab-trigger-automation"
                     >
-                        <header>
-                            <h2 className="text-lg font-bold tracking-tight text-primary">{tr("automationTitle")}</h2>
-                            <p className="mt-1 max-w-2xl text-sm text-secondary">{tr("automationIntro")}</p>
+                        <header className="mb-2">
+                            <h2 className="text-lg font-bold tracking-tight text-slate-900 dark:text-slate-50">{tr("automationTitle")}</h2>
+                            <p className="mt-1 max-w-2xl text-sm text-slate-500">{tr("automationIntro")}</p>
                         </header>
 
-                        {enterpriseId &&
-                        reportsWithPdfForEmail.length === 0 &&
-                        !reportsN8n.historyQuery.isLoading &&
-                        !reportsN8n.historyQuery.isFetching ? (
-                            <div className="rounded-2xl border border-dashed border-brand-secondary/30 bg-brand-primary/5 px-5 py-4 text-sm text-secondary">
-                                <p className="font-medium text-primary">{tr("automationEmpty1")}</p>
-                                <p className="mt-2 text-xs text-tertiary">{tr("automationEmpty2")}</p>
-                            </div>
-                        ) : null}
-
-                        <section className="rounded-2xl border border-secondary bg-primary p-4 shadow-sm lg:p-5">
-                            <h2 className="text-sm font-semibold text-primary">{tr("emailSectionTitle")}</h2>
-                            <p className="mt-1 text-xs text-tertiary">{tr("emailSectionDesc")}</p>
-                            <div className="mt-4 grid gap-3 md:grid-cols-2">
+                        <ReportsAutomationSection
+                            automations={automations}
+                            activeCount={automations.filter((a) => a.active).length}
+                            sentThisMonth={automationKpis.sentThisMonth}
+                            successRate={automationKpis.successRate}
+                            lastSentLabel={automationKpis.lastSentLabel}
+                            onNewAutomation={() => {
+                                setEditingAutomation(null);
+                                setAutomationDrawerOpen(true);
+                            }}
+                            onToggle={(id, active) =>
+                                setAutomations((prev) => {
+                                    const next = prev.map((a) => (a.id === id ? { ...a, active } : a));
+                                    saveAutomations(next);
+                                    return next;
+                                })
+                            }
+                            onEdit={(a) => {
+                                setEditingAutomation(a);
+                                setAutomationDrawerOpen(true);
+                            }}
+                            onDelete={(id) =>
+                                setAutomations((prev) => {
+                                    const next = prev.filter((a) => a.id !== id);
+                                    saveAutomations(next);
+                                    return next;
+                                })
+                            }
+                            emptyPdfHint={
+                                enterpriseId &&
+                                reportsWithPdfForEmail.length === 0 &&
+                                !reportsN8n.historyQuery.isLoading &&
+                                !reportsN8n.historyQuery.isFetching ? (
+                                    <div className="rounded-3xl border border-dashed border-indigo-200/60 bg-indigo-50/30 px-5 py-4 text-sm text-slate-600 dark:border-indigo-900/40 dark:bg-indigo-950/20">
+                                        <p className="font-medium text-slate-900 dark:text-slate-100">{tr("automationEmpty1")}</p>
+                                        <p className="mt-2 text-xs text-slate-500">{tr("automationEmpty2")}</p>
+                                    </div>
+                                ) : null
+                            }
+                            emailSection={
+                            <>
+                            <div className="grid gap-3 md:grid-cols-2">
                                 <label className="grid gap-1 text-sm">
                                     <span className="text-xs font-medium text-tertiary">{tr("emailGeneratedReport")}</span>
                                     <select
@@ -1471,8 +1790,8 @@ export default function ReportsPage() {
                                             {reportsWithPdfForEmail.length ? tr("emailPickPlaceholder") : tr("emailNoPdfOption")}
                                         </option>
                                         {reportsWithPdfForEmail.map((r) => (
-                                            <option key={r.report_id} value={r.report_id}>
-                                                {formatReportSelectLabel(r, i18n.language)}
+                                            <option key={r.reportId} value={r.reportId}>
+                                                {formatReportSelectLabelFromItem(r, i18n.language)}
                                             </option>
                                         ))}
                                     </select>
@@ -1515,86 +1834,24 @@ export default function ReportsPage() {
                                     reportsN8n.sendEmailMutation.isPending
                                 }
                                 onClick={onSendReportEmail}
-                                className="mt-4 rounded-xl border border-brand-solid bg-brand-solid px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-brand-solid_hover disabled:cursor-not-allowed disabled:opacity-50"
+                                className="mt-4 rounded-xl bg-gradient-to-r from-indigo-600 to-violet-600 px-4 py-2.5 text-sm font-semibold text-white shadow-md transition hover:opacity-95 disabled:cursor-not-allowed disabled:opacity-50"
                             >
                                 {reportsN8n.sendEmailMutation.isPending ? tr("sendPending") : tr("sendButton")}
                             </button>
-                        </section>
+                            </>
+                            }
+                        />
 
-                        <section className="rounded-2xl border border-secondary bg-primary p-4 shadow-sm lg:p-5">
-                            <h2 className="text-sm font-semibold text-primary">{tr("scheduleTitle")}</h2>
-                            <p className="mt-1 text-xs text-tertiary">{tr("scheduleSubtitle")}</p>
-                            <div className="mt-4 grid gap-3 md:grid-cols-2">
-                                <label className="grid gap-1 text-sm">
-                                    <span className="text-xs font-medium text-tertiary">{tr("scheduleTypeLabel")}</span>
-                                    <select
-                                        value={scheduleType}
-                                        onChange={(e) => setScheduleType(e.target.value as "board_pack" | "project_dossier")}
-                                        className="rounded-lg border border-secondary bg-primary px-3 py-2"
-                                    >
-                                        <option value="board_pack">{tr("scheduleBoardPack")}</option>
-                                        <option value="project_dossier">{tr("scheduleProjectDossier")}</option>
-                                    </select>
-                                </label>
-                                <label className="grid gap-1 text-sm">
-                                    <span className="text-xs font-medium text-tertiary">{tr("scheduleFreqLabel")}</span>
-                                    <select
-                                        value={scheduleFreq}
-                                        onChange={(e) => setScheduleFreq(e.target.value as "weekly" | "monthly")}
-                                        className="rounded-lg border border-secondary bg-primary px-3 py-2"
-                                    >
-                                        <option value="weekly">{tr("scheduleWeekly")}</option>
-                                        <option value="monthly">{tr("scheduleMonthly")}</option>
-                                    </select>
-                                </label>
-                                <label className="grid gap-1 text-sm md:col-span-2">
-                                    <span className="text-xs font-medium text-tertiary">{tr("scheduleRecipientsLabel")}</span>
-                                    <input
-                                        type="text"
-                                        value={scheduleRecipients}
-                                        onChange={(e) => setScheduleRecipients(e.target.value)}
-                                        placeholder={tr("scheduleRecipientsPh")}
-                                        className="rounded-lg border border-secondary bg-primary px-3 py-2"
-                                    />
-                                </label>
-                                <label className="grid gap-1 text-sm">
-                                    <span className="text-xs font-medium text-tertiary">{tr("scheduleLangLabel")}</span>
-                                    <select
-                                        value={scheduleLang}
-                                        onChange={(e) => setScheduleLang(e.target.value)}
-                                        className="rounded-lg border border-secondary bg-primary px-3 py-2"
-                                    >
-                                        <option value="fr">fr</option>
-                                        <option value="en">en</option>
-                                    </select>
-                                </label>
-                                {scheduleType === "project_dossier" ? (
-                                    <label className="grid gap-1 text-sm">
-                                        <span className="text-xs font-medium text-tertiary">{tr("projectSelectLabel")}</span>
-                                        <select
-                                            value={scheduleProjectId}
-                                            onChange={(e) => setScheduleProjectId(e.target.value)}
-                                            className="rounded-lg border border-secondary bg-primary px-3 py-2"
-                                        >
-                                            <option value="all">{tr("selectProjectPlaceholder")}</option>
-                                            {projects.map((p) => (
-                                                <option key={p.id} value={p.id}>
-                                                    {p.name}
-                                                </option>
-                                            ))}
-                                        </select>
-                                    </label>
-                                ) : null}
-                            </div>
-                            <button
-                                type="button"
-                                disabled={!enterpriseId || reportsN8n.scheduleMutation.isPending}
-                                onClick={onScheduleReport}
-                                className="mt-4 rounded-xl border border-secondary bg-primary_alt px-4 py-2.5 text-sm font-semibold text-secondary hover:bg-secondary_subtle disabled:opacity-50"
-                            >
-                                {reportsN8n.scheduleMutation.isPending ? tr("scheduleSaving") : tr("scheduleSave")}
-                            </button>
-                        </section>
+                        <ReportsAutomationDrawer
+                            open={automationDrawerOpen}
+                            editing={editingAutomation}
+                            onClose={() => {
+                                setAutomationDrawerOpen(false);
+                                setEditingAutomation(null);
+                            }}
+                            onSave={onAutomationDrawerSave}
+                            saving={reportsN8n.scheduleMutation.isPending}
+                        />
                     </div>
                 ) : null}
 

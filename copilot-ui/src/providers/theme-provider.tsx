@@ -48,6 +48,7 @@ export const ThemeProvider = ({ children, defaultTheme = "system", darkModeClass
 
     useEffect(() => {
         const root = window.document.documentElement;
+        root.classList.add("theme-transition");
 
         if (theme === "system") {
             root.classList.toggle(darkModeClass, prefersDark);

@@ -1,9 +1,10 @@
-import { motion } from "motion/react";
 import { ClipboardList } from "lucide-react";
-import type { PostRhActionBody, RhActionRequestType } from "@/api/rh-actions.api";
+import type { RhActionRequestType } from "@/api/rh-actions.api";
+import type { RhActionPriority } from "@/types/manager-rh-actions.types";
 import { Button } from "@/components/base/buttons/button";
 import { NativeSelect } from "@/components/base/select/select-native";
 import { Dialog, Modal, ModalOverlay } from "@/components/application/modals/modal";
+import { RH_PRIMARY_CTA_CLASSES } from "@/components/rh-requests/rh-requests-styles";
 import { cx } from "@/utils/cx";
 
 type CreateRHRequestModalProps = {
@@ -11,32 +12,32 @@ type CreateRHRequestModalProps = {
     onOpenChange: (open: boolean) => void;
     type: RhActionRequestType | "";
     projectId: string;
-    priority: NonNullable<PostRhActionBody["priority"]> | "";
-    requestTitle: string;
-    description: string;
+    assignedTo: string;
+    priority: RhActionPriority | "";
+    message: string;
     onType: (v: RhActionRequestType | "") => void;
     onProjectId: (v: string) => void;
-    onPriority: (v: NonNullable<PostRhActionBody["priority"]> | "") => void;
-    onRequestTitle: (v: string) => void;
-    onDescription: (v: string) => void;
+    onAssignedTo: (v: string) => void;
+    onPriority: (v: RhActionPriority | "") => void;
+    onMessage: (v: string) => void;
     onSubmit: () => void;
     isSubmitting: boolean;
     projectOptions: { id: string; label: string }[];
     typeOptions: { value: RhActionRequestType; label: string }[];
-    priorityOptions: { value: NonNullable<PostRhActionBody["priority"]>; label: string }[];
+    priorityOptions: { value: RhActionPriority; label: string }[];
     labels: {
         modalTitle: string;
         modalSubtitle: string;
         fieldType: string;
         fieldProjectOptional: string;
+        fieldAssignedOptional: string;
         fieldPriority: string;
-        fieldRequestTitle: string;
-        fieldDescription: string;
+        fieldMessage: string;
         pickTypePlaceholder: string;
         pickPriorityPlaceholder: string;
         noProjectOption: string;
-        placeholderDescription: string;
-        placeholderRequestTitle: string;
+        placeholderMessage: string;
+        placeholderAssignedTo: string;
         cancel: string;
         send: string;
     };
@@ -59,14 +60,14 @@ export function CreateRHRequestModal({
     onOpenChange,
     type,
     projectId,
+    assignedTo,
     priority,
-    requestTitle,
-    description,
+    message,
     onType,
     onProjectId,
+    onAssignedTo,
     onPriority,
-    onRequestTitle,
-    onDescription,
+    onMessage,
     onSubmit,
     isSubmitting,
     projectOptions,
@@ -111,10 +112,22 @@ export function CreateRHRequestModal({
                                     ...projectOptions.map((x) => ({ label: x.label, value: x.id })),
                                 ]}
                             />
+                            <label className="block">
+                                <span className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">
+                                    {labels.fieldAssignedOptional}
+                                </span>
+                                <input
+                                    type="text"
+                                    value={assignedTo}
+                                    onChange={(e) => onAssignedTo(e.target.value)}
+                                    placeholder={labels.placeholderAssignedTo}
+                                    className={inputClass}
+                                />
+                            </label>
                             <NativeSelect
                                 label={labels.fieldPriority}
                                 value={priority}
-                                onChange={(e) => onPriority(e.target.value as NonNullable<PostRhActionBody["priority"]> | "")}
+                                onChange={(e) => onPriority(e.target.value as RhActionPriority | "")}
                                 selectClassName="rounded-xl border-slate-200 dark:border-slate-700"
                                 options={[
                                     { label: labels.pickPriorityPlaceholder, value: "" },
@@ -122,34 +135,29 @@ export function CreateRHRequestModal({
                                 ]}
                             />
                             <label className="block">
-                                <span className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">{labels.fieldRequestTitle}</span>
-                                <input
-                                    type="text"
-                                    value={requestTitle}
-                                    onChange={(e) => onRequestTitle(e.target.value)}
-                                    placeholder={labels.placeholderRequestTitle}
-                                    className={inputClass}
-                                />
-                            </label>
-                            <label className="block">
-                                <span className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">{labels.fieldDescription}</span>
+                                <span className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">{labels.fieldMessage}</span>
                                 <textarea
                                     className={textareaClass}
-                                    value={description}
-                                    onChange={(e) => onDescription(e.target.value)}
-                                    placeholder={labels.placeholderDescription}
+                                    value={message}
+                                    onChange={(e) => onMessage(e.target.value)}
+                                    placeholder={labels.placeholderMessage}
+                                    maxLength={5000}
                                 />
+                                <span className="mt-1 block text-right text-xs text-slate-500">{message.length}/5000</span>
                             </label>
                         </div>
                         <div className="flex flex-wrap justify-end gap-2 border-t border-slate-100 bg-slate-50/80 px-6 py-4 dark:border-slate-800 dark:bg-slate-950/40 sm:px-8">
                             <Button color="secondary" size="md" onClick={() => onOpenChange(false)}>
                                 {labels.cancel}
                             </Button>
-                            <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} className="inline-flex">
-                                <Button color="primary" size="md" isLoading={isSubmitting} onClick={onSubmit}>
-                                    {labels.send}
-                                </Button>
-                            </motion.div>
+                            <button
+                                type="button"
+                                className={cx(RH_PRIMARY_CTA_CLASSES, isSubmitting && "pointer-events-none opacity-70")}
+                                disabled={isSubmitting}
+                                onClick={onSubmit}
+                            >
+                                {labels.send}
+                            </button>
                         </div>
                     </div>
                 </Dialog>

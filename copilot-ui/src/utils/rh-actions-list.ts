@@ -6,6 +6,7 @@ function extractItemsArray(raw: unknown): unknown[] {
     if (Array.isArray(raw)) return raw;
 
     const r = asRecord(raw);
+    if (Array.isArray(r.items)) return r.items;
     let items: unknown = r.items ?? r.actions ?? r.rows ?? r.records ?? r.results;
     if (Array.isArray(items)) return items;
 

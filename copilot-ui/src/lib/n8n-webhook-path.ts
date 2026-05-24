@@ -1,0 +1,50 @@
+import { getHttpClientBaseUrl } from "./build-n8n-url";
+
+/** GET|PATCH WF_Manager_Conversations */
+export const MANAGER_CONVERSATIONS_PATH = "/manager/conversations";
+
+/** POST WF_Helper_Chat */
+export const HELPER_CHAT_PATH = "/api/helper/chat";
+
+/**
+ * Chemin HTTP pour les appels n8n.
+ * - Local (proxy Vite) : `/manager/...`, `/api/helper/chat` — jamais `/webhook/...` dans le navigateur.
+ * - Production (hôte n8n direct) : préfixe `/webhook` ajouté automatiquement.
+ */
+export function webhookPath(path: string): string {
+    const clean = path.startsWith("/") ? path : `/${path}`;
+
+    const baseUrl = (import.meta.env.VITE_N8N_BASE_URL as string | undefined)?.trim() ?? "";
+    const httpClientBase = getHttpClientBaseUrl();
+
+    const isLocalProxy =
+        !httpClientBase ||
+        !baseUrl ||
+        baseUrl.includes("localhost") ||
+        baseUrl.includes("192.168.") ||
+        httpClientBase.includes("localhost") ||
+        httpClientBase.includes("192.168.");
+
+    if (isLocalProxy) {
+        return clean;
+    }
+
+    if (clean.startsWith("/webhook/")) {
+        return clean;
+    }
+
+    return `/webhook${clean}`;
+}
+
+/** @deprecated Utiliser `webhookPath`. */
+export const n8nWebhookPath = webhookPath;
+
+export function managerConversationDetailPath(conversationId: string): string {
+    const id = encodeURIComponent(conversationId.trim());
+    return webhookPath(`${MANAGER_CONVERSATIONS_PATH}/${id}`);
+}
+
+export function managerConversationArchivePath(conversationId: string): string {
+    const id = encodeURIComponent(conversationId.trim());
+    return webhookPath(`${MANAGER_CONVERSATIONS_PATH}/${id}/archive`);
+}

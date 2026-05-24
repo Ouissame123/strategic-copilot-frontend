@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { fetchRhAnalytics, fetchRhNotifications } from "@/api/rh-dashboard.api";
 import {
     fetchRhCriticalGaps,
     fetchRhDashboardSummary,
@@ -8,6 +9,28 @@ import {
     postRhReallocationValidate,
 } from "@/api/rh-workspace.api";
 import { queryKeys } from "@/lib/query-keys";
+
+const RH_NOTIF_LIMIT = 50;
+
+export function useRhAnalyticsQuery(enterpriseId: string | null | undefined) {
+    const eid = enterpriseId?.trim() ?? "";
+    return useQuery({
+        queryKey: queryKeys.rh.analytics(eid),
+        queryFn: ({ signal }) => fetchRhAnalytics(eid, { signal }),
+        enabled: Boolean(eid),
+        staleTime: 60_000,
+    });
+}
+
+export function useRhNotificationsQuery(enterpriseId: string | null | undefined, limit = RH_NOTIF_LIMIT) {
+    const eid = enterpriseId?.trim() ?? "";
+    return useQuery({
+        queryKey: queryKeys.rh.notifications(eid, limit),
+        queryFn: ({ signal }) => fetchRhNotifications({ limit }, { signal, softFail: true }),
+        enabled: Boolean(eid),
+        staleTime: 30_000,
+    });
+}
 
 export function useRhDashboardQuery() {
     return useQuery({

@@ -17,9 +17,6 @@ import {
 } from "@/components/routing/workspace-redirects";
 import { NotFound } from "@/pages/not-found";
 import { ProjectDetailsPage } from "@/pages/project-details-page";
-import { DecisionLogPage } from "@/pages/decision-log-page";
-import { ProjectsPage } from "@/pages/projects-page";
-import ProfilePage from "@/pages/profile-page";
 import LoginPage from "@/pages/login-page";
 import ForgotPasswordPage from "@/pages/forgot-password-page";
 import PendingApprovalPage from "@/pages/pending-approval-page";
@@ -32,16 +29,18 @@ import { AuthRouteSync } from "@/components/auth/auth-route-sync";
 import { CopilotPanel } from "@/components/copilot/copilot-panel";
 import { CopilotProvider } from "@/providers/copilot-provider";
 import { WhatIfProvider } from "@/providers/what-if-provider";
-import RhAccountsWorkspacePage from "@/pages/workspace/rh-accounts-workspace-page";
-import RhReportsWorkspacePage from "@/pages/workspace/rh-reports-workspace-page";
-import RhSessionsWorkspacePage from "@/pages/workspace/rh-sessions-workspace-page";
-import RhDashboardPage from "@/pages/workspace/rh/rh-dashboard-page";
-import RhEmployeesPage from "@/pages/workspace/rh/rh-employees-page";
-import RhSkillsCatalogPage from "@/pages/workspace/rh/rh-skills-catalog-page";
-import RhCriticalGapsPage from "@/pages/workspace/rh/rh-critical-gaps-page";
-import RhTrainingPlansPage from "@/pages/workspace/rh/rh-training-plans-page";
-import RhMobilityPage from "@/pages/workspace/rh/rh-mobility-page";
-import RhOrgAlertsPage from "@/pages/workspace/rh/rh-org-alerts-page";
+import {
+    RhAccountsPage,
+    RhCriticalGapsPage,
+    RhDashboardPage,
+    RhEmployeesPage,
+    RhMobilityPage,
+    RhOrgAlertsPage,
+    RhProfilePage,
+    RhSkillsCatalogPage,
+    RhTrainingPlansPage,
+    RhWorkforceArbitrationPage,
+} from "@/pages/workspace/rh";
 import DashboardPage from "@/pages/manager/DashboardPage";
 import ProjectsPageManager from "@/pages/manager/ProjectsPage";
 import TeamPage from "@/pages/manager/TeamPage";
@@ -127,16 +126,17 @@ createRoot(document.getElementById("root")!).render(
                                         <Route path="critical-gaps" element={<RhCriticalGapsPage />} />
                                         <Route path="training-plans" element={<RhTrainingPlansPage />} />
                                         <Route path="mobility" element={<RhMobilityPage />} />
+                                        <Route path="workforce-arbitration" element={<RhWorkforceArbitrationPage />} />
                                         <Route path="org-alerts" element={<RhOrgAlertsPage />} />
-                                        <Route path="projects" element={<ProjectsPage />} />
-                                        <Route path="projects/:projectId" element={<ProjectDetailsPage />} />
-                                        <Route path="decision-log" element={<DecisionLogPage />} />
-                                        <Route path="profile" element={<ProfilePage />} />
+                                        <Route path="profile" element={<RhProfilePage />} />
+                                        <Route path="accounts" element={<RhAccountsPage />} />
                                         <Route path="talent/*" element={<Navigate to="/workspace/rh/employees" replace />} />
-                                        <Route path="accounts" element={<RhAccountsWorkspacePage />} />
-                                        <Route path="sessions" element={<RhSessionsWorkspacePage />} />
-                                        <Route path="reports" element={<RhReportsWorkspacePage />} />
                                         <Route path="actions/*" element={<Navigate to="/workspace/rh/manager-requests" replace />} />
+                                        <Route path="sessions" element={<Navigate to="/workspace/rh/dashboard" replace />} />
+                                        <Route path="reports" element={<Navigate to="/workspace/rh/dashboard" replace />} />
+                                        <Route path="projects" element={<Navigate to="/workspace/rh/dashboard" replace />} />
+                                        <Route path="projects/*" element={<Navigate to="/workspace/rh/dashboard" replace />} />
+                                        <Route path="decision-log" element={<Navigate to="/workspace/rh/dashboard" replace />} />
                                     </Route>
 
                                     <Route

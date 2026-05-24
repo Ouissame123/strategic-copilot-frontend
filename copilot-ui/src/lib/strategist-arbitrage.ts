@@ -6,7 +6,18 @@ import {
     readUserFacingApiErrorMessage,
 } from "@/lib/user-facing-api-error";
 import { invalidateManagerRiskQueries } from "@/hooks/use-manager-risk-data";
-import type { AlertItem, ArbitrageOption, ArbitrageOptionType, ProjectDetailResponse, ProjectKpiFull, ProjectListItem, ViabilityScore } from "@/types/api.types";
+import type {
+    AlertItem,
+    ArbitrageOption,
+    ArbitrageOptionType,
+    ExecuteResponse,
+    ProjectDetailResponse,
+    ProjectKpiFull,
+    ProjectListItem,
+    StrategistExecuteActionTaken,
+    ViabilityScore,
+} from "@/types/api.types";
+import type { ToastVariant } from "@/providers/toast-provider";
 import { readLatestKpiDelayDays, readLatestKpiHealthScore, readLatestViabilityScore } from "@/utils/format";
 
 export function resolveArbitrageOptionType(opt: ArbitrageOption): ArbitrageOptionType {
@@ -44,8 +55,9 @@ export function dedupeArbitrageOptions(options: ArbitrageOption[]): ArbitrageOpt
     return TYPE_ORDER.map((t) => byType.get(t)).filter((o): o is ArbitrageOption => o != null);
 }
 
-export async function invalidateAfterStrategistArbitrage(qc: QueryClient): Promise<void> {
-    await Promise.all([
+export async function invalidateAfterStrategistArbitrage(qc: QueryClient, projectId?: string | null): Promise<void> {
+    const pid = projectId?.trim();
+    const tasks: Promise<unknown>[] = [
         qc.invalidateQueries({ queryKey: ["project-detail"] }),
         qc.invalidateQueries({ queryKey: ["projects"] }),
         qc.invalidateQueries({ queryKey: queryKeys.projects.all }),
@@ -54,7 +66,137 @@ export async function invalidateAfterStrategistArbitrage(qc: QueryClient): Promi
         qc.invalidateQueries({ queryKey: ["dashboard"] }),
         qc.invalidateQueries({ queryKey: ["notifications"] }),
         invalidateManagerRiskQueries(qc),
-    ]);
+    ];
+    if (pid) {
+        tasks.push(
+            qc.invalidateQueries({ queryKey: queryKeys.projectDetail(pid) }),
+            qc.invalidateQueries({ queryKey: queryKeys.manager.projectDetail(pid) }),
+            qc.invalidateQueries({ queryKey: queryKeys.projects.detail(pid) }),
+            qc.refetchQueries({ queryKey: queryKeys.projectDetail(pid) }),
+        );
+    }
+    await Promise.all(tasks);
+}
+
+function normalizeProjectStatusKey(raw: string | null | undefined): string {
+    return String(raw ?? "")
+        .trim()
+        .toLowerCase()
+        .replace(/\s+/g, "_");
+}
+
+export function isProjectOnHold(status: string | null | undefined): boolean {
+    const key = normalizeProjectStatusKey(status);
+    return key === "on_hold" || key === "onhold";
+}
+
+export function resolveCopilotDisplayDecision(
+    projectStatus: string | null | undefined,
+    latestDecision: string | null | undefined,
+    labels: { onHold: string },
+): string {
+    if (isProjectOnHold(projectStatus)) return labels.onHold;
+    const decision = latestDecision?.trim();
+    return decision || "—";
+}
+
+export function resolveCopilotDisplayInsight(
+    projectStatus: string | null | undefined,
+    explanation: string | null | undefined,
+    onHoldInsight: string,
+): string {
+    if (isProjectOnHold(projectStatus)) return onHoldInsight;
+    return explanation?.trim() ?? "";
+}
+
+export function formatMissionProjectStatusLabel(
+    status: string | null | undefined,
+    labels: {
+        planned: string;
+        active: string;
+        onHold: string;
+        completed: string;
+        cancelled: string;
+    },
+): string {
+    const key = normalizeProjectStatusKey(status);
+    if (key === "planned") return labels.planned;
+    if (key === "active") return labels.active;
+    if (key === "on_hold" || key === "onhold") return labels.onHold;
+    if (key === "completed") return labels.completed;
+    if (key === "cancelled") return labels.cancelled;
+    const raw = String(status ?? "").trim();
+    return raw || "—";
+}
+
+function readExecuteActionTaken(raw: unknown): StrategistExecuteActionTaken | undefined {
+    const value = String(raw ?? "").trim();
+    if (value === "scope_reduced" || value === "project_paused" || value === "no_action_possible") {
+        return value;
+    }
+    return undefined;
+}
+
+/** Normalise la réponse POST /strategist/execute (y compris payloads n8n). */
+export function parseStrategistExecuteResponse(data: unknown): ExecuteResponse {
+    if (data == null) return {};
+    const root = Array.isArray(data) ? data[0] : data;
+    if (typeof root !== "object" || root === null) return {};
+    const bag = root as Record<string, unknown>;
+    const nested = bag.json;
+    const payload =
+        typeof nested === "object" && nested !== null && !Array.isArray(nested)
+            ? (nested as Record<string, unknown>)
+            : bag;
+
+    const action_taken = readExecuteActionTaken(payload.action_taken);
+    const user_message = typeof payload.user_message === "string" ? payload.user_message.trim() : undefined;
+
+    return {
+        status: typeof payload.status === "string" ? payload.status : undefined,
+        workflow: typeof payload.workflow === "string" ? payload.workflow : undefined,
+        action_type: typeof payload.action_type === "string" ? payload.action_type : undefined,
+        action_taken,
+        user_message: user_message || undefined,
+        decision_id: typeof payload.decision_id === "string" ? payload.decision_id : undefined,
+        dropped_requirements_count:
+            typeof payload.dropped_requirements_count === "number"
+                ? payload.dropped_requirements_count
+                : undefined,
+        project_paused: Boolean(payload.project_paused),
+        success: payload.success === undefined ? undefined : Boolean(payload.success),
+        meta:
+            typeof payload.meta === "object" && payload.meta !== null
+                ? (payload.meta as ExecuteResponse["meta"])
+                : undefined,
+    };
+}
+
+export type StrategistStopScopeToastLabels = {
+    pausedDescription: string;
+};
+
+const STOP_SCOPE_TOAST_DURATION_MS = 8000;
+
+/** Toast métier après acceptation Stop / Scope (WF_Strategist_Accept). */
+export function pushStrategistStopScopeExecuteToast(
+    push: (message: string, variant?: ToastVariant, durationMs?: number, description?: string) => void,
+    response: ExecuteResponse,
+    fallbackMessage: string,
+    labels: StrategistStopScopeToastLabels,
+): void {
+    const message = response.user_message?.trim() || fallbackMessage;
+    const durationMs = STOP_SCOPE_TOAST_DURATION_MS;
+
+    if (response.action_taken === "project_paused") {
+        push(message, "warning", durationMs, labels.pausedDescription);
+        return;
+    }
+    if (response.action_taken === "scope_reduced") {
+        push(message, "success", durationMs);
+        return;
+    }
+    push(message, "info", durationMs);
 }
 
 export type StrategistFragileSignals = {

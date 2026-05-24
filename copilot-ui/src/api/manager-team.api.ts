@@ -163,7 +163,7 @@ function normalizeTeamResponse(data: unknown): TeamListResponse {
     };
 }
 
-function normalizeTalentDetail(data: unknown): TalentDetailResponse {
+export function normalizeTalentDetail(data: unknown): TalentDetailResponse {
     const root = asRecord(data);
     if (root.__error === true) {
         const status = Number(root.__http) || 500;
@@ -208,7 +208,15 @@ function normalizeTalentDetail(data: unknown): TalentDetailResponse {
         };
     });
 
-    const active_alerts: AlertItem[] = (Array.isArray(root.active_alerts) ? root.active_alerts : []).map((item, index) => {
+    const alertSource = (() => {
+        const fromRoot = root.active_alerts ?? root.alerts ?? root.risk_alerts;
+        if (Array.isArray(fromRoot) && fromRoot.length) return fromRoot;
+        const nested = asRecord(root.data);
+        const fromNested = nested.active_alerts ?? nested.alerts ?? nested.risk_alerts;
+        return Array.isArray(fromNested) ? fromNested : [];
+    })();
+
+    const active_alerts: AlertItem[] = alertSource.map((item, index) => {
         const row = asRecord(item);
         const message = row.message == null ? undefined : String(row.message);
         return {

@@ -33,6 +33,75 @@ interface ImportMetaEnv {
     /** UUID projet : chargement auto du matching sur l’aperçu RH Talent (vue d’ensemble). */
     readonly VITE_RH_TALENT_OVERVIEW_PROJECT_ID?: string;
     /**
+     * Préfixe webhook GET détail talent RH (`wf-rh-talents-detail-v1`).
+     * Ex. test : `/webhook-test/wf-rh-talents-detail-v1` — prod : `/webhook/wf-rh-talents-detail-v1`.
+     */
+    readonly VITE_RH_TALENT_DETAIL_WEBHOOK_PREFIX?: string;
+    /** URL complète avec `{id}` ou `:id` — ex. `https://n8nprod…/webhook/wf-rh-talents-detail-v1/rh/talents/{id}`. */
+    readonly VITE_RH_TALENT_DETAIL_URL?: string;
+    /**
+     * Préfixe webhook DELETE talent — défaut `/webhook/wf-rh-talents-delete-v1/rh/talents`.
+     */
+    readonly VITE_RH_TALENT_DELETE_WEBHOOK_PREFIX?: string;
+    /** URL DELETE complète avec `{id}` (optionnel, remplace le préfixe). */
+    readonly VITE_RH_TALENT_DELETE_URL?: string;
+    /**
+     * Préfixe webhook PATCH talent — défaut `/webhook/wf-rh-talents-update-v1/rh/talents`.
+     */
+    readonly VITE_RH_TALENT_UPDATE_WEBHOOK_PREFIX?: string;
+    /** URL PATCH complète avec `{id}` (optionnel, remplace le préfixe). */
+    readonly VITE_RH_TALENT_UPDATE_URL?: string;
+    /** Base webhook RH Skills GET — ex. `https://n8nprod…/webhook/wf-rh-skills-get-v1`. */
+    readonly VITE_RH_SKILLS_BASE_URL?: string;
+    /** WF_RH_Skills_Management — GET catalogue — ex. `https://n8nprod…/webhook/{webhookId}/rh/skills/catalog`. */
+    readonly VITE_RH_SKILLS_CATALOG_URL?: string;
+    /** Base webhook RH availability — ex. `https://n8nprod…/webhook` (sans slug workflow talents). */
+    readonly VITE_RH_AVAILABILITY_WEBHOOK_BASE?: string;
+    /** GET overview disponibilité RH — ex. `https://n8nprod…/webhook/rh/availability/overview`. */
+    readonly VITE_RH_AVAILABILITY_OVERVIEW_URL?: string;
+    /** GET disponibilité talent — ex. `https://n8nprod…/webhook/rh/talents/{id}/availability`. */
+    readonly VITE_RH_TALENT_AVAILABILITY_URL?: string;
+    /** GET employment talent — WF_RH_Employment (webhookId GET), placeholder `{id}`. */
+    readonly VITE_RH_EMPLOYMENT_GET_URL?: string;
+    /** PUT employment talent — WF_RH_Employment (webhookId PUT), placeholder `{id}`. */
+    readonly VITE_RH_EMPLOYMENT_PUT_URL?: string;
+    /** GET absences talent — placeholder `{id}` = UUID talent. */
+    readonly VITE_RH_ABSENCES_GET_URL?: string;
+    /** POST absence talent — placeholder `{id}` = UUID talent. */
+    readonly VITE_RH_ABSENCES_POST_URL?: string;
+    /** DELETE absence — placeholder `{id}` = UUID absence. */
+    readonly VITE_RH_ABSENCES_DELETE_URL?: string;
+    /** GET absences en cours (global). */
+    readonly VITE_RH_ABSENCES_CURRENT_URL?: string;
+    /**
+     * POST WF_RH_Matching_Run — production `https://n8nprod.aphelionxinnovations.com/webhook/rh/matching`
+     * (dev : `/webhook/rh/matching` via proxy Vite).
+     */
+    readonly VITE_RH_MATCHING_RUN_URL?: string;
+    /**
+     * GET résultats matching — production `…/webhook/rh/matching/results?project_id=`
+     * (ne pas utiliser `/webhook-test/`).
+     */
+    readonly VITE_RH_MATCHING_RESULTS_URL?: string;
+    /** GET liste projets — `…/webhook/rh/matching/projects` (réponse : `{ projects: [...] }`). */
+    readonly VITE_RH_MATCHING_PROJECTS_URL?: string;
+    /** @deprecated Utiliser `VITE_RH_ABSENCES_GET_URL`. */
+    readonly VITE_RH_TALENT_ABSENCES_URL?: string;
+    /** @deprecated Utiliser `VITE_RH_ABSENCES_DELETE_URL`. */
+    readonly VITE_RH_ABSENCE_DELETE_URL?: string;
+    /** POST analyst IPI — ex. `https://n8nprod…/webhook/api/analyst/ipi`. */
+    readonly VITE_RH_ANALYST_IPI_URL?: string;
+    /** POST analyst 9-Box — ex. `https://n8nprod…/webhook/api/analyst/nine-box`. */
+    readonly VITE_RH_ANALYST_NINE_BOX_URL?: string;
+    /** POST analyst IPI manager (body enterprise_id + manager_id). */
+    readonly VITE_MANAGER_ANALYST_IPI_URL?: string;
+    /** POST analyst 9-Box manager (body enterprise_id + manager_id). */
+    readonly VITE_MANAGER_ANALYST_NINE_BOX_URL?: string;
+    /** POST analyst mobilité manager (body enterprise_id + manager_id). */
+    readonly VITE_MANAGER_ANALYST_MOBILITY_URL?: string;
+    /** POST matching talents par projet (body enterprise_id + manager_id). */
+    readonly VITE_MANAGER_PROJECT_TALENTS_URL?: string;
+    /**
      * UUID entreprise pour GET workspace manager overview (`?enterprise_id=`) si absent du profil `/me`.
      * Sans valeur : l’appel overview est fait sans query (le webhook peut inférer le périmètre via le token).
      */
@@ -89,6 +158,8 @@ interface ImportMetaEnv {
      * Par défaut (absent) : chemins relatifs + proxy — requis sauf si n8n expose les bons en-têtes CORS.
      */
     readonly VITE_N8N_DIRECT_IN_DEV?: string;
+    /** Préfixe webhook RH/employment : `/webhook` (prod) ou `/webhook-test` (workflow n8n en test). */
+    readonly VITE_N8N_WEBHOOK_PREFIX?: string;
     /**
      * Dev uniquement : origine n8n pour **axios** (`httpClient`) seulement (ex. `https://host/webhook`).
      * Laisse `getN8nBaseUrl()` vide pour le login en `fetch` relatif + proxy. CORS requis sur `/webhook/*`.
@@ -164,12 +235,21 @@ interface ImportMetaEnv {
     readonly VITE_COPILOT_STAFFING_URL?: string;
     /** URL complète GET espace talent (défaut `/api/copilot/talent`). */
     readonly VITE_COPILOT_TALENT_URL?: string;
-    /** URL liste / création actions RH (défaut `GET|POST /api/rh/actions`). */
+    /** URL liste / création actions RH (défaut `GET|POST /webhook/manager/rh-actions`). */
+    /** GET/POST WF_Manager_RH_Actions — `/webhook/api/rh/actions`. */
     readonly VITE_RH_ACTIONS_URL?: string;
+    /** PATCH WF_Manager_RH_Actions — `/webhook/c8bae94d-…/api/rh/actions/:id`. */
+    readonly VITE_RH_ACTIONS_PATCH_URL?: string;
     /** PATCH action RH — `:id` remplacé par l’identifiant (sinon `{base}/{id}`). */
     readonly VITE_RH_ACTION_PATCH_URL?: string;
-    /** GET synthèse dashboard RH (défaut `/api/rh/dashboard`). */
+    /** GET synthèse dashboard RH (défaut `/webhook/rh/dashboard`). */
     readonly VITE_RH_DASHBOARD_URL?: string;
+    /** GET analytics RH — WF_RH_Analytics (défaut `/webhook/rh/analytics`). */
+    readonly VITE_RH_ANALYTICS_URL?: string;
+    /** GET notifications RH — WF_RH_Notifications (défaut `/webhook/rh/notifications`). */
+    readonly VITE_RH_NOTIFICATIONS_URL?: string;
+    /** Base absolue optionnelle pour `DashboardRH` (ex. `https://…/webhook`). */
+    readonly VITE_RH_DASHBOARD_API_BASE?: string;
     /** GET écarts critiques (défaut `/api/rh/critical-gaps`). */
     readonly VITE_RH_CRITICAL_GAPS_URL?: string;
     /** GET liste plans de formation (défaut `/api/rh/training-plans`). */

@@ -75,11 +75,11 @@ export function CopilotPanel() {
         const el = chatScrollRef.current;
         if (!el) return;
         el.scrollTop = el.scrollHeight;
-    }, [messages, chatLoading]);
+    }, [messages.length, chatLoading]);
 
     useEffect(() => {
         if (mode === "analysis" && !analysisData) setMode("chat");
-    }, [analysisData, mode]);
+    }, [analysisData]);
 
     const contextBadge = pageContext
         ? [scopeLabel(pageContext.scope, t), pageContext.pageLabel].filter(Boolean).join(" · ")

@@ -11,6 +11,8 @@ import {
     Cloud,
 } from "lucide-react";
 import type { ReportTemplate, ReportFormat } from "./types";
+import { FavoriteButton } from "@/components/manager/reports/FavoriteButton";
+import { DISPLAY_FORMATS } from "@/components/manager/reports/reports-shared";
 import { cn, formatRelativeDate, labelFormat } from "./utils";
 
 interface Props {
@@ -20,6 +22,9 @@ interface Props {
     onSchedule?: (template: ReportTemplate) => void;
     loading?: boolean;
     disabled?: boolean;
+    isFavorite?: boolean;
+    onToggleFavorite?: () => void;
+    onFormatSelect?: (format: ReportFormat) => void;
 }
 
 const FORMAT_ICON: Record<ReportFormat, typeof FileText> = {
@@ -30,10 +35,10 @@ const FORMAT_ICON: Record<ReportFormat, typeof FileText> = {
 };
 
 const FORMAT_BADGE_STYLE: Record<ReportFormat, string> = {
-    pdf: "bg-rose-50 text-rose-700 ring-rose-200",
-    csv: "bg-emerald-50 text-emerald-700 ring-emerald-200",
-    excel: "bg-emerald-50 text-emerald-700 ring-emerald-200",
-    print: "bg-slate-100 text-slate-700 ring-slate-200",
+    pdf: "bg-rose-50 text-rose-700 ring-rose-200/80 dark:bg-rose-950/40 dark:text-rose-300 dark:ring-rose-900/50",
+    csv: "bg-emerald-50 text-emerald-700 ring-emerald-200/80 dark:bg-emerald-950/40 dark:text-emerald-300 dark:ring-emerald-900/50",
+    excel: "bg-sky-50 text-sky-700 ring-sky-200/80 dark:bg-sky-950/40 dark:text-sky-300 dark:ring-sky-900/50",
+    print: "bg-slate-100 text-slate-700 ring-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:ring-slate-700",
 };
 
 function ThumbnailPreview({ type }: { type: ReportTemplate["type"] }) {
@@ -161,17 +166,28 @@ export function ReportTemplateCard({
     onSchedule,
     loading = false,
     disabled = false,
+    isFavorite = false,
+    onToggleFavorite,
+    onFormatSelect,
 }: Props) {
     const [menuOpen, setMenuOpen] = useState(false);
     const PrimaryIcon = FORMAT_ICON[template.primaryFormat];
+    const hasGenerated = Boolean(template.lastGeneratedAt);
+    const generationCount = template.generationCount ?? 0;
+    const showMenu = Boolean(onSchedule || onFormatSelect);
 
     return (
-        <article className="group relative flex h-full flex-col rounded-xl border border-slate-200 bg-white shadow-sm transition-all duration-200 hover:border-slate-300 hover:shadow-md">
-            <div className="flex items-start gap-4 p-4 pb-3">
+        <article className="group relative flex h-full flex-col rounded-3xl border border-slate-200/60 bg-white/90 shadow-sm backdrop-blur transition-all duration-200 hover:scale-[1.01] hover:border-indigo-200/60 hover:shadow-lg dark:border-slate-800 dark:bg-slate-900/90">
+            {onToggleFavorite ? (
+                <div className="absolute right-3 top-3 z-10">
+                    <FavoriteButton active={isFavorite} onToggle={onToggleFavorite} />
+                </div>
+            ) : null}
+            <div className="flex items-start gap-4 p-4 pb-3 pr-12">
                 <ThumbnailPreview type={template.type} />
                 <div className="min-w-0 flex-1">
                     <div className="mb-2 flex flex-wrap items-center gap-1.5">
-                        {template.formats.map((f) => (
+                        {DISPLAY_FORMATS.map((f) => (
                             <FormatBadge key={f} format={f} />
                         ))}
                         <span
@@ -193,43 +209,44 @@ export function ReportTemplateCard({
                             )}
                         </span>
                     </div>
-                    <h3 className="font-semibold leading-snug text-slate-900">{template.title}</h3>
+                    <h3 className="font-semibold leading-snug text-slate-900 dark:text-slate-50">{template.title}</h3>
                 </div>
             </div>
 
             <div className="flex-1 px-4 pb-3">
-                <p className="mb-3 text-sm leading-relaxed text-slate-600">{template.description}</p>
-                <p className="text-xs leading-relaxed text-slate-500">
-                    <span className="font-medium text-slate-700">Source : </span>
+                <p className="mb-3 text-sm leading-relaxed text-slate-600 dark:text-slate-400">{template.description}</p>
+                <p className="text-xs leading-relaxed text-slate-500 dark:text-slate-500">
+                    <span className="font-medium text-slate-700 dark:text-slate-300">Source : </span>
                     {template.dataSource}
                 </p>
             </div>
 
-            <div className="flex items-center justify-between border-t border-slate-100 bg-slate-50 px-4 py-2 text-xs text-slate-600">
-                <span>
-                    {template.lastGeneratedAt ? (
-                        <>
-                            Dernière génération :{" "}
-                            <span className="font-medium text-slate-700">{formatRelativeDate(template.lastGeneratedAt)}</span>
-                        </>
-                    ) : (
-                        <span className="text-slate-400">Jamais généré</span>
-                    )}
-                </span>
-                {template.generationCount != null && template.generationCount > 0 ? (
-                    <span className="text-slate-500">{template.generationCount}× ce mois</span>
-                ) : null}
+            <div className="border-t border-slate-100 bg-slate-50/80 px-4 py-2 text-xs text-slate-600 dark:border-slate-800 dark:bg-slate-800/40 dark:text-slate-400">
+                {hasGenerated ? (
+                    <span>
+                        {generationCount > 0 ? (
+                            <>
+                                Généré {generationCount} fois
+                                {" · "}
+                            </>
+                        ) : null}
+                        dernière fois{" "}
+                        <span className="font-medium">{formatRelativeDate(template.lastGeneratedAt!)}</span>
+                    </span>
+                ) : (
+                    <span className="text-slate-500 dark:text-slate-500">Prêt à générer</span>
+                )}
             </div>
 
-            <div className="flex items-center gap-2 border-t border-slate-100 p-3">
+            <div className="flex items-center gap-2 border-t border-slate-100 p-3 dark:border-slate-800">
                 <button
                     type="button"
                     onClick={() => void onGenerate(template)}
                     disabled={loading || disabled}
                     className={cn(
-                        "inline-flex flex-1 items-center justify-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
-                        "bg-slate-900 text-white hover:bg-slate-800",
-                        "disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-400",
+                        "inline-flex flex-1 items-center justify-center gap-2 rounded-xl px-3 py-2.5 text-sm font-semibold transition-all duration-200",
+                        "bg-gradient-to-r from-indigo-600 to-violet-600 text-white shadow-sm hover:opacity-95",
+                        "disabled:cursor-not-allowed disabled:opacity-50",
                     )}
                 >
                     {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <PrimaryIcon className="h-4 w-4" />}
@@ -248,15 +265,15 @@ export function ReportTemplateCard({
                     </button>
                 ) : null}
 
-                {onSchedule ? (
+                {showMenu ? (
                     <div className="relative">
                         <button
                             type="button"
                             onClick={() => setMenuOpen((v) => !v)}
-                            className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 text-slate-600 transition-colors hover:bg-slate-50 hover:text-slate-900"
+                            className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 text-slate-600 transition-colors hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
                             aria-haspopup="menu"
                             aria-expanded={menuOpen}
-                            aria-label="Plus d'actions"
+                            aria-label="Format et actions"
                         >
                             <ChevronDown className="h-4 w-4" />
                         </button>
@@ -270,20 +287,37 @@ export function ReportTemplateCard({
                                 />
                                 <div
                                     role="menu"
-                                    className="absolute bottom-full right-0 z-20 mb-1 w-48 rounded-lg border border-slate-200 bg-white py-1 shadow-lg"
+                                    className="absolute bottom-full right-0 z-20 mb-1 w-52 rounded-xl border border-slate-200 bg-white py-1 shadow-lg dark:border-slate-700 dark:bg-slate-900"
                                 >
-                                    <button
-                                        type="button"
-                                        role="menuitem"
-                                        onClick={() => {
-                                            setMenuOpen(false);
-                                            onSchedule(template);
-                                        }}
-                                        className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-50"
-                                    >
-                                        <Calendar className="h-4 w-4" />
-                                        Programmer ce rapport
-                                    </button>
+                                    {DISPLAY_FORMATS.filter((f) => template.formats.includes(f)).map((f) => (
+                                        <button
+                                            key={f}
+                                            type="button"
+                                            role="menuitem"
+                                            onClick={() => {
+                                                setMenuOpen(false);
+                                                onFormatSelect?.(f);
+                                                void onGenerate(template);
+                                            }}
+                                            className="flex w-full px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-50 dark:text-slate-200 dark:hover:bg-slate-800"
+                                        >
+                                            Générer {labelFormat(f)}
+                                        </button>
+                                    ))}
+                                    {onSchedule ? (
+                                        <button
+                                            type="button"
+                                            role="menuitem"
+                                            onClick={() => {
+                                                setMenuOpen(false);
+                                                onSchedule(template);
+                                            }}
+                                            className="flex w-full items-center gap-2 border-t border-slate-100 px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-50 dark:border-slate-800 dark:text-slate-200 dark:hover:bg-slate-800"
+                                        >
+                                            <Calendar className="h-4 w-4" />
+                                            Programmer
+                                        </button>
+                                    ) : null}
                                 </div>
                             </>
                         ) : null}

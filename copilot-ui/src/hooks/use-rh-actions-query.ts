@@ -1,33 +1,39 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { fetchRhActionsList, patchRhAction, postRhAction, type PostRhActionBody } from "@/api/rh-actions.api";
+import { fetchRhActionsList, patchRhAction, postRhAction } from "@/api/rh-actions.api";
 import { queryKeys } from "@/lib/query-keys";
-import { useAuth } from "@/providers/auth-provider";
+import type { PatchRhActionBody, PostRhActionBody } from "@/types/manager-rh-actions.types";
 import { getApiAuthToken } from "@/utils/apiClient";
+import { mapRhActionsWorkflowError } from "@/utils/rh-actions-workflow";
 
-export function useRhActionsListQuery() {
-    const { user } = useAuth();
+export type RhActionsListFilters = {
+    status?: string;
+    project_id?: string;
+};
+
+export function useRhActionsListQuery(
+    filters: RhActionsListFilters = {},
+    options?: { enabled?: boolean },
+) {
     const token = getApiAuthToken();
+    const enabled = (options?.enabled ?? true) && Boolean(token);
+
     return useQuery({
-        queryKey: [...queryKeys.rh.actions(), user?.id ?? "session"],
-        queryFn: async ({ signal }) => {
-            const raw = await fetchRhActionsList({ limit: 500 }, { signal });
-            return raw;
-        },
-        enabled: Boolean(token),
+        queryKey: [...queryKeys.rh.actions(), filters],
+        queryFn: ({ signal }) => fetchRhActionsList(filters, { signal }),
+        enabled,
+        retry: false,
+        refetchOnWindowFocus: false,
+        staleTime: 60_000,
     });
 }
 
 export function usePatchRhActionMutation() {
     const qc = useQueryClient();
     return useMutation({
-        mutationFn: ({ id, body }: { id: string; body: Record<string, unknown> }) => patchRhAction(id, body),
+        mutationFn: ({ id, body }: { id: string; body: PatchRhActionBody }) => patchRhAction(id, body),
         onSuccess: () => {
             void qc.invalidateQueries({ queryKey: queryKeys.rh.actions() });
-            void qc.invalidateQueries({ queryKey: queryKeys.rh.dashboard() });
-            void qc.invalidateQueries({ queryKey: queryKeys.rh.orgAlerts() });
-            void qc.invalidateQueries({ queryKey: queryKeys.projects.all });
             void qc.invalidateQueries({ queryKey: queryKeys.manager.all });
-            void qc.invalidateQueries({ queryKey: queryKeys.talent.workspace() });
         },
     });
 }
@@ -38,11 +44,9 @@ export function usePostRhActionMutation() {
         mutationFn: (body: PostRhActionBody) => postRhAction(body),
         onSuccess: () => {
             void qc.invalidateQueries({ queryKey: queryKeys.rh.actions() });
-            void qc.invalidateQueries({ queryKey: queryKeys.rh.all, refetchType: "active" });
-            void qc.invalidateQueries({ queryKey: queryKeys.projects.all });
-            void qc.invalidateQueries({ queryKey: queryKeys.portfolio.all });
-            void qc.invalidateQueries({ queryKey: queryKeys.talent.workspace() });
             void qc.invalidateQueries({ queryKey: queryKeys.manager.all });
         },
     });
 }
+
+export { mapRhActionsWorkflowError };

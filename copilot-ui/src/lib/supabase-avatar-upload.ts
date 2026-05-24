@@ -1,88 +1,60 @@
-/**
- * Upload avatar vers Supabase Storage (bucket `avatars`, fichier `{userId}.png`, upsert).
- * Variables d’environnement : `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`.
- */
+import { supabase } from "@/lib/supabaseClient";
 
 const BUCKET = "avatars";
 
-function getSupabaseEnv(): { baseUrl: string; anonKey: string } | null {
-    const baseUrl = String((import.meta.env as Record<string, string | undefined>).VITE_SUPABASE_URL ?? "").trim().replace(/\/$/, "");
-    const anonKey = String((import.meta.env as Record<string, string | undefined>).VITE_SUPABASE_ANON_KEY ?? "").trim();
-    if (!baseUrl || !anonKey) return null;
-    return { baseUrl, anonKey };
-}
-
-/** Indique si l’upload d’avatar vers Supabase Storage peut fonctionner (variables Vite présentes). */
+/** Indique si l’upload d’avatar vers Supabase Storage peut fonctionner. */
 export function isSupabaseAvatarUploadConfigured(): boolean {
-    return getSupabaseEnv() != null;
+    return supabase != null;
 }
 
-function readSupabaseEnv(): { baseUrl: string; anonKey: string } {
-    const v = getSupabaseEnv();
-    if (!v) {
-        throw new Error("Configuration Supabase manquante (VITE_SUPABASE_URL et VITE_SUPABASE_ANON_KEY).");
+function toSafeFileName(fileName: string): string {
+    const safeFileName = fileName
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .replace(/[^a-zA-Z0-9._-]/g, "-")
+        .toLowerCase()
+        .replace(/-+/g, "-")
+        .replace(/^-+|-+$/g, "");
+
+    if (!safeFileName || safeFileName === ".") return "avatar.png";
+    return safeFileName.slice(0, 180);
+}
+
+/** `supabase.storage.from("avatars").getPublicUrl(filePath)` — jamais d’URL construite à la main. */
+export function getAvatarPublicUrl(filePath: string): string {
+    if (!supabase) {
+        throw new Error("Supabase non configuré.");
     }
-    return v;
-}
-
-/** Redimensionne puis exporte en PNG (navigateur). */
-export async function imageFileToPngBlob(file: File, maxEdge = 1200): Promise<Blob> {
-    const bitmap = await createImageBitmap(file);
-    try {
-        const w = bitmap.width;
-        const h = bitmap.height;
-        const scale = Math.min(1, maxEdge / Math.max(w, h));
-        const tw = Math.max(1, Math.round(w * scale));
-        const th = Math.max(1, Math.round(h * scale));
-        const canvas = document.createElement("canvas");
-        canvas.width = tw;
-        canvas.height = th;
-        const ctx = canvas.getContext("2d");
-        if (!ctx) throw new Error("Canvas 2D indisponible.");
-        ctx.drawImage(bitmap, 0, 0, tw, th);
-        const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob((b) => resolve(b), "image/png", 0.92));
-        if (!blob) throw new Error("Export PNG impossible.");
-        return blob;
-    } finally {
-        bitmap.close();
-    }
-}
-
-/** URL publique du fichier (sans query string). */
-export function publicAvatarObjectUrl(userId: string, baseUrl: string): string {
-    const path = `${userId}.png`;
-    return `${baseUrl}/storage/v1/object/public/${BUCKET}/${encodeURIComponent(path)}`;
+    const normalized = filePath.replace(/^\/+/, "");
+    const { data: publicData } = supabase.storage.from(BUCKET).getPublicUrl(normalized);
+    return publicData.publicUrl;
 }
 
 /**
- * Envoie le PNG dans le bucket `avatars` avec le nom `{userId}.png` et `x-upsert: true`.
- * Retourne l’URL publique de base (sans cache buster).
+ * Upload dans le bucket public `avatars` : `{userId}/{timestamp}-{safeFileName}`.
+ * Retourne l’URL publique (`…/storage/v1/object/public/avatars/…`).
  */
-export async function uploadUserAvatarPng(userId: string, pngBlob: Blob): Promise<string> {
-    const { baseUrl, anonKey } = readSupabaseEnv();
-    const path = `${userId}.png`;
-    const uploadUrl = `${baseUrl}/storage/v1/object/${BUCKET}/${encodeURIComponent(path)}`;
-
-    const res = await fetch(uploadUrl, {
-        method: "POST",
-        headers: {
-            Authorization: `Bearer ${anonKey}`,
-            apikey: anonKey,
-            "Content-Type": "image/png",
-            "x-upsert": "true",
-        },
-        body: pngBlob,
-    });
-
-    if (!res.ok) {
-        let detail = "";
-        try {
-            detail = await res.text();
-        } catch {
-            /* ignore */
-        }
-        throw new Error(detail || `Échec upload (${res.status})`);
+export async function uploadAvatarToStorage(userId: string, file: File): Promise<string> {
+    if (!supabase) {
+        throw new Error("Supabase non configuré.");
     }
 
-    return publicAvatarObjectUrl(userId, baseUrl);
+    const safeFileName = toSafeFileName(file.name);
+    const filePath = `${userId}/${Date.now()}-${safeFileName}`;
+
+    console.log("Uploading avatar to:", filePath, file.type, file.size);
+
+    const { error } = await supabase.storage.from(BUCKET).upload(filePath, file, {
+        cacheControl: "3600",
+        upsert: true,
+        contentType: file.type || "image/png",
+    });
+
+    if (error) {
+        console.error("Supabase avatar upload error:", error);
+        throw error;
+    }
+
+    const { data: publicData } = supabase.storage.from(BUCKET).getPublicUrl(filePath);
+    return publicData.publicUrl;
 }

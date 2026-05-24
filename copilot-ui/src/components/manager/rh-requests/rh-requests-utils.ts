@@ -1,4 +1,5 @@
 import type { RhActionRequestType } from "@/api/rh-actions.api";
+import { formatRequestObject, getRequestObjectRaw } from "@/components/rh-requests/rhRequestFormatters";
 
 export type KpiBucket = "pending" | "accepted" | "in_progress" | "done" | "rejected" | "cancelled";
 export type StatusFilter = "all" | KpiBucket;
@@ -7,6 +8,13 @@ export type PriorityFilter = "" | "urgent" | "high" | "normal" | "low";
 export const REQUEST_TYPE_ORDER: RhActionRequestType[] = ["recruitment", "reallocation", "training", "overload", "skill_gap"];
 
 export const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/** Créateur (manager) vs décideur (RH / HR) pour l’affichage des actions UI. */
+export type RhRequestViewerRole = "manager" | "rh";
+
+export function isRhRequestDecider(role: RhRequestViewerRole): boolean {
+    return role === "rh";
+}
 
 export type RhDetailModalGate =
     | "pending"
@@ -173,6 +181,11 @@ export function businessTitle(row: Record<string, unknown>, tr: (k: string) => s
 
 /** Titre lisible basé sur le message (fallback « Demande RH à compléter » si bruit). */
 export function displayTitleFromRow(row: Record<string, unknown>, tr: (k: string) => string): string {
+    const typeKey = String(row.type ?? row.request_type ?? "").trim();
+    const fromObject = formatRequestObject(getRequestObjectRaw(row as Parameters<typeof getRequestObjectRaw>[0]), typeKey, tr);
+    if (fromObject && fromObject !== "Demande RH" && !fromObject.startsWith("[")) {
+        return fromObject;
+    }
     const titleKeys = ["title", "subject", "summary", "request_title", "label", "name"] as const;
     for (const k of titleKeys) {
         const v = row[k as string];

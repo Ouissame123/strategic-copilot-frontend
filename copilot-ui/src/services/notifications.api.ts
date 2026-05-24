@@ -1,5 +1,14 @@
+import {
+    buildRiskAlertPatchPath,
+    MANAGER_RISK_ALERTS_PATH,
+    managerRiskAlertsApi,
+    patchManagerRiskAlert,
+    type ManagerRiskAlertPatchAction,
+} from "@/api/manager-risk-alerts.api";
 import { managerNotificationsApi } from "@/api/manager-notifications.api";
 import { httpClient } from "@/lib/http-client";
+
+export { buildRiskAlertPatchPath, MANAGER_RISK_ALERTS_PATH, type ManagerRiskAlertPatchAction };
 
 export interface Notification {
     id: string;
@@ -14,26 +23,15 @@ export interface Notification {
 
 export interface RiskAlert {
     id: string;
-    project_id: string;
-    project_name: string;
-    risk_type: string;
+    project_id?: string;
+    project_name?: string;
+    risk_type?: string;
     severity: "low" | "medium" | "high" | "critical";
     message: string;
-    risk_score: number;
+    risk_score?: number;
     status: "open" | "resolved" | "ignored";
-    detected_at: string;
-}
-
-export interface RhAction {
-    id: string;
-    project_id: string | null;
-    project_name?: string;
-    type: "skill_gap" | "reallocation" | "training" | "overload" | "recruitment";
-    message: string;
-    priority: "low" | "normal" | "urgent";
-    status: "pending" | "accepted" | "rejected" | "in_progress" | "done" | "cancelled";
-    response_message: string | null;
-    created_at: string;
+    detected_at?: string;
+    risk_alert_id?: string;
 }
 
 export const notificationsApi = {
@@ -42,8 +40,23 @@ export const notificationsApi = {
 };
 
 export const alertsApi = {
-    patch: (id: string, body: { action: "resolve" | "dismiss"; note?: string }) =>
-        httpClient.patch(`/webhook/manager/risk-alerts/${id}`, body),
+    patch: (id: string, body: { action: ManagerRiskAlertPatchAction; note?: string }) => managerRiskAlertsApi.patch(id, body),
+};
+
+/** PATCH `/webhook/wmn-alert-v3/manager/risk-alerts/:id` — body `{ action: "resolve" | "ignore" | "reopen" }`. */
+export async function patchRiskAlert(alertId: string, action: ManagerRiskAlertPatchAction, note?: string) {
+    if (import.meta.env.DEV) {
+        console.log("PATCH alert", alertId, action);
+    }
+    const response = await patchManagerRiskAlert(alertId, action, note);
+    return response.data;
+}
+
+export const notificationsService = {
+    patchAlert: (alertId: string, action: ManagerRiskAlertPatchAction) => patchRiskAlert(alertId, action),
+    /** Alias historique */
+    updateRiskAlert: (alertId: string, payload: { action: ManagerRiskAlertPatchAction; note?: string }) =>
+        patchRiskAlert(alertId, payload.action, payload.note),
 };
 
 export const rhActionsApi = {

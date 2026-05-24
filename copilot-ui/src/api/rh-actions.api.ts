@@ -1,96 +1,96 @@
 /**
- * Actions RH : POST/GET liste sur webhook métier ; PATCH sur `/api/rh/actions/:id`.
- * En dev, Vite proxy réécrit vers le webhook n8n :
- * `https://n8nprod.aphelionxinnovations.com/webhook/c8bae94d-8de1-4f06-bb0a-a1e90eb6a80d/api/rh/actions/:id`
- * (voir `vite.config.ts` — entrée `/api/rh/actions`).
+ * WF_Manager_RH_Actions — GET/POST `/webhook/api/rh/actions`, PATCH `/webhook/{webhookId}/api/rh/actions/:id`.
  */
+import {
+    RH_ACTIONS_LIST_POST_PATH,
+    RH_ACTIONS_PATCH_PATH,
+} from "@/api/rh-actions.constants";
 import type { ApiClientOptions } from "@/utils/apiClient";
 import { apiGet, apiPatch, apiPost } from "@/utils/apiClient";
 import { assertUuid } from "@/api/manager-api-contract";
+import type {
+    PatchRhActionBody,
+    PostRhActionBody,
+    RhActionCreateResponse,
+    RhActionsListResponse,
+} from "@/types/manager-rh-actions.types";
+import { parseRhActionsListResponse } from "@/utils/rh-actions-workflow";
 
-function basePath(): string {
+function listPostBasePath(): string {
     const fromEnv = (import.meta.env as Record<string, string | undefined>).VITE_RH_ACTIONS_URL?.trim();
-    if (!fromEnv) return "/webhook/api/rh/actions";
-    const normalized = fromEnv.toLowerCase();
-    const looksLikeRhActionsResource =
-        normalized.includes("/api/rh/actions") || normalized.endsWith("/rh/actions") || normalized.endsWith("/api/rh/actions");
-    return looksLikeRhActionsResource ? fromEnv : "/webhook/api/rh/actions";
+    return (fromEnv || RH_ACTIONS_LIST_POST_PATH).replace(/\/$/, "");
 }
 
-export type RhActionRequestType =
-    | "skill_gap"
-    | "reallocation"
-    | "training"
-    | "overload"
-    | "recruitment";
-
-export type PostRhActionBody = {
-    project_id?: string;
-    type: RhActionRequestType;
-    message: string;
-    priority?: "urgent" | "normal" | "low";
-    payload?: Record<string, unknown>;
-};
-
-export async function postRhAction(body: PostRhActionBody, options?: ApiClientOptions): Promise<unknown> {
-    const payload: Record<string, unknown> = { ...body };
-    if (body.project_id?.trim()) payload.project_id = assertUuid(body.project_id, "project_id");
-    else delete payload.project_id;
-    return apiPost<unknown>(basePath(), payload, options);
+function patchBasePath(): string {
+    const fromEnv = (import.meta.env as Record<string, string | undefined>).VITE_RH_ACTIONS_PATCH_URL?.trim();
+    return (fromEnv || RH_ACTIONS_PATCH_PATH).replace(/\/$/, "");
 }
 
-/** Liste : même source qu’avant refactor (`/webhook/api/rh/actions` ou `VITE_RH_ACTIONS_URL`) — payload n8n `{ status, items[] }`. */
-const RH_ACTIONS_PATCH_PATH = "/api/rh/actions";
+export type { PostRhActionBody, PatchRhActionBody, RhActionItem, RhActionsListResponse } from "@/types/manager-rh-actions.types";
+export type RhActionRequestType = PostRhActionBody["type"];
 
-const RH_ACTIONS_PATCH_KEYS = ["status", "response_message", "assigned_to"] as const;
+export {
+    RH_ACTIONS_LIST_POST_PATH,
+    RH_ACTIONS_PATCH_PATH,
+    RH_ACTIONS_LIST_POST_URL_PRODUCTION,
+    RH_ACTIONS_PATCH_URL_PRODUCTION,
+} from "@/api/rh-actions.constants";
 
-/** Corps PATCH strictement limité aux champs acceptés par le webhook n8n. */
-function slimRhActionPatchBody(body: Record<string, unknown>): Record<string, unknown> {
-    const out: Record<string, unknown> = {};
-    for (const k of RH_ACTIONS_PATCH_KEYS) {
-        if (Object.prototype.hasOwnProperty.call(body, k) && body[k] !== undefined) {
-            out[k] = body[k];
-        }
-    }
-    return out;
-}
-
-/** Chemin relatif utilisé pour le PATCH (logs / tests). */
 export function rhActionsPatchPath(id: string): string {
     const raw = String(id ?? "").trim();
-    if (!raw) return RH_ACTIONS_PATCH_PATH;
-    return `${RH_ACTIONS_PATCH_PATH}/${encodeURIComponent(raw)}`;
+    const base = patchBasePath();
+    if (!raw) return base;
+    return `${base}/${encodeURIComponent(raw)}`;
 }
 
 export async function fetchRhActionsList(
-    params: { status?: string; project_id?: string; limit?: number },
+    params: { status?: string; project_id?: string },
     options?: ApiClientOptions,
-): Promise<unknown> {
+): Promise<RhActionsListResponse> {
     const query = new URLSearchParams();
     if (params.status?.trim()) query.set("status", params.status.trim());
     if (params.project_id?.trim()) query.set("project_id", assertUuid(params.project_id, "project_id"));
-    if (params.limit != null) query.set("limit", String(params.limit));
     const qs = query.toString();
-    return apiGet<unknown>(qs ? `${basePath()}?${qs}` : basePath(), options);
-}
-
-/**
- * PATCH workflow RH — uniquement `status`, `response_message`, `assigned_to`.
- * Réponses 200 avec corps non-JSON (ex. texte « OK ») traitées comme succès.
- */
-export async function patchRhAction(id: string, body: Record<string, unknown>, options?: ApiClientOptions): Promise<unknown> {
-    const rawId = String(id ?? "").trim();
-    if (!rawId) {
-        throw new Error("action_id requis.");
+    const path = qs ? `${listPostBasePath()}?${qs}` : listPostBasePath();
+    if (import.meta.env.DEV) {
+        console.log("[RH Actions GET]", path);
     }
-    const path = rhActionsPatchPath(rawId);
-    const payload = slimRhActionPatchBody(body);
-    return apiPatch<unknown>(path, payload, { ...options, acceptNonJson200: true });
+    const raw = await apiGet<unknown>(path, options);
+    return parseRhActionsListResponse(raw);
 }
 
-/** Plan de formation — POST dédié si le workflow l’expose (corps minimal). */
-export async function postRhTrainingPlan(body: Record<string, unknown> = {}, options?: ApiClientOptions): Promise<unknown> {
-    const fromEnv = (import.meta.env as Record<string, string | undefined>).VITE_RH_TRAINING_PLAN_URL?.trim();
-    const path = fromEnv || "/webhook/api/rh/training-plan";
-    return apiPost<unknown>(path, body, options);
+export async function postRhAction(
+    body: PostRhActionBody,
+    options?: ApiClientOptions,
+): Promise<RhActionCreateResponse> {
+    const payload: Record<string, unknown> = {
+        type: body.type,
+        message: body.message.trim(),
+        priority: body.priority,
+    };
+    if (body.project_id?.trim()) payload.project_id = assertUuid(body.project_id, "project_id");
+    if (body.assigned_to?.trim()) payload.assigned_to = assertUuid(body.assigned_to, "assigned_to");
+    const path = listPostBasePath();
+    if (import.meta.env.DEV) {
+        console.log("[RH Actions POST]", path, payload);
+    }
+    return apiPost<RhActionCreateResponse>(path, payload, options);
+}
+
+export async function patchRhAction(
+    id: string,
+    body: PatchRhActionBody,
+    options?: ApiClientOptions,
+): Promise<unknown> {
+    const rawId = String(id ?? "").trim();
+    if (!rawId) throw new Error("action_id requis.");
+    const payload: Record<string, unknown> = {};
+    if (body.status) payload.status = body.status;
+    if (body.response_message?.trim()) payload.response_message = body.response_message.trim();
+    if (body.assigned_to?.trim()) payload.assigned_to = assertUuid(body.assigned_to, "assigned_to");
+    const path = rhActionsPatchPath(rawId);
+    if (import.meta.env.DEV) {
+        console.log("[RH Actions PATCH]", path, payload);
+    }
+    return apiPatch<unknown>(path, payload, { ...options, acceptNonJson200: true });
 }

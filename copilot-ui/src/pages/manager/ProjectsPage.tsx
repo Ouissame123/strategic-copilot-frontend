@@ -11,7 +11,10 @@ import {
     type PortfolioTableSortKey,
 } from "@/components/manager/manager-projects-portfolio-table";
 import { enrichManagerProjectListItems } from "@/lib/manager-projects-list-derived";
-import { ProjectMissionControlModal } from "@/components/manager/project-mission-control-modal";
+import {
+    ProjectMissionControlModal,
+    type MissionControlWorkspaceTabId,
+} from "@/components/manager/project-mission-control-modal";
 import { useCreateProject, useProjects } from "@/hooks/useProjects";
 import type { ProjectListItem, ProjectStatus } from "@/types/api.types";
 import { looksLikeUuidOrTechnicalId, stripTechnicalIdentifiers } from "@/lib/matchmaker-display";
@@ -174,6 +177,7 @@ export default function ProjectsPage() {
     const [showLegacyProjects, setShowLegacyProjects] = useState(false);
     const [createMode, setCreateMode] = useState(false);
     const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
+    const [missionInitialTab, setMissionInitialTab] = useState<MissionControlWorkspaceTabId | undefined>();
     const [createPayload, setCreatePayload] = useState({
         name: "",
         status: "planned" as ProjectStatus,
@@ -205,12 +209,28 @@ export default function ProjectsPage() {
     }, [listItems, apiCount]);
 
     useEffect(() => {
-        const openId = searchParams.get("openProjectId")?.trim();
+        const openId = searchParams.get("openProjectId")?.trim() || searchParams.get("project_id")?.trim();
         if (!openId) return;
         if (projectsQuery.isLoading) return;
         setSelectedProjectId(openId);
+        const tabParam = searchParams.get("tab")?.trim();
+        const missionTabs: MissionControlWorkspaceTabId[] = [
+            "overview",
+            "team",
+            "tasks",
+            "risks",
+            "simulation",
+            "decisions",
+        ];
+        setMissionInitialTab(
+            tabParam && missionTabs.includes(tabParam as MissionControlWorkspaceTabId)
+                ? (tabParam as MissionControlWorkspaceTabId)
+                : undefined,
+        );
         const next = new URLSearchParams(searchParams);
         next.delete("openProjectId");
+        next.delete("project_id");
+        next.delete("tab");
         setSearchParams(next, { replace: true });
     }, [searchParams, projectsQuery.isLoading, setSearchParams]);
 
@@ -625,7 +645,11 @@ export default function ProjectsPage() {
                     open
                     projectId={selectedProjectId}
                     listProject={selectedProject}
-                    onClose={() => setSelectedProjectId(null)}
+                    initialWorkspaceTab={missionInitialTab}
+                    onClose={() => {
+                        setSelectedProjectId(null);
+                        setMissionInitialTab(undefined);
+                    }}
                 />
             ) : null}
         </WorkspacePageShell>

@@ -63,14 +63,20 @@ export interface FragileProject {
 
 export interface ReportHistoryItem {
     reportId: string;
+    /** Libellé affiché (nom du rapport ou type). */
+    title: string;
     type: ReportType;
     format: ReportFormat;
     status: ReportStatus;
+    /** Statut brut API (ex. generated). */
+    apiStatus?: string;
     fileUrl?: string | null;
     fileSize?: number | null;
     generatedAt: string;
     generatedBy?: string | null;
+    projectId?: string | null;
     projectName?: string | null;
     period?: string | null;
     language?: string | null;
+    metadata?: Record<string, unknown> | null;
 }
