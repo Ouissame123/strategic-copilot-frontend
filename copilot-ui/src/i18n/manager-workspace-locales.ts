@@ -2152,6 +2152,9 @@ export const managerWorkspaceLocales = {
             statusRejected: "Rejected",
             statusCancelled: "Cancelled",
             statusUnknown: "—",
+        },
+        talentRequests: {
+            shellTitle: "Talent requests",
             heroEyebrow: "Talent Requests",
             heroTitle: "Talent requests",
             heroSubtitle: "Track requests submitted by your team members.",

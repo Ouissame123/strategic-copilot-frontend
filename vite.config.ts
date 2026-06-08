@@ -105,8 +105,12 @@ export default defineConfig(({ mode }) => {
          * `../..` vers la racine du repo qui font échouer Rollup sur les noms d’assets HTML.
          */
         build: {
+            /** Relatif à `root` (`copilot-ui/`) → artefact final : `copilot-ui/dist` (voir `vercel.json`). */
             outDir: "dist",
             emptyOutDir: true,
+            rollupOptions: {
+                input: path.resolve(appRoot, "index.html"),
+            },
         },
         plugins: [react(), tailwindcss()],
         server: { proxy },
