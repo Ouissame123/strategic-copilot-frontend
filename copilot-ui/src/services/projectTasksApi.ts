@@ -27,9 +27,8 @@ tasksHttp.interceptors.request.use((config) => {
     return config;
 });
 
-const N8N_BASE = import.meta.env.DEV
-    ? "/n8n-webhook"
-    : "https://n8nprod.aphelionxinnovations.com/webhook";
+/** Dev : proxy Vite. Prod (Vercel) : rewrite `vercel.json` `/n8n-webhook` → n8n. */
+const N8N_BASE = "/n8n-webhook";
 
 function encId(id: string, label: "projectId" | "taskId"): string {
     const s = String(id ?? "").trim();

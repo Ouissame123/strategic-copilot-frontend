@@ -10,6 +10,34 @@
       "destination": "https://n8nprod.aphelionxinnovations.com/webhook/:path*"
     },
     {
+      "source": "/api/rh/actions/:path*",
+      "destination": "https://n8nprod.aphelionxinnovations.com/webhook/c8bae94d-8de1-4f06-bb0a-a1e90eb6a80d/api/rh/actions/:path*"
+    },
+    {
+      "source": "/api/:path*",
+      "destination": "https://n8nprod.aphelionxinnovations.com/webhook/api/:path*"
+    },
+    {
+      "source": "/manager/:path*",
+      "destination": "https://n8nprod.aphelionxinnovations.com/webhook/manager/:path*"
+    },
+    {
+      "source": "/rh/:path*",
+      "destination": "https://n8nprod.aphelionxinnovations.com/webhook/rh/:path*"
+    },
+    {
+      "source": "/n8n-webhook/:path*",
+      "destination": "https://n8nprod.aphelionxinnovations.com/webhook/:path*"
+    },
+    {
+      "source": "/reports/:path*",
+      "destination": "https://n8nprod.aphelionxinnovations.com/webhook/reports/:path*"
+    },
+    {
+      "source": "/wmn-alert-v3/:path*",
+      "destination": "https://n8nprod.aphelionxinnovations.com/webhook/wmn-alert-v3/:path*"
+    },
+    {
       "source": "/(.*)",
       "destination": "/index.html"
     }

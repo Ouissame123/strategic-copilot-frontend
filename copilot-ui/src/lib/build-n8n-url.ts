@@ -9,7 +9,9 @@
  *
  * **Axios seul en direct en dev** (login toujours via proxy) : `VITE_HTTP_CLIENT_N8N_BASE=https://…/webhook` — voir `getHttpClientBaseUrl()`.
  *
- * **Production / preview** : `VITE_API_BASE_URL` (suffixe `/webhook` retiré) → `VITE_N8N_BASE_URL` → hôte par défaut.
+ * **Production (Vercel)** : par défaut chaîne vide → `/webhook/...` sur la même origine ;
+ * les rewrites `vercel.json` relaient vers n8n (évite CORS / « Failed to fetch » au login).
+ * Appel direct n8n : `VITE_N8N_BASE_URL` ou `VITE_N8N_DIRECT_IN_PROD=1` (CORS requis côté n8n).
  */
 const DEFAULT_N8N_HOST_PRODUCTION = "https://n8nprod.aphelionxinnovations.com";
 
@@ -53,7 +55,11 @@ export function getN8nBaseUrl(): string {
     const fromN8n = fromN8nRaw ? stripTrailingWebhookSegment(fromN8nRaw) : "";
     if (fromN8n) return fromN8n;
 
-    return DEFAULT_N8N_HOST_PRODUCTION;
+    const directProd = String(import.meta.env.VITE_N8N_DIRECT_IN_PROD ?? "").trim() === "1";
+    if (directProd) return DEFAULT_N8N_HOST_PRODUCTION;
+
+    /** Chemins relatifs → rewrites Vercel / reverse-proxy (pas de CORS navigateur). */
+    return "";
 }
 
 /**
