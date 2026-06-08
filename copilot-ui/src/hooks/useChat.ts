@@ -89,7 +89,7 @@ export function useSendMessage() {
     });
 }
 
-/** PATCH /webhook/wmc-archive-v1/manager/conversations/:id/archive */
+/** PATCH /manager/conversations/:id/archive */
 export function useArchiveConversation() {
     const qc = useQueryClient();
     return useMutation({

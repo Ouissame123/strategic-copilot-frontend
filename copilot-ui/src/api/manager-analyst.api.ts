@@ -61,6 +61,8 @@ async function postManagerAnalyst<T>(
     label: string,
     options?: ManagerAnalystFetchOptions,
 ): Promise<T> {
+    if (import.meta.env.DEV) console.log(`[Manager Analyst] POST ${label}`, url, body);
+
     const res = await fetch(url, {
         method: "POST",
         headers: {

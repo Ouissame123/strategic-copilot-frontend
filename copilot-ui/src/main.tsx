@@ -12,6 +12,7 @@ import {
     LegacyProfileRedirect,
     LegacyProjectDetailRedirect,
     LegacyProjectsListRedirect,
+    ManagerWorkspaceProjectDetailRedirect,
     RootWorkspaceRedirect,
 } from "@/components/routing/workspace-redirects";
 import { NotFound } from "@/pages/not-found";
@@ -39,7 +40,6 @@ import {
 } from "@/pages/workspace/rh";
 import DashboardPage from "@/pages/manager/DashboardPage";
 import ProjectsPageManager from "@/pages/manager/ProjectsPage";
-import ManagerProjectMissionControlPage from "@/pages/manager/ManagerProjectMissionControlPage";
 import TeamPage from "@/pages/manager/TeamPage";
 import TalentRequestsPage from "@/pages/manager/TalentRequestsPage";
 import TalentDetailPage from "@/pages/manager/TalentDetailPage";
@@ -151,7 +151,7 @@ createRoot(document.getElementById("root")!).render(
                                         <Route path="dashboard" element={<DashboardPage />} />
                                         <Route path="projects" element={<ProjectsPageManager />} />
                                         <Route path="project" element={<Navigate to="/workspace/manager/projects" replace />} />
-                                        <Route path="projects/:projectId" element={<ManagerProjectMissionControlPage />} />
+                                        <Route path="projects/:projectId" element={<ManagerWorkspaceProjectDetailRedirect />} />
                                         <Route path="team" element={<TeamPage />} />
                                         <Route path="team/:talentId" element={<TalentDetailPage />} />
                                         <Route path="talent-requests" element={<TalentRequestsPage />} />

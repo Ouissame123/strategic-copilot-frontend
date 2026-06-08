@@ -165,7 +165,7 @@ export const chatApi = {
         return httpClient.post<HelperChatReply>(url, body);
     },
 
-    /** PATCH /webhook/wmc-archive-v1/manager/conversations/:id/archive */
+    /** PATCH /manager/conversations/:id/archive */
     archiveConversation: (conversationId: string, body: { restore: boolean }) => {
         const cid = normalizeHelperConversationId(conversationId);
         const url = managerConversationArchivePath(cid);

@@ -78,16 +78,16 @@ function getPhaseState(phaseId: PhaseId, currentPhase: PhaseId | -1): PhaseState
 }
 
 const PHASE_CIRCLE: Record<PhaseState, string> = {
-    past: "border-emerald-500 bg-emerald-500 text-white shadow-sm ring-2 ring-white dark:ring-primary",
-    current: "border-violet-600 bg-violet-600 text-white shadow-sm ring-4 ring-violet-100 dark:ring-violet-900/40",
-    future: "border-slate-200 bg-white text-slate-400 shadow-sm dark:border-secondary dark:bg-primary dark:text-fg-quaternary",
+    past: "border-emerald-600 bg-emerald-500 text-white",
+    current: "border-violet-600 bg-violet-600 text-white ring-2 ring-violet-400/40",
+    future: "border-slate-200 bg-slate-50 text-slate-400 dark:border-secondary dark:bg-secondary_subtle dark:text-fg-quaternary",
     cancelled: "border-slate-200 bg-slate-50 text-slate-400",
 };
 
 const PHASE_LABEL: Record<PhaseState, string> = {
-    past: "font-medium text-slate-900 dark:text-fg-primary",
+    past: "text-slate-600 dark:text-fg-secondary",
     current: "font-semibold text-violet-700 dark:text-violet-300",
-    future: "font-medium text-slate-400 dark:text-fg-quaternary",
+    future: "text-slate-400 dark:text-fg-quaternary",
     cancelled: "text-slate-400",
 };
 
@@ -238,19 +238,11 @@ function CompactStepper({ currentPhase }: { currentPhase: PhaseId | -1 }) {
                         {index > 0 ? (
                             <div
                                 className={cx(
-                                    "mx-0.5 hidden h-1 min-w-[0.5rem] flex-1 self-center overflow-hidden rounded-full bg-slate-200 sm:block dark:bg-secondary",
+                                    "mx-0.5 hidden h-1 min-w-[0.5rem] flex-1 self-center rounded-full sm:block",
+                                    connectorPast ? "bg-emerald-500" : "bg-slate-200 dark:bg-secondary",
                                 )}
                                 aria-hidden
-                            >
-                                <div
-                                    className={cx(
-                                        "h-full rounded-full transition-all duration-200 ease-out",
-                                        connectorPast
-                                            ? "w-full bg-gradient-to-r from-emerald-400 to-emerald-600"
-                                            : "w-0 bg-transparent",
-                                    )}
-                                />
-                            </div>
+                            />
                         ) : null}
                         <div
                             role="listitem"
@@ -259,10 +251,17 @@ function CompactStepper({ currentPhase }: { currentPhase: PhaseId | -1 }) {
                         >
                             <div
                                 className={cx(
-                                    "relative flex h-11 w-11 items-center justify-center rounded-full border-2 transition-all duration-150 ease-out sm:h-12 sm:w-12",
+                                    "relative flex h-12 w-12 items-center justify-center rounded-full border-2 transition-colors",
                                     PHASE_CIRCLE[state],
+                                    state === "current" && "animate-pulse",
                                 )}
                             >
+                                {state === "current" ? (
+                                    <span
+                                        className="absolute inset-0 rounded-full border-2 border-violet-400/50"
+                                        aria-hidden
+                                    />
+                                ) : null}
                                 <Icon className="relative h-5 w-5 shrink-0" aria-hidden />
                             </div>
                             <span className={cx("max-w-[4.75rem] truncate text-center text-xs leading-tight sm:hidden", PHASE_LABEL[state])}>

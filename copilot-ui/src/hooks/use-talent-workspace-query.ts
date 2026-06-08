@@ -13,6 +13,5 @@ export function useTalentWorkspaceQuery(options?: Opts) {
         queryKey: queryKeys.talent.workspace(),
         queryFn: ({ signal }) => fetchTalentWorkspace({ signal }),
         refetchInterval: options?.refetchInterval,
-        staleTime: 300_000,
     });
 }

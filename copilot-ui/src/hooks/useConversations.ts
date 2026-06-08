@@ -4,18 +4,13 @@ import { managerConversationsApi } from "../api/manager-conversations.api";
 import { normalizeHelperConversationId } from "../lib/helper-conversation-id";
 
 export const useConversations = (params?: { project_id?: string; status?: string; search?: string; limit?: number }) =>
-    useQuery({
-        queryKey: ["conversations", params],
-        queryFn: () => managerConversationsApi.list(params).then((r) => r.data),
-        staleTime: 120_000,
-    });
+    useQuery({ queryKey: ["conversations", params], queryFn: () => managerConversationsApi.list(params).then((r) => r.data) });
 
 export const useConversationDetail = (id: string, messages_limit?: number) =>
     useQuery({
         queryKey: ["conversation", id, messages_limit],
         queryFn: () => managerConversationsApi.detail(id, messages_limit).then((r) => r.data),
         enabled: Boolean(id),
-        staleTime: 120_000,
     });
 
 export const useArchiveConversation = () => {

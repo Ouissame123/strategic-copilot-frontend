@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { WorkspacePageShell } from "@/components/workspace/workspace-page-shell";
 import { useWorkspaceTopbarMeta } from "@/layouts/workspace-topbar-meta";
-import { useNavigate, useSearchParams } from "react-router";
+import { useSearchParams } from "react-router";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/base/buttons/button";
 import { ManagerProjectsKanbanView } from "@/components/manager/manager-projects-kanban";
@@ -11,8 +11,11 @@ import {
     type PortfolioTableSortKey,
 } from "@/components/manager/manager-projects-portfolio-table";
 import { enrichManagerProjectListItems } from "@/lib/manager-projects-list-derived";
+import {
+    ProjectMissionControlModal,
+    type MissionControlWorkspaceTabId,
+} from "@/components/manager/project-mission-control-modal";
 import { useCreateProject, useProjects } from "@/hooks/useProjects";
-import { managerProjectMissionControlPath, parseMissionControlTabParam } from "@/utils/workspace-routes";
 import type { ProjectListItem, ProjectStatus } from "@/types/api.types";
 import { looksLikeUuidOrTechnicalId, stripTechnicalIdentifiers } from "@/lib/matchmaker-display";
 import type { TFunction } from "i18next";
@@ -173,7 +176,8 @@ export default function ProjectsPage() {
     const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
     const [showLegacyProjects, setShowLegacyProjects] = useState(false);
     const [createMode, setCreateMode] = useState(false);
-    const navigate = useNavigate();
+    const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
+    const [missionInitialTab, setMissionInitialTab] = useState<MissionControlWorkspaceTabId | undefined>();
     const [createPayload, setCreatePayload] = useState({
         name: "",
         status: "planned" as ProjectStatus,
@@ -186,6 +190,7 @@ export default function ProjectsPage() {
     const projectsQuery = useProjects({ limit: MANAGER_PROJECTS_LIST_LIMIT });
     const createProject = useCreateProject();
     const listItems = projectsQuery.data?.items ?? [];
+    const selectedProject = listItems.find((p) => p.id === selectedProjectId);
 
     /** `count` du GET /manager/projects (via `normalizeProjectsList` → `total`). */
     const apiCount = projectsQuery.data?.total;
@@ -206,9 +211,28 @@ export default function ProjectsPage() {
     useEffect(() => {
         const openId = searchParams.get("openProjectId")?.trim() || searchParams.get("project_id")?.trim();
         if (!openId) return;
-        const tab = parseMissionControlTabParam(searchParams.get("tab"));
-        navigate(managerProjectMissionControlPath(openId, tab), { replace: true });
-    }, [navigate, searchParams]);
+        if (projectsQuery.isLoading) return;
+        setSelectedProjectId(openId);
+        const tabParam = searchParams.get("tab")?.trim();
+        const missionTabs: MissionControlWorkspaceTabId[] = [
+            "overview",
+            "team",
+            "tasks",
+            "risks",
+            "simulation",
+            "decisions",
+        ];
+        setMissionInitialTab(
+            tabParam && missionTabs.includes(tabParam as MissionControlWorkspaceTabId)
+                ? (tabParam as MissionControlWorkspaceTabId)
+                : undefined,
+        );
+        const next = new URLSearchParams(searchParams);
+        next.delete("openProjectId");
+        next.delete("project_id");
+        next.delete("tab");
+        setSearchParams(next, { replace: true });
+    }, [searchParams, projectsQuery.isLoading, setSearchParams]);
 
     const baseAfterStatusRiskUrl = useMemo(() => {
         const raw = [...listItems];
@@ -322,7 +346,9 @@ export default function ProjectsPage() {
         );
     };
 
-    const projectDetailPath = useCallback((projectId: string) => managerProjectMissionControlPath(projectId), []);
+    const openProjectMissionControl = useCallback((projectId: string) => {
+        setSelectedProjectId(projectId);
+    }, []);
 
     const topbarTrailing = useMemo(
         () => (
@@ -597,14 +623,14 @@ export default function ProjectsPage() {
                 ) : null}
 
                 {viewMode === "kanban" ? (
-                    <ManagerProjectsKanbanView projects={visibleProjects} projectDetailPath={projectDetailPath} t={t} />
+                    <ManagerProjectsKanbanView projects={visibleProjects} onOpenProject={openProjectMissionControl} t={t} />
                 ) : (
                     <ManagerProjectsPortfolioTable
                         rows={sortedPortfolioRows}
                         sortKey={sortKey}
                         sortDir={sortDir}
                         onSort={toggleSort}
-                        projectDetailPath={projectDetailPath}
+                        onOpenProject={openProjectMissionControl}
                         t={t}
                         statusLabel={(s) => statusLabel(t, s)}
                         projectDisplayName={(name) => projectDisplayName(name, t)}
@@ -612,6 +638,20 @@ export default function ProjectsPage() {
                     />
                 )}
             </>
+
+            {selectedProjectId ? (
+                <ProjectMissionControlModal
+                    key={selectedProjectId}
+                    open
+                    projectId={selectedProjectId}
+                    listProject={selectedProject}
+                    initialWorkspaceTab={missionInitialTab}
+                    onClose={() => {
+                        setSelectedProjectId(null);
+                        setMissionInitialTab(undefined);
+                    }}
+                />
+            ) : null}
         </WorkspacePageShell>
     );
 }

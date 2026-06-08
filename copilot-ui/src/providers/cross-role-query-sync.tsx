@@ -3,7 +3,7 @@ import { useEffect } from "react";
 import { useAuth } from "@/providers/auth-provider";
 import { queryKeys } from "@/lib/query-keys";
 
-const POLL_MS = 600_000;
+const POLL_MS = 30_000;
 
 /**
  * Rafraîchissement périodique des caches TanStack Query partagés entre rôles (pas de WebSocket requis).

@@ -1,3 +1,4 @@
+import { AnimatePresence, motion } from "motion/react";
 import type { ReactNode } from "react";
 import { Outlet, useLocation } from "react-router";
 import { CopilotTriggerButton } from "@/components/copilot";
@@ -84,19 +85,13 @@ function WorkspaceShellHeaderLeading({ rhTone }: { rhTone?: boolean }) {
  */
 const FULL_WIDTH_MAIN_PATHS = ["/workspace/manager/rh-requests", "/workspace/manager/notifications"];
 
-function isManagerMissionControlPage(pathname: string): boolean {
-    return /^\/workspace\/manager\/projects\/[^/]+$/.test(pathname);
-}
-
 function isFullWidthWorkspaceMain(pathname: string): boolean {
-    if (isManagerMissionControlPage(pathname)) return true;
     return FULL_WIDTH_MAIN_PATHS.some((segment) => pathname === segment || pathname.startsWith(`${segment}/`));
 }
 
 export function WorkspaceShellLayout({ workspaceRole, navItems, children }: WorkspaceShellLayoutProps) {
     const { pathname } = useLocation();
     const fullWidthMain = isFullWidthWorkspaceMain(pathname);
-    const missionControlPage = isManagerMissionControlPage(pathname);
     const isRh = workspaceRole === "rh";
 
     return (
@@ -107,7 +102,7 @@ export function WorkspaceShellLayout({ workspaceRole, navItems, children }: Work
                     items={navItems}
                     className={isRh ? cx(RH_SIDEBAR, RH_SIDEBAR_NAV_ACTIVE) : undefined}
                 />
-                <div className={cx("flex min-h-screen flex-1 flex-col", isRh ? RH_SURFACE : "bg-secondary_subtle", missionControlPage && "min-h-0 overflow-hidden")}>
+                <div className={cx("flex min-h-screen flex-1 flex-col", isRh ? RH_SURFACE : "bg-secondary_subtle")}>
                     <header
                         className={cx(
                             "flex min-h-12 shrink-0 flex-col items-stretch border-b md:px-6 md:py-0",
@@ -138,25 +133,20 @@ export function WorkspaceShellLayout({ workspaceRole, navItems, children }: Work
                             />
                         ) : null}
                     </header>
-                    <main
-                        className={cx(
-                            "flex-1",
-                            fullWidthMain ? "p-0" : isRh ? "p-4 md:p-6" : "p-5 md:p-8",
-                            missionControlPage && "flex min-h-0 flex-col overflow-hidden",
-                        )}
-                    >
-                        <div
-                            className={cx(
-                                "w-full",
-                                !fullWidthMain && "mx-auto max-w-container",
-                                missionControlPage && "flex min-h-0 flex-1 flex-col overflow-hidden",
-                            )}
-                        >
-                            <div
-                                className={cx("w-full", missionControlPage && "flex min-h-0 flex-1 flex-col overflow-hidden")}
-                            >
-                                {children ?? <Outlet />}
-                            </div>
+                    <main className={cx("flex-1", fullWidthMain ? "p-0" : isRh ? "p-4 md:p-6" : "p-5 md:p-8")}>
+                        <div className={cx("w-full", !fullWidthMain && "mx-auto max-w-container")}>
+                            <AnimatePresence mode="wait">
+                                <motion.div
+                                    key={pathname}
+                                    initial={{ opacity: 0, y: 10 }}
+                                    animate={{ opacity: 1, y: 0 }}
+                                    exit={{ opacity: 0, y: -8 }}
+                                    transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
+                                    className="w-full"
+                                >
+                                    {children ?? <Outlet />}
+                                </motion.div>
+                            </AnimatePresence>
                         </div>
                     </main>
                 </div>

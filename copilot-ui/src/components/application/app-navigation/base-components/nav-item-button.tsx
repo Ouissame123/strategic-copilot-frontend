@@ -1,13 +1,7 @@
 import type { FC, MouseEventHandler } from "react";
 import { Pressable } from "react-aria-components";
-import { Link as RouterLink } from "react-router";
 import { Tooltip } from "@/components/base/tooltip/tooltip";
 import { cx } from "@/utils/cx";
-
-function isExternalHref(href: string | undefined): boolean {
-    if (!href) return false;
-    return /^https?:\/\//i.test(href) || href.startsWith("//");
-}
 
 const styles = {
     md: {
@@ -51,34 +45,22 @@ export const NavItemButton = ({
     tooltipPlacement = "right",
     onClick,
 }: NavItemButtonProps) => {
-    const linkClassName = cx(
-        "relative flex w-full cursor-pointer items-center justify-center rounded-md bg-primary p-2 text-fg-quaternary outline-focus-ring transition duration-100 ease-linear select-none hover:bg-primary_hover hover:text-fg-quaternary_hover focus-visible:z-10 focus-visible:outline-2 focus-visible:outline-offset-2",
-        current && "bg-active text-fg-quaternary_hover hover:bg-secondary_hover",
-        styles[size].root,
-        className,
-    );
-
-    const icon = <Icon aria-hidden="true" className={cx("shrink-0 transition-inherit-all", styles[size].icon)} />;
-
     return (
         <Tooltip title={label} placement={tooltipPlacement}>
             <Pressable>
-                {href && !isExternalHref(href) ? (
-                    <RouterLink to={href} aria-label={label} onClick={onClick} className={linkClassName}>
-                        {icon}
-                    </RouterLink>
-                ) : (
-                    <a
-                        href={href}
-                        aria-label={label}
-                        onClick={onClick}
-                        target={isExternalHref(href) ? "_blank" : undefined}
-                        rel={isExternalHref(href) ? "noopener noreferrer" : undefined}
-                        className={linkClassName}
-                    >
-                        {icon}
-                    </a>
-                )}
+                <a
+                    href={href}
+                    aria-label={label}
+                    onClick={onClick}
+                    className={cx(
+                        "relative flex w-full cursor-pointer items-center justify-center rounded-md bg-primary p-2 text-fg-quaternary outline-focus-ring transition duration-100 ease-linear select-none hover:bg-primary_hover hover:text-fg-quaternary_hover focus-visible:z-10 focus-visible:outline-2 focus-visible:outline-offset-2",
+                        current && "bg-active text-fg-quaternary_hover hover:bg-secondary_hover",
+                        styles[size].root,
+                        className,
+                    )}
+                >
+                    <Icon aria-hidden="true" className={cx("shrink-0 transition-inherit-all", styles[size].icon)} />
+                </a>
             </Pressable>
         </Tooltip>
     );

@@ -34,6 +34,5 @@ export function useTalentNotificationsQuery() {
             return notificationsFromRoot(unwrapDataPayload(raw));
         },
         refetchInterval: POLL_MS,
-        staleTime: 120_000,
     });
 }

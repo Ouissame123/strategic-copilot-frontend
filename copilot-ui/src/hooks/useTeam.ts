@@ -28,7 +28,6 @@ export const useTeam = (params?: { scope?: "mine" | "enterprise"; search?: strin
     useQuery({
         queryKey: ["team", params],
         queryFn: () => managerTeamApi.list(params).then((r) => r.data),
-        staleTime: 300_000,
     });
 
 export const useTalentDetail = (talentId: string) => {
