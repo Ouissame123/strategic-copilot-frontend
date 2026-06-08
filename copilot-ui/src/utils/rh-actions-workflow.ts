@@ -15,7 +15,7 @@ export function parseRhActionsListResponse(raw: unknown): RhActionsListResponse 
     };
 }
 
-function normalizeRhActionItem(row: unknown): RhActionItem {
+export function normalizeRhActionItem(row: unknown): RhActionItem {
     const r = asRecord(row);
     return {
         id: String(r.id ?? "").trim(),

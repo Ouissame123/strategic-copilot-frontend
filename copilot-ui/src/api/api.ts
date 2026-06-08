@@ -180,3 +180,7 @@ export async function httpPost<T>(url: string, body: unknown, opts?: HttpRequest
 export async function httpPatch<T>(url: string, body: unknown, opts?: HttpRequestOptions): Promise<T> {
     return httpRequest<T>(url, "PATCH", { ...opts, body });
 }
+
+export async function httpDelete<T>(url: string, opts?: HttpRequestOptions): Promise<T> {
+    return httpRequest<T>(url, "DELETE", opts);
+}

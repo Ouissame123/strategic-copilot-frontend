@@ -240,6 +240,8 @@ interface ImportMetaEnv {
     readonly VITE_RH_ACTIONS_URL?: string;
     /** PATCH WF_Manager_RH_Actions — `/webhook/c8bae94d-…/api/rh/actions/:id`. */
     readonly VITE_RH_ACTIONS_PATCH_URL?: string;
+    /** WF_RH_Requests_Decision — GET/PATCH `/webhook/rh/requests` (rôle rh uniquement). */
+    readonly VITE_RH_REQUESTS_URL?: string;
     /** PATCH action RH — `:id` remplacé par l’identifiant (sinon `{base}/{id}`). */
     readonly VITE_RH_ACTION_PATCH_URL?: string;
     /** GET synthèse dashboard RH (défaut `/webhook/rh/dashboard`). */
@@ -250,6 +252,13 @@ interface ImportMetaEnv {
     readonly VITE_RH_NOTIFICATIONS_URL?: string;
     /** Base absolue optionnelle pour `DashboardRH` (ex. `https://…/webhook`). */
     readonly VITE_RH_DASHBOARD_API_BASE?: string;
+    /**
+     * DELETE affectation talent→manager — WF_RH_Assignments_Delete_v2.
+     * Préfixe : `/webhook/wf-rh-assignments-delete-v2/rh/assignments` (défaut) ou URL absolue.
+     */
+    readonly VITE_RH_ASSIGNMENTS_DELETE_WEBHOOK_PREFIX?: string;
+    /** URL DELETE complète avec `{id}` ou `:id` = talent_id UUID. */
+    readonly VITE_RH_ASSIGNMENTS_DELETE_URL?: string;
     /** GET écarts critiques (défaut `/api/rh/critical-gaps`). */
     readonly VITE_RH_CRITICAL_GAPS_URL?: string;
     /** GET liste plans de formation (défaut `/api/rh/training-plans`). */

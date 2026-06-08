@@ -1,0 +1,223 @@
+\chapter{Étude Bibliographique}
+
+\section{Introduction}
+
+Le présent chapitre expose les fondements théoriques, méthodologiques et technologiques sur lesquels s'appuie Strategic Copilot, plateforme SaaS d'aide à la décision pour la gestion stratégique des talents et des projets. Il fait suite au chapitre consacré au contexte général et à l'analyse des besoins, où ont été identifiés les acteurs, les tensions métier et les exigences traduites dans l'application \texttt{copilot-ui}. L'objectif n'est pas de dresser un inventaire encyclopédique des domaines concernés, mais de construire un socle conceptuel permettant de justifier les choix fonctionnels et techniques du projet, en les reliant systématiquement aux capacités observables dans le code source et dans le document de cadrage \emph{PFE Agentic AI Strategic Talents}.
+
+La démarche adoptée consiste à enchaîner une revue des grands courants de la transformation digitale des ressources humaines, de la gestion des talents et des compétences, du pilotage de portefeuille projet, de l'intelligence artificielle appliquée à l'aide à la décision, de l'automatisation des processus et des technologies web contemporaines. Une section de synthèse positionne ensuite Strategic Copilot au croisement de ces courants, avant de conclure sur les apports de cette étude pour les chapitres suivants consacrés au cahier des charges, à la réalisation et aux tests.
+
+Il convient de préciser la portée de cette revue. Les références mobilisées relèvent de la littérature académique en systèmes d'information et en management des ressources humaines \cite{strohmeier2020,marler2013}, des référentiels professionnels en gestion de projet \cite{pmi2021} et des documentations techniques des outils effectivement utilisés \cite{react2024,vite2025,postgresql2025,n8n2025,openai2025}. Lorsqu'un concept est appliqué à Strategic Copilot, l'affirmation est vérifiable dans le dépôt \texttt{frontend-ui} ou dans le document \emph{PFE Agentic AI Strategic Talents}. Cette discipline évite de sur-vendre des capacités absentes du produit livré tout en donnant au lecteur les clés pour comprendre pourquoi telle architecture a été retenue plutôt qu'une autre.
+
+\section{Transformation digitale des ressources humaines}
+
+\subsection{Enjeux de la digitalisation RH}
+
+La transformation digitale des fonctions RH \cite{strohmeier2020} désigne l'ensemble des mutations induites par l'adoption massive des outils numériques dans la gestion administrative, le développement des compétences, la relation aux collaborateurs et le pilotage de la performance. Les travaux de la fonction RH et des cabinets de conseil convergent sur plusieurs constats. Les organisations produisent davantage de données sur les parcours, les compétences, les absences et les charges, mais ces données restent souvent cloisonnées dans des systèmes hétérogènes. Les décideurs opérationnels, notamment les managers de proximité, peinent à disposer d'une vision consolidée au moment de l'arbitrage. La réactivité attendue face aux tensions de charge, aux échéances contractuelles ou aux écarts de compétences exige des indicateurs actualisés et partagés, et non des extractions manuelles périodiques.
+
+Pour Strategic Copilot, ces enjeux se traduisent par la nécessité de rapprocher les données RH et les données projet dans un même environnement décisionnel. La plateforme ne se limite pas à un SIRH administratif : elle vise un pilotage transversal où le manager visualise simultanément la viabilité d'un projet, le niveau de risque associé et l'état de son équipe, tandis que le responsable RH traite des demandes structurées (\texttt{skill\_gap}, \texttt{reallocation}, \texttt{training}, \texttt{overload}, \texttt{recruitment}) issues des analyses agentiques. Cette orientation répond directement au constat de fragmentation relevé dans le chapitre précédent et matérialisé dans le dépôt \texttt{frontend-ui} par trois espaces utilisateurs distincts mais alimentés par les mêmes référentiels PostgreSQL.
+
+La digitalisation RH impose également des exigences de traçabilité et de gouvernance. Lorsqu'une recommandation d'IA suggère une formation, une réaffectation ou un report de périmètre, l'organisation doit pouvoir retrouver le contexte de la décision, les scores ayant motivé l'alerte et la validation humaine éventuelle. Strategic Copilot répond à cette exigence par le journal des décisions (\texttt{DecisionLogPage}), l'historique des demandes RH et la persistance des résultats analytiques dans des tables dédiées (\texttt{project\_viability\_scores}, \texttt{ai\_decisions\_log}), sans recalcul opaque côté navigateur, conformément au principe inscrit dans \texttt{crud-domain.ts}.
+
+\subsection{Systèmes d'information RH modernes}
+
+Les systèmes d'information RH modernes (SIRH) couvrent traditionnellement la gestion administrative du personnel, la paie, le temps et les compétences. Leur évolution récente s'oriente vers des plateformes intégrées, souvent délivrées en mode SaaS, capables d'échanger avec des outils projet, financiers ou collaboratifs. L'architecture type repose sur une base relationnelle centralisée, des API exposant les entités métier et des tableaux de bord par rôle. La tendance est à la modularité : plutôt qu'un monolithe unique, l'entreprise assemble des briques spécialisées reliées par des bus d'intégration ou des orchestrateurs de workflows.
+
+Strategic Copilot s'inscrit dans cette logique modulaire au sein de l'écosystème \textbf{Augmented Talents}. Le front-end React \cite{react2024} consomme des services exposés par n8n \cite{n8n2025} ; PostgreSQL \cite{postgresql2025}, hébergé via Supabase \cite{supabase2025}, constitue la source de vérité des entités \texttt{talents}, \texttt{skills}, \texttt{talent\_skills}, \texttt{workload\_snapshots} et des objets projet. L'authentification et le contrôle d'accès par rôle (\texttt{UserRole} : \texttt{manager}, \texttt{rh}, \texttt{talent}) reproduisent le modèle classique des SIRH modernes, enrichi d'une couche décisionnelle agentique absente des outils purement administratifs. Le responsable RH accède ainsi à un tableau de bord (\texttt{RhDashboardPage}), à un catalogue de compétences et à des écrans d'écarts critiques, tandis que le talent consulte ses missions et sa charge sans accéder aux fonctions de pilotage stratégique réservées au manager.
+
+L'originalité du projet réside dans le fait que le SIRH étendu n'effectue pas lui-même les calculs de viabilité ou de matching : ils sont délégués à des workflows n8n spécialisés, ce qui préfigure une architecture « best-of-breed » où l'interface unifie l'expérience utilisateur et l'orchestrateur garantit la cohérence analytique. Cette séparation entre présentation et moteur décisionnel correspond aux recommandations architecturales des systèmes d'information contemporains, fondées sur des API stables et une persistance relationnelle robuste.
+
+Par ailleurs, les SIRH modernes intègrent de plus en plus l'expérience collaborateur et la mobilité interne. Les écrans RH de Strategic Copilot --- mobilité, plans de formation, alertes organisationnelles --- prolongent cette orientation en reliant chaque action RH à un signal projet ou compétence préalablement identifié. Le manager n'envoie pas une demande générique : il formalise un \texttt{skill\_gap} ou une \texttt{reallocation} en s'appuyant sur des analyses Matchmaker ou Watchdog, ce qui améliore la qualité du dialogue entre ligne managériale et fonction RH. Du point de vue des systèmes d'information, il s'agit d'un couplage faible mais sémantiquement riche entre modules, réalisé par des événements HTTP et des statuts de workflow plutôt que par une base unique monolithique.
+
+\section{Gestion des talents et des compétences}
+
+\subsection{Talent Management}
+
+Le talent management \cite{silzer2010,becker2009} désigne l'ensemble des pratiques visant à attirer, développer, mobiliser et fidéliser les collaborateurs en alignement avec la stratégie de l'organisation. La littérature managériale insiste sur la dimension anticipative : identifier les profils à potentiel, préparer les relais, adapter les parcours de développement et sécuriser la continuité des compétences critiques. Dans un contexte projet, le talent management ne se réduit pas aux processus annuels d'entretien ; il devient continu, alimenté par les affectations, les retours d'expérience et les signaux de surcharge ou de démotivation.
+
+Strategic Copilot opérationnalise cette vision pour trois publics. L'espace manager (\texttt{/workspace/manager}) permet de piloter l'équipe via \texttt{TeamPage}, d'ouvrir une fiche talent détaillée (\texttt{TalentDetailPage}) et de lancer des analyses assistées (\texttt{use\_ai: true} sur les scans Watchdog). L'espace RH centralise le référentiel employés (\texttt{RhEmployeesPage}), la mobilité (\texttt{RhMobilityPage}) et les plans de formation (\texttt{RhTrainingPlansPage}). L'espace talent offre une lecture individuelle des projets assignés, des tâches, de la charge et des compétences. Cette tripartition respecte les responsabilités respectives tout en s'appuyant sur un référentiel talent unique en base, évitant la duplication des profils.
+
+Le document Agentic AI associe explicitement le \textbf{Talent Matching Agent} au workflow \texttt{WF\_Talent\_Matching} et à l'endpoint \texttt{/webhook/api/project/talents}. L'agent ne se contente pas de lister des noms : il évalue l'adéquation compétences--besoins, met en évidence les écarts et alimente les recommandations de staffing ou de montée en compétence affichées dans le tableau de bord manager et dans le modal Mission Control. Le talent management y gagne une dimension prescriptive, toujours soumise à validation humaine, conformément à l'éthique de l'aide à la décision.
+
+\subsection{Skill Management}
+
+Le skill management (gestion des compétences) structuré repose sur un référentiel de compétences (\texttt{skills}), des déclarations ou évaluations par collaborateur (\texttt{talent\_skills}) et des besoins exprimés au niveau projet (\texttt{project\_requirements}). Les approches matures distinguent compétences techniques, comportementales et certifications, avec des niveaux de maîtrise et des dates de validité. L'enjeu est de rapprocher l'offre de compétences de la demande induite par le portefeuille projet, afin de détecter précocement les ruptures.
+
+Dans Strategic Copilot, le catalogue RH (\texttt{RhSkillsCatalogPage}) et la page des écarts critiques (\texttt{RhCriticalGapsPage}) matérialisent ce référentiel côté fonction RH. Côté manager, le panneau de matching (\texttt{talent-matching-panel}) et les blocs \texttt{matchmaker} du tableau de bord restituent les sorties du workflow de matching sans recalcul front-end. Lorsqu'un écart persiste, le manager peut formaliser une demande RH de type \texttt{skill\_gap} ou \texttt{training}, créant une chaîne fermée entre détection analytique et action RH traçable.
+
+La littérature sur les compétences souligne également l'importance de la mise à jour continue des référentiels. Le processus P0 (\texttt{WF\_Data\_Sync}) décrit dans le cahier Agentic AI assure la synchronisation des données projets et talents, condition nécessaire à des analyses de matching non obsolètes. Strategic Copilot traite donc le skill management comme un flux vivant, synchronisé et exploité par des agents spécialisés, plutôt comme une photographie statique consultée une fois par an.
+
+\subsection{Workforce Planning}
+
+Le workforce planning (planification des effectifs et des capacités) vise à aligner les ressources disponibles sur la demande future, en intégrant contraintes légales, budgets et calendriers projet. Il s'agit d'arbitrer entre recrutement, formation, externalisation et réallocation interne. Les modèles classiques s'appuient sur des scénarios et des indicateurs de charge ; les approches avancées intègrent des simulations pour tester l'impact d'une hypothèse avant décision.
+
+Strategic Copilot contribue à ce domaine par la visualisation des charges (\texttt{workload\_snapshots}, pages équipe et talent), par les alertes de surcharge détectées par l'agent Risk \& Weak Signal et par le simulateur what-if (\texttt{WhatIfProvider}, \texttt{POST /webhook/api/project/what-if}). Ce dernier permet de modifier paramétriquement une allocation, un délai ou une compétence cible (\texttt{allocation\_pct}, \texttt{delay\_days}, \texttt{training\_skill\_id}) et d'observer le delta sur le score de viabilité avant engagement. Le processus P5 (\texttt{WF\_What\_If}) correspond à cette logique de planification par scénarios, reconnue dans la littérature comme un prolongement naturel du workforce planning vers l'aide à la décision interactive.
+
+Le workforce planning moderne exige également une lecture transverse RH--projet. En rapprochant l'espace RH (mobilité, formation) et l'espace manager (affectations \texttt{wmp-assign-v1}, portefeuille kanban), Strategic Copilot évite que la planification des capacités soit menée en vase clos, déconnectée des échéances et des risques projet.
+
+Les travaux académiques sur la planification des effectifs soulignent par ailleurs l'importance des indicateurs prévisionnels : taux d'occupation, horizon de disponibilité, coût marginal d'une heure supplémentaire. Strategic Copilot ne prétend pas implémenter un optimiseur linéaire complet ; en revanche, les snapshots de charge et les alertes de surcharge fournissent des signaux exploitables par le décideur, complétés par le score de capacité intégré dans la viabilité (35\,\% du score global). L'approche est donc pragmatique : enrichir le jugement humain plutôt que substituer une planification centralisée opaque, ce qui rejoint les critiques adressées aux systèmes expert trop rigides dans les années 1990 et justifie le recours contemporain à des architectures agentiques modulaires.
+
+\section{Gestion de portefeuille de projets}
+
+\subsection{Project Portfolio Management}
+
+Le project portfolio management (PPM) \cite{pmi2021,cooper2016} désigne le pilotage d'un ensemble de projets visant à maximiser la valeur stratégique sous contraintes de ressources et de risques. Les cadres méthodologiques, notamment ceux diffusés par le Project Management Institute, insistent sur la priorisation, l'équilibre du portefeuille et la revue périodique de la performance collective. Le PPM diffère de la gestion opérationnelle d'un projet unique : il s'agit de choisir quels projets poursuivre, suspendre ou arrêter au regard d'indicateurs agrégés.
+
+Strategic Copilot cible précisément ce niveau de pilotage pour les managers. \texttt{ProjectsPage} et \texttt{getCopilotProjects} offrent une vue portefeuille ; le tableau de bord Copilot (\texttt{getCopilotDashboard}) synthétise l'état global. Le composant \texttt{ProjectLifecycleStepper} matérialise les statuts \texttt{planned}, \texttt{active}, \texttt{on\_hold}, \texttt{completed} et \texttt{cancelled}, facilitant la lecture du cycle de vie de chaque initiative. Le modal \texttt{ProjectMissionControlModal} concentre, pour un projet donné, les onglets overview, équipe, tâches, risques, simulation et décisions, incarnant la philosophie PPM d'une vision à 360 degrés avant arbitrage.
+
+La décision stratégique Continue, Adjust ou Stop, produite par le Strategic Orchestrator, prolonge les grilles de priorisation PPM par une recommandation explicite fondée sur un score de viabilité composite. Le manager conserve la responsabilité de la validation, enregistrée dans le journal des décisions, ce qui respecte la distinction classique entre recommandation système et décision humaine.
+
+\subsection{Allocation des ressources}
+
+L'allocation des ressources consiste à affecter des talents à des projets ou des tâches en respectant disponibilité, compétences et équilibre de charge. La littérature opérationnelle modélise souvent ce problème comme une affectation sous contraintes multiples, parfois NP-difficile, d'où l'intérêt d'outils d'aide calculant des propositions plutôt que des solutions manuelles exhaustives.
+
+Strategic Copilot implémente l'allocation via \texttt{project\_assignments}, les webhooks \texttt{wmp-assign-v1} et \texttt{wmp-unassign-v1}, et les tâches projet (\texttt{wmt-list-v1}, \texttt{wmt-create-v1}). Le Talent Matching Agent propose des affectations compatibles ; le manager valide ou ajuste. Une option de recompute (variable d'environnement \texttt{VITE\_TRIGGER\_PROJECT\_RECOMPUTE\_AFTER\_ASSIGN}) peut relancer la chaîne analytique après mutation, garantissant que les scores affichés reflètent la nouvelle configuration. Cette boucle mutation--recompute--affichage illustre une allocation dynamique, réactive aux changements terrain.
+
+L'allocation ne se limite pas aux effectifs internes : les demandes RH de type \texttt{recruitment} ou \texttt{reallocation} traduisent des besoins que le portefeuille ne peut satisfaire en l'état. Strategic Copilot relie ainsi l'allocation tactique (qui fait quoi demain) à l'allocation stratégique (quels moyens RH engager), cohérent avec les modèles intégrés PPM--workforce planning.
+
+\subsection{Indicateurs de performance et de viabilité}
+
+Les indicateurs de performance projet (KPI) mesurent avancement, respect des délais, consommation budgétaire et qualité des livrables. La viabilité, concept mobilisé dans le document Agentic AI, désigne une capacité durable à atteindre les objectifs compte tenu des compétences disponibles, de la charge et des risques. Strategic Copilot combine ces deux dimensions : le \textbf{Project Analysis Agent} (\texttt{WF\_Project\_Analysis}) alimente les KPI et l'« atmosphère » projet, tandis que le Strategic Orchestrator agrège Skills Fit (40\,\%), Capacité (35\,\%) et Budget (25\,\%) en un score normalisé sur dix.
+
+Les seuils de décision documentés (Continue si score $\geq 7{,}5$, Adjust entre 4 et 7{,}5, Stop en dessous de 4) fournissent une échelle de lecture commune, comparable aux tableaux de bord PPM utilisant des feux tricolores ou des zones de vigilance. Côté interface, \texttt{viability\_score} et \texttt{risk\_score} sur l'entité \texttt{Project} sont strictement en lecture seule ; le front-end affiche les valeurs renvoyées par \texttt{/webhook/api/project/viability} sans les recalculer.
+
+Les graphiques Recharts sur \texttt{DecisionLogPage} et les visualisations du tableau de bord complètent les indicateurs scalaires par une représentation temporelle ou comparative, facilitant l'analyse des tendances. Cette dualité chiffre--graphique correspond aux bonnes pratiques des tableaux de bord décisionnels, où la synthèse numérique et la perception visuelle se renforcent mutuellement.
+
+La gestion de portefeuille implique enfin une dimension temporelle : un projet peut être viable aujourd'hui et fragile dans trois mois si une compétence clé arrive à expiration ou si la charge cumulée dépasse un seuil. L'agent Risk \& Weak Signal (\texttt{WF\_Project\_Risk}, scan \texttt{/webhook/api/watchdog/scan}) adresse cette dimension en détectant des signaux faibles avant dérive manifeste. Le manager peut déclencher un scan depuis \texttt{TeamPage} ou \texttt{RisksPage} avec \texttt{use\_ai: true}, illustrant comment le PPM contemporain intègre la veille automatique plutôt que la seule revue mensuelle statique. Strategic Copilot ne remplace pas les comités de pilotage ; il leur fournit un pré-traitement analytique homogène, réduit le temps de collecte et oriente l'attention vers les projets et les talents présentant les scores les plus critiques.
+
+\section{Intelligence artificielle appliquée à l'aide à la décision}
+
+\subsection{Systèmes d'aide à la décision}
+
+Les systèmes d'aide à la décision (SAD) \cite{simon1997,turban2018,arnott2005}, conceptualisés dès les travaux de Simon sur la rationalité limitée, visent à augmenter la capacité de traitement de l'information des décideurs sans se substituer à leur jugement. Un SAD typique combine une base de données, un module de modèles et une interface utilisateur, produisant des analyses, des simulations ou des recommandations structurées. Dans l'entreprise contemporaine, les SAD se sont enrichis de capacités prédictives et prescriptives, tout en conservant l'exigence d'explicabilité et de contrôle humain.
+
+Strategic Copilot se définit explicitement comme une plateforme d'aide à la décision SaaS. Elle ne déclenche pas automatiquement des mutations critiques sans validation : le Strategist propose des options (\texttt{strategist/propose}) avant exécution (\texttt{strategist/execute}) ; le Helper suggère des actions (\texttt{suggested\_actions}) que l'utilisateur peut accepter ou ignorer. Le Copilot global (\texttt{CopilotProvider}, \texttt{CopilotPanel}) restitue synthèse, risques, recommandations et niveau de confiance selon le contexte (\texttt{dashboard}, \texttt{project\_detail}, \texttt{staffing}).
+
+L'architecture multi-agents renforce la qualité de SAD en décomposant le problème : analyse projet, matching, risques, orchestration. Chaque agent joue le rôle d'un module spécialisé ; l'orchestrateur joue celui d'un agrégateur cohérent. Les traces affichées (\texttt{buildAgentTraces}) améliorent l'explicabilité en indiquant quel workflow a produit quel résultat et avec quelle fraîcheur (\texttt{fresh}, \texttt{aging}, \texttt{stale}), répondant aux critiques adressées aux « boîtes noires » décisionnelles.
+
+\subsection{Large Language Models}
+
+Les grands modèles de langage (LLM) \cite{brown2020,russell2021}, dont la famille GPT développée par OpenAI \cite{openai2025} constitue la référence la plus diffuse, ont transformé l'interaction homme--machine dans les domaines textuels : synthèse, question--réponse, génération de recommandations argumentées. Leur intégration dans les systèmes d'entreprise soulève des questions de confidentialité, de coût, de latence et de fiabilité des sorties, qui imposent de les encapsuler derrière des orchestrateurs contrôlés plutôt que de les exposer directement aux clients lourds.
+
+Dans Strategic Copilot, les LLM ne sont pas embarqués dans le bundle React. Les workflows n8n activent l'IA via le paramètre \texttt{use\_ai: true} sur les appels risques, matching, viabilité ou Helper (\texttt{/webhook/api/helper/chat}). L'instance de production (\texttt{n8nprod.aphelionxinnovations.com}) héberge les graphes qui invoquent les API compatibles OpenAI, conformément au cahier des charges du PFE. Le front-end transmet le contexte métier (identifiant projet, page courante) et affiche la réponse structurée, sans détenir les clés secrètes du modèle.
+
+Le Helper Copilot illustre l'usage conversationnel du LLM dans un SAD : questions rapides métier, historique de conversations (\texttt{/webhook/manager/conversations}), validations asynchrones (\texttt{/webhook/api/helper/validations}). Cette conception respecte le principe de séparation des préoccupations : l'interface gère l'expérience ; n8n gère le prompt, l'appel modèle et la persistance éventuelle des échanges.
+
+\subsection{Recommandations automatisées}
+
+Les systèmes de recommandation, issus initialement du commerce en ligne, ont été adaptés aux contextes RH et projet : suggérer un profil pour une mission, une formation pour combler un écart, une action de mitigation pour un risque. Les approches hybrides combinent filtrage collaboratif, règles métier explicites et modèles d'apprentissage, avec un score de confiance associé à chaque proposition.
+
+Strategic Copilot produit des recommandations à plusieurs niveaux. Le tableau de bord manager expose les blocs \texttt{matchmaker} et \texttt{analyst} lorsque le backend les fournit. Le Copilot global agrège risques et pistes d'action. Le matching talent retourne des profils classés et des écarts de compétences. Les demandes RH matérialisent les recommandations acceptées dans un workflow traçable. Le document Agentic AI insiste sur la transformation d'analyses multi-agents en décisions lisibles, sans automatisation aveugle : la recommandation reste une proposition jusqu'à validation explicite.
+
+La qualité des recommandations dépend de la fraîcheur des données et de la chaîne P0--P5. Le recompute (\texttt{/webhook/api/copilot/recompute}) permet de régénérer les analyses après une mutation, limitant le risque de conseils obsolètes. Cette boucle de rafraîchissement s'inscrit dans la littérature sur les SAD adaptatifs, capables de se recalibrer lorsque l'état du système change.
+
+Les débats récents sur l'IA en entreprise mettent en garde contre les hallucinations et les biais des LLM. Strategic Copilot atténue ces risques par plusieurs mécanismes convergents : ancrage des réponses dans des données PostgreSQL structurées, découpage du raisonnement en agents spécialisés aux périmètres plus étroits, affichage des traces de workflow et des niveaux de confiance lorsque le backend les fournit, et surtout absence d'exécution automatique des actions critiques sans validation via Strategist ou demandes RH. Cette posture « human-in-the-loop » n'est pas un repli technologique ; elle correspond à la doctrine des systèmes d'aide à la décision et aux attentes des encadrants métier exprimées dans le document Agentic AI.
+
+\subsection{Architectures multi-agents et Agentic AI}
+
+Au-delà des LLM monolithiques, la recherche et l'industrie s'orientent vers des architectures \emph{agentiques} : plusieurs agents autonomes ou semi-autonomes collaborent sous la coordination d'un orchestrateur. Le paradigme Agentic AI, explicitement retenu pour Strategic Copilot, distingue l'agent Analyst (analyse projet), l'agent Matchmaker (matching), l'agent Watchdog (risques), l'agent Strategist (arbitrage) et l'orchestrateur stratégique qui agrège leurs sorties. Cette décomposition améliore la maintenabilité : faire évoluer le matching sans remettre en cause le calcul de risque, ou ajuster les pondérations de viabilité sans modifier l'interface Helper.
+
+Le front-end matérialise cette architecture par \texttt{buildAgentTraces} et les libellés de workflow (\texttt{WF\_Project\_Analysis}, \texttt{WF\_Project\_Risk}, \texttt{WF\_Project\_Viability}) visibles dans Mission Control. Pour l'utilisateur, l'agentique se traduit par une transparence accrue : il comprend quelles analyses ont été exécutées, depuis quand, et s'il peut les relancer (\texttt{can\_rerun}). Sur le plan théorique, ce modèle prolonge les systèmes multi-agents classiques en les couplant à des services de langage pour la formulation des recommandations, tout en conservant des scores numériques auditables stockés en base.
+
+\section{Automatisation des processus métier}
+
+\subsection{Workflow Automation}
+
+L'automatisation des processus métier (BPA) vise à réduire les tâches manuelles répétitives, à accélérer les circuits de validation et à garantir l'application systématique des règles. Les plateformes BPMN historiques ont laissé place, en partie, à des approches plus légères fondées sur des déclencheurs événementiels, des scripts et des connecteurs API. Dans le domaine RH--projet, l'automatisation concerne typiquement les demandes de formation, les validations d'affectation, les notifications d'alerte et la génération de rapports.
+
+Strategic Copilot automatise ces flux via n8n plutôt que via un moteur BPM embarqué dans le front-end. Les demandes RH suivent un cycle PATCH documenté dans \texttt{rh-actions.api.ts}. Les notifications manager agrègent alertes risque et actions RH (\texttt{manager-notifications-topbar}). Les rapports board-pack PDF et l'envoi courriel passent par \texttt{use-reports-n8n}. Chaque automatisation est observable, versionnée (\texttt{wmp-detail-v1}) et configurable par variables d'environnement, ce qui facilite la maintenance en environnement de production.
+
+L'automatisation ne supprime pas le contrôle humain sur les décisions sensibles : elle structure l'information et accélère les enchaînements une fois la décision prise. Cette nuance est essentielle pour l'acceptabilité sociale des outils agentiques en entreprise.
+
+\subsection{Orchestration avec n8n}
+
+n8n \cite{n8n2025} est une plateforme d'automatisation open source fondée sur des workflows visuels composés de nœuds (Webhook, Cron, HTTP Request, Postgres, Function, IF, Merge, Execute Workflow, Respond to Webhook). Elle se positionne comme alternative accessible aux suites d'intégration propriétaires, avec l'avantage de pouvoir héberger les graphes on-premise ou sur un cloud dédié et d'y intégrer directement des appels à des services d'IA.
+
+Strategic Copilot repose sur n8n comme backend métier unique visible depuis \texttt{copilot-ui}. Les webhooks \texttt{/webhook/login}, \texttt{/webhook/api/copilot/*}, \texttt{/webhook/api/project/*} et \texttt{/webhook/manager/*} constituent le contrat d'intégration. Le proxy Vite en développement et le fichier \texttt{vercel.json} en production relient le front-end statique à l'instance \texttt{n8nprod.aphelionxinnovations.com}. Les workflows \texttt{WF\_Project\_Analysis}, \texttt{WF\_Talent\_Matching}, \texttt{WF\_Risk\_KPI}, \texttt{WF\_Strategic\_Orchestrator} et \texttt{WF\_What\_If} matérialisent la chaîne agentique décrite dans le document Agentic AI.
+
+L'orchestration n8n permet également la composition : un workflow peut en exécuter un autre, reproduisant la hiérarchie orchestrateur--agents spécialisés. Le fichier \texttt{n8n/route-validate-claims-merger-FIX.js} témoigne de l'intégration fine entre sécurité JWT et routes manager, illustrant que l'automatisation inclut les contrôles d'accès, pas seulement les traitements analytiques.
+
+Comparée aux suites BPM traditionnelles, n8n offre une courbe d'apprentissage plus accessible pour des équipes projet mixtes (développeurs, intégrateurs, experts métier). Les graphes restent exportables et versionnables ; les chemins \texttt{wmp-detail-v1} et assimilés permettent de faire coexister plusieurs versions d'un même flux pendant une migration. Pour Strategic Copilot, ce choix a facilité l'itération pendant le stage : ajouter un nœud Postgres, un appel OpenAI ou une branche conditionnelle sans redéployer l'intégralité du front-end. La contrepartie est une dépendance à la disponibilité de l'instance n8n, compensée côté client par des timeouts configurables (\texttt{VITE\_HTTP\_TIMEOUT\_MS}) et des messages d'erreur explicites (\texttt{user-facing-api-error.ts}).
+
+\section{Technologies web modernes}
+
+\subsection{React.js et Vite}
+
+React.js \cite{react2024}, bibliothèque JavaScript maintenue par Meta, repose sur une interface déclarative composée de composants réutilisables et d'un cycle de rendu optimisé par un DOM virtuel. Son écosystème (React Router, gestion d'état, hooks) en fait un standard pour les applications web riches. Vite, outil de build moderne, accélère le développement grâce au rechargement à chaud et produit des bundles optimisés pour la production via Rollup.
+
+Le projet Strategic Copilot utilise React 19 et Vite 7 \cite{react2024,vite2025,typescript2025} (\texttt{package.json} à la racine du dépôt), avec TypeScript pour le typage statique et le plugin \texttt{@vitejs/plugin-react-swc} pour la compilation rapide. \texttt{copilot-ui/src/main.tsx} structure l'application : providers (\texttt{AuthProvider}, \texttt{QueryClientProviderWrapper}, \texttt{CopilotProvider}, \texttt{WhatIfProvider}), routage React Router 7 et protection par rôle (\texttt{ProtectedRoute}). TanStack React Query 5 gère le cache des appels API, les invalidations après mutations et la résilience face à la latence des workflows n8n.
+
+Ce choix technologique répond aux exigences d'une SPA multi-rôles évolutive : modularité des pages manager, RH et talent, réutilisation des composants Untitled UI et React Aria, séparation claire entre présentation et logique métier serveur.
+
+L'architecture front-end adopte par ailleurs des patterns reconnus de qualité logicielle. Les hooks personnalisés (\texttt{useProjects}, \texttt{use-manager-risk-data}, \texttt{useRhActionsListQuery}) encapsulent les appels réseau et les règles d'invalidation du cache. Les formulaires critiques s'appuient sur \texttt{react-hook-form} et \texttt{zod} pour la validation côté client des saisies, sans confondre validation de saisie et calcul décisionnel. Les redirections legacy (\texttt{LegacyProjectDetailRedirect}, etc.) témoignent d'une évolution progressive des routes vers les workspaces \texttt{/workspace/manager}, \texttt{/workspace/rh} et \texttt{/workspace/talent}, pattern courant dans les applications SaaS matures qui doivent préserver les signets et liens profonds des utilisateurs.
+
+\subsection{Tailwind CSS}
+
+Tailwind CSS \cite{tailwind2025} adopte une approche utility-first : des classes atomiques composent l'interface sans imposer un catalogue de composants visuels rigide. La version 4, intégrée via \texttt{@tailwindcss/vite}, simplifie la configuration et améliore les performances de build. Couplé à \texttt{tailwind-merge} et aux plugins typography et react-aria-components, Tailwind assure la cohérence visuelle et l'accessibilité.
+
+Strategic Copilot s'appuie sur Tailwind pour l'ensemble des écrans, du tableau de bord aux modales Mission Control, en mode clair et sombre (\texttt{ThemeProvider}, styles Recharts dans \texttt{globals.css}). L'internationalisation (i18next, locales FR/EN/AR dans \texttt{manager-workspace-locales.ts}) s'ajoute à cette couche présentation pour répondre à des utilisateurs multilingues, fréquents dans les contextes industriels internationaux.
+
+\subsection{Supabase et PostgreSQL}
+
+PostgreSQL \cite{postgresql2025,stonebraker2011} est un système de gestion de bases relationnelles open source reconnu pour sa conformité SQL, ses transactions ACID et son extensibilité. Supabase propose une couche managée au-dessus de PostgreSQL : hébergement, API auto-générées, authentification et stockage objet. Dans les architectures modernes, Supabase est souvent mobilisé comme Backend-as-a-Service complémentaire à des orchestrateurs spécialisés.
+
+Strategic Copilot utilise PostgreSQL comme socle des entités métier et des tables de résultats analytiques (\texttt{projects}, \texttt{talents}, \texttt{project\_assignments}, \texttt{project\_viability\_scores}, etc.). Supabase intervient notamment pour le stockage fichier (avatars, PDF de rapports). Le front-end n'exécute pas de requêtes SQL directes pour les calculs décisionnels : il consomme les webhooks n8n qui encapsulent l'accès Postgres via des nœuds dédiés, renforçant la sécurité et la centralisation des règles métier.
+
+Cette architecture hybride --- PostgreSQL pour la persistance, n8n pour la logique, React pour l'expérience --- illustre une tendance actuelle des applications SaaS métier : ne pas tout concentrer dans un unique framework full-stack, mais composer des services best-of-breed reliés par des API.
+
+\subsection{OpenAI et IA générative}
+
+OpenAI a popularisé l'IA générative grand public via les modèles GPT, accessibles par API et intégrables dans des chaînes de traitement. Les bonnes pratiques d'intégration recommandent de limiter l'exposition des clés API, de structurer les sorties (JSON) pour faciliter leur consommation par des applications typées, et de prévoir des garde-fous sur les entrées sensibles.
+
+Strategic Copilot suit ces recommandations : les appels aux modèles compatibles OpenAI sont réalisés dans les workflows n8n lorsque \texttt{use\_ai: true} est transmis depuis le front-end (\texttt{agentsApi.riskKpi}, matching, Helper, viabilité). Les types TypeScript (\texttt{api.types.ts}) définissent les enveloppes de réponse attendues ; les utilitaires (\texttt{flattenN8nRow}, \texttt{rh-api-parse.ts}) normalisent les variations de format renvoyées par les webhooks. Aucune clé OpenAI n'apparaît dans le code client, ce qui réduit la surface d'attaque et simplifie la rotation des secrets côté infrastructure.
+
+L'IA générative intervient ainsi comme couche d'enrichissement linguistique et analytique au-dessus de règles et de requêtes SQL, et non comme substitut à la modélisation relationnelle des talents et des projets.
+
+\subsection{Visualisation de données avec Recharts}
+
+La visualisation de données facilite la détection de tendances, de ruptures et d'écarts par rapport à des seuils. Dans les tableaux de bord décisionnels, les graphiques en barres, lignes ou aires complètent les indicateurs chiffrés. Recharts \cite{recharts2025,tufte2001}, bibliothèque React construite sur D3, propose des composants déclaratifs adaptés aux tableaux de bord métier.
+
+Strategic Copilot intègre Recharts notamment sur \texttt{DecisionLogPage} et dans les visualisations du tableau de bord manager, avec des styles dédiés dans \texttt{globals.css} pour assurer la lisibilité en mode sombre. Le bundler Vite déduplique Recharts pour éviter les conflits de versions, détail technique mentionné dans la configuration du projet. Les graphiques restituent des séries temporelles ou comparatives issues des API, sans agrégation analytique supplémentaire côté client, respectant le principe de non-recalcul des scores dans \texttt{crud-domain.ts}.
+
+La littérature sur la visualisation analytique rappelle que un graphique mal choisi peut induire en erreur ; Recharts, utilisé de manière ciblée sur des jeux de données déjà validés par le backend, limite ce risque. Les rapports PDF générés (\texttt{ReportsPage}, board-pack) complètent l'expérience écran par un livrable exportable pour les instances de gouvernance, prolongeant la fonction de reporting des SIRH et outils PPM classiques vers un format adapté aux revues de direction.
+
+\subsection{Sécurité, authentification et déploiement SaaS}
+
+Une plateforme SaaS d'aide à la décision doit intégrer dès la conception les exigences de sécurité : authentification, autorisation par rôle, protection des secrets et isolation des environnements. Strategic Copilot s'authentifie via \texttt{POST /webhook/login} et renouvelle les jetons (\texttt{/webhook/refresh}) ; \texttt{ProtectedRoute} empêche un talent d'accéder aux écrans manager. Les clés OpenAI et les credentials Postgres demeurent côté n8n et Supabase. Le déploiement du front-end en statique (build Vite, hébergement type Vercel avec relais \texttt{vercel.json}) sépare la surface d'exposition du moteur métier, ce qui réduit l'empreinte serveur côté présentation et facilite la montée en charge horizontale des workflows indépendamment de l'UI.
+
+Cette architecture de sécurité en profondeur n'est pas accessoire : elle conditionne l'acceptation d'un copilot manipulant des données RH sensibles (compétences, charge, statuts contractuels implicites). En alignant les fondements de la cybersécurité applicative sur les choix d'implémentation observés, Strategic Copilot se place dans le cadre des bonnes pratiques des SaaS métier contemporains.
+
+\section{Synthèse et positionnement de Strategic Copilot}
+
+Le tableau~\ref{tab:synthese-ch2} synthétise le croisement entre les domaines étudiés et les choix concrets du projet Strategic Copilot.
+
+\begin{table}[htbp]
+\centering
+\caption{Positionnement de Strategic Copilot au regard des fondements étudiés}
+\label{tab:synthese-ch2}
+\begin{tabular}{@{}p{3.2cm}p{4.5cm}p{5.3cm}@{}}
+\toprule
+\textbf{Domaine} & \textbf{Concept clé} & \textbf{Traduction dans Strategic Copilot} \\
+\midrule
+RH digitale & Vision consolidée & Trois espaces ; données PostgreSQL unifiées. \\
+Talent & Matching compétences & Agent \texttt{WF\_Talent\_Matching} ; catalogue RH. \\
+Workforce & Simulation capacités & What-if P5 ; snapshots de charge. \\
+PPM & Pilotage portefeuille & Copilot dashboard ; Mission Control. \\
+Viabilité & Score et décision & Orchestrator ; Continue/Adjust/Stop. \\
+SAD & Aide, pas substitution & Validation humaine ; journal décisions. \\
+LLM & Synthèse et dialogue & Helper ; \texttt{use\_ai} côté n8n. \\
+Automatisation & Workflows & n8n ; demandes RH ; notifications. \\
+Web & SPA moderne & React 19, Vite 7, TypeScript, Tailwind 4. \\
+Données & Source de vérité & PostgreSQL/Supabase ; API-first. \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Strategic Copilot se positionne comme une \textbf{plateforme d'aide à la décision agentique} pour l'écosystème Augmented Talents. Elle ne remplace ni le SIRH administratif ni l'outil de gestion de tâches classique : elle superpose une couche d'intelligence et d'orchestration reliant projets, talents, risques et recommandations. Son originalité tient à la combinaison d'une architecture multi-agents (Project Analysis, Talent Matching, Risk \& Weak Signal, Strategic Orchestrator, Helper), d'une interface React typée consommant exclusivement des webhooks n8n, et d'une gouvernance explicite des décisions humaines.
+
+Les fondements théoriques revus dans ce chapitre justifient les contraintes observées dans le code : pas de recalcul front des scores, séparation présentation--orchestration, traçabilité des demandes RH et des décisions, simulations avant arbitrage. Ils préparent le lecteur au chapitre suivant, qui formalise le cahier des charges et la planification, puis aux chapitres de réalisation et de tests qui décriront la mise en œuvre effective de ces principes dans le dépôt \texttt{frontend-ui}.
+
+\section{Conclusion}
+
+Ce chapitre a présenté les fondements sur lesquels repose Strategic Copilot : transformation digitale des RH, gestion des talents et des compétences, pilotage de portefeuille projet, systèmes d'aide à la décision enrichis par les grands modèles de langage, automatisation par workflows n8n et stack web moderne (React, Vite, Tailwind, PostgreSQL/Supabase, OpenAI orchestré côté serveur, Recharts). Chaque concept a été relié aux modules, agents et choix d'architecture effectivement implémentés dans la plateforme, sans extrapoler au-delà du périmètre vérifiable du code et du document Agentic AI.
+
+Cette étude bibliographique éclaire la cohérence du projet : Strategic Copilot répond à un besoin réel de consolidation décisionnelle à l'intersection RH et projet, en s'appuyant sur des technologies et des modèles éprouvés, tout en respectant une exigence forte de contrôle humain et de traçabilité. Le chapitre suivant traduira ces fondements en spécifications fonctionnelles et non fonctionnelles détaillées, accompagnées d'une planification explicite du travail de fin d'études.

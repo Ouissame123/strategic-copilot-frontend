@@ -1,4 +1,5 @@
 export {
+    buildRhAssignmentDeleteUrl,
     createRhAssignment,
     deleteRhAssignment,
     fetchRhAssignmentsList,

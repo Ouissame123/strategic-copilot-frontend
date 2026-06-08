@@ -1,0 +1,137 @@
+\begin{thebibliography}{10}
+
+\bibitem{arnott2005}
+David Arnott and Graham Pervan.
+\newblock A critical analysis of decision support systems research.
+\newblock {\em Journal of Information Technology}, 20(2):67--87, 2005.
+
+\bibitem{becker2009}
+Gary~S. Becker.
+\newblock {\em Human Capital: A Theoretical and Empirical Analysis, with
+  Special Reference to Education}.
+\newblock University of Chicago Press, Chicago, 3 edition, 2009.
+\newblock Fondements économiques du capital humain.
+
+\bibitem{brown2020}
+Tom~B. Brown, Benjamin Mann, Nick Ryder, et~al.
+\newblock Language models are few-shot learners.
+\newblock {\em Advances in Neural Information Processing Systems},
+  33:1877--1901, 2020.
+\newblock Présentation du modèle {GPT-3}.
+
+\bibitem{cooper2016}
+Robert~G. Cooper, Scott~J. Edgett, and Elko~J. Kleinschmidt.
+\newblock {\em Portfolio Management for New Products}.
+\newblock Basic Books, New York, 2 edition, 2016.
+
+\bibitem{marler2013}
+Janet~H. Marler and John~W. Boudreau.
+\newblock An evidence-based review of {HR} analytics.
+\newblock {\em The International Journal of Human Resource Management},
+  24(1):14--33, 2013.
+\newblock Analytique RH et aide à la décision en ressources humaines.
+
+\bibitem{react2024}
+{Meta Platforms, Inc.}
+\newblock React -- a javascript library for building user interfaces.
+\newblock \url{https://react.dev/}, 2024.
+\newblock Documentation officielle. Consulté en 2025--2026.
+
+\bibitem{typescript2025}
+{Microsoft Corporation}.
+\newblock Typescript -- javascript with syntax for types.
+\newblock \url{https://www.typescriptlang.org/}, 2025.
+\newblock Documentation officielle. Consulté en 2025--2026.
+
+\bibitem{n8n2025}
+{n8n GmbH}.
+\newblock n8n -- workflow automation for technical teams.
+\newblock \url{https://docs.n8n.io/}, 2025.
+\newblock Orchestration de workflows et webhooks. Consulté en 2025--2026.
+
+\bibitem{openai2025}
+{OpenAI}.
+\newblock Openai platform documentation -- api reference.
+\newblock \url{https://platform.openai.com/docs}, 2025.
+\newblock Modèles de langage et API utilisés côté workflows n8n. Consulté
+  en 2025--2026.
+
+\bibitem{pmi2021}
+{Project Management Institute}.
+\newblock {\em A Guide to the Project Management Body of Knowledge ({PMBOK}
+  Guide)}.
+\newblock Project Management Institute, Newtown Square, PA, 7 edition, 2021.
+\newblock Référentiel Project Portfolio Management et pilotage projet.
+
+\bibitem{recharts2025}
+{Recharts Group}.
+\newblock Recharts -- a composable charting library built on react components.
+\newblock \url{https://recharts.org/}, 2025.
+\newblock Graphiques du journal des décisions. Consulté en 2025--2026.
+
+\bibitem{russell2021}
+Stuart Russell and Peter Norvig.
+\newblock {\em Artificial Intelligence: A Modern Approach}.
+\newblock Pearson, Hoboken, NJ, 4 edition, 2021.
+
+\bibitem{silzer2010}
+Rob Silzer and Ben~E. Dowell.
+\newblock {\em Strategy-Driven Talent Management: A Leadership Imperative}.
+\newblock Jossey-Bass, San Francisco, 2010.
+
+\bibitem{simon1997}
+Herbert~A. Simon.
+\newblock {\em Administrative Behavior: A Study of Decision-Making Processes in
+  Administrative Organizations}.
+\newblock Free Press, New York, 4 edition, 1997.
+\newblock Rationalité limitée et processus décisionnel.
+
+\bibitem{stonebraker2011}
+Michael Stonebraker and Robert Cattell.
+\newblock Ten rules for scalable performance in simple operation.
+\newblock {\em Communications of the ACM}, 54(4):56--64, 2011.
+
+\bibitem{strohmeier2020}
+Stefan Strohmeier.
+\newblock {\em Digital Human Resource Management: A Research Agenda}.
+\newblock Springer, Cham, 2020.
+\newblock Transformation digitale des systèmes d'information RH.
+
+\bibitem{supabase2025}
+{Supabase Inc.}
+\newblock Supabase -- the postgres development platform.
+\newblock \url{https://supabase.com/docs}, 2025.
+\newblock Hébergement PostgreSQL, authentification et stockage objet.
+  Consulté en 2025--2026.
+
+\bibitem{tailwind2025}
+{Tailwind Labs Inc.}
+\newblock Tailwind css -- rapidly build modern websites.
+\newblock \url{https://tailwindcss.com/}, 2025.
+\newblock Documentation officielle. Consulté en 2025--2026.
+
+\bibitem{postgresql2025}
+{The PostgreSQL Global Development Group}.
+\newblock Postgresql 16 documentation.
+\newblock \url{https://www.postgresql.org/docs/}, 2025.
+\newblock Système de gestion de bases de données relationnelles. Consulté en
+  2025--2026.
+
+\bibitem{tufte2001}
+Edward~R. Tufte.
+\newblock {\em The Visual Display of Quantitative Information}.
+\newblock Graphics Press, Cheshire, CT, 2 edition, 2001.
+\newblock Principes de visualisation pour tableaux de bord décisionnels.
+
+\bibitem{turban2018}
+Efraim Turban, Ramesh Sharda, and Dursun Delen.
+\newblock {\em Decision Support and Business Intelligence Systems}.
+\newblock Pearson, Boston, 10 edition, 2018.
+
+\bibitem{vite2025}
+Evan You and {Vite Contributors}.
+\newblock Vite -- next generation front-end tooling.
+\newblock \url{https://vite.dev/}, 2025.
+\newblock Documentation officielle. Consulté en 2025--2026.
+
+\end{thebibliography}

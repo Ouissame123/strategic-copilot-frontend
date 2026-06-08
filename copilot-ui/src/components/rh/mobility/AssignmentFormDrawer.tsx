@@ -4,7 +4,7 @@
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { Loader2, X } from "lucide-react";
 import { AssignmentDrawerContext, type DrawerIntent } from "@/components/rh/mobility/AssignmentDrawerContext";
-import { formatManagerSelectLabel, managersToSelectOptions } from "@/lib/rh-managers-options";
+import { formatAvailableManagerLabel, availableManagersToSelectOptions } from "@/lib/rh-managers-options";
 import {
     createRhAssignment,
     mapRhAssignmentsError,
@@ -12,7 +12,7 @@ import {
     RhAssignmentsApiError,
 } from "@/services/rh-assignments.api";
 import { useToast } from "@/providers/toast-provider";
-import type { CreateRhAssignmentPayload, RhAssignmentRow, RhManagerListItem } from "@/types/rh-assignments.types";
+import type { CreateRhAssignmentPayload, RhAssignmentRow, RhAvailableManager } from "@/types/rh-assignments.types";
 import type { RhTalentListItem } from "@/types/rh-talents.types";
 import { resolveAssignmentManagerEmail, resolveAssignmentManagerName } from "@/lib/rh-assignments-display";
 import {
@@ -59,7 +59,7 @@ export type AssignmentFormDrawerProps = {
     initialTalentId?: string | null;
     initialManagerUserId?: string | null;
     talents: RhTalentListItem[];
-    managers: RhManagerListItem[];
+    managers: RhAvailableManager[];
     apiBase?: string;
     token?: string;
     onClose: () => void;
@@ -110,7 +110,7 @@ export function AssignmentFormDrawer({
         () => [...talents].sort((a, b) => a.name.localeCompare(b.name, "fr")),
         [talents],
     );
-    const sortedManagers = useMemo(() => managersToSelectOptions(managers), [managers]);
+    const sortedManagers = useMemo(() => availableManagersToSelectOptions(managers), [managers]);
 
     const contextTalentId = form.talent_id.trim() || assignment?.talent_id || initialTalentId || null;
 
@@ -235,8 +235,8 @@ export function AssignmentFormDrawer({
                                     >
                                         <option value="">— Choisir —</option>
                                         {sortedManagers.map((m) => (
-                                            <option key={m.id} value={m.id}>
-                                                {formatManagerSelectLabel(m)}
+                                            <option key={m.manager_user_id} value={m.manager_user_id}>
+                                                {formatAvailableManagerLabel(m)}
                                             </option>
                                         ))}
                                     </select>
@@ -245,7 +245,7 @@ export function AssignmentFormDrawer({
                                     ) : null}
                                     {sortedManagers.length === 0 ? (
                                         <p className={cx("mt-1 text-xs", RH_TEXT_MUTED)}>
-                                            Liste managers vide. Vérifiez GET /rh/managers.
+                                            Aucun manager disponible
                                         </p>
                                     ) : null}
                                 </div>

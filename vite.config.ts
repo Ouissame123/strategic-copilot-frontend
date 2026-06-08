@@ -19,6 +19,10 @@ export default defineConfig(({ mode }) => {
         env.VITE_N8N_BASE_URL?.trim().replace(/\/$/, "") ||
         defaultN8nTarget;
 
+    if (mode === "development") {
+        console.log(`[vite] Proxy n8n → ${n8nOrigin} (/webhook, /api, /rh, …)`);
+    }
+
     /**
      * En dev : auth → backend local ; `/api/*` → n8n prod (rewrite par défaut `/api/...` → `/webhook/api/...`).
      * Exception : `/api/rh/actions/*` → webhook dédié `…/webhook/c8bae94d-…/api/rh/actions/…` (PATCH annulation RH).

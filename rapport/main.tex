@@ -1,0 +1,86 @@
+\documentclass[12pt,a4paper]{report}
+
+\usepackage[a4paper,left=3cm,right=2.5cm,top=2.5cm,bottom=2.5cm]{geometry}
+
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[french]{babel}
+
+\usepackage{setspace}
+\onehalfspacing
+
+\usepackage{newtxtext}
+\usepackage{newtxmath}
+
+\usepackage{ragged2e}
+\AtBeginDocument{%
+  \geometry{a4paper,left=3cm,right=2.5cm,top=2.5cm,bottom=2.5cm}%
+  \justifying
+  \normalsize
+  \setlength{\linewidth}{\textwidth}%
+  \setlength{\columnwidth}{\textwidth}%
+}
+
+\setlength{\parindent}{1.25cm}
+\setlength{\parskip}{6pt}
+
+\usepackage{amsmath}
+\usepackage{booktabs}
+\usepackage{longtable}
+\usepackage{array}
+\usepackage{pgfgantt}
+\usepackage{graphicx}
+\usepackage{listings}
+\usepackage{xcolor}
+\usepackage{indentfirst}
+\usepackage{etoolbox}
+
+\AtBeginEnvironment{thebibliography}{\normalsize}
+
+\usepackage{hyperref}
+\hypersetup{colorlinks=true, linkcolor=black, citecolor=black, urlcolor=blue}
+
+\lstset{
+    basicstyle=\ttfamily\normalsize,
+    breaklines=true,
+    frame=single,
+    backgroundcolor=\color{gray!8},
+    showstringspaces=false,
+    tabsize=2,
+    literate={é}{{\'e}}1 {è}{{\`e}}1 {ê}{{\^e}}1 {à}{{\`a}}1
+}
+
+\begin{document}
+\normalsize
+\justifying
+
+\input{pages/page_garde}
+
+{\normalsize\tableofcontents}
+\clearpage
+
+\input{pages/remerciements}
+\input{pages/resume}
+\input{pages/abstract}
+\input{pages/introduction}
+
+\input{chapitres/chapitre1}
+\input{chapitres/chapitre2}
+\input{chapitres/chapitre3}
+\input{chapitres/chapitre4}
+\input{chapitres/chapitre5}
+\input{chapitres/chapitre6}
+
+\input{pages/conclusion_generale}
+
+\renewcommand{\bibname}{Bibliographie}
+\addcontentsline{toc}{chapter}{Bibliographie}
+\begingroup
+\normalsize
+\bibliographystyle{plain}
+\bibliography{references}
+\endgroup
+
+\input{pages/annexes}
+
+\end{document}

@@ -7,16 +7,8 @@ import { Button } from "@/components/base/buttons/button";
 import { Dialog, Modal, ModalOverlay } from "@/components/application/modals/modal";
 import { cx } from "@/utils/cx";
 
-/** Corps PATCH alignés sur le webhook n8n / backend. */
-export const RH_DETAIL_STATUS_PATCH = {
-    accepted: { status: "accepted", response_message: "Demande acceptée par le manager" },
-    refused: { status: "refused", response_message: "Demande refusée par le manager" },
-    cancelled: { status: "cancelled", response_message: "Demande annulée par le manager" },
-    done: { status: "done", response_message: "Demande traitée avec succès" },
-    closed: { status: "closed", response_message: "Demande clôturée" },
-} as const;
-
-export type RhStatusPatchBody = (typeof RH_DETAIL_STATUS_PATCH)[keyof typeof RH_DETAIL_STATUS_PATCH];
+/** Seule transition PATCH autorisée pour le manager (WF_Manager_RH_Actions). */
+export { MANAGER_RH_CANCEL_PATCH_BODY } from "@/api/rh-actions.constants";
 
 type RHRequestDetailModalProps = {
     open: boolean;

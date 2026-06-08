@@ -9,6 +9,7 @@ import type {
     RhAssignmentRow,
     RhAssignmentsListParams,
     RhAssignmentsListResponse,
+    RhAvailableManager,
 } from "@/types/rh-assignments.types";
 import type { ApiClientOptions } from "@/utils/apiClient";
 import { asRecord, unwrapN8nRoot } from "@/utils/unwrap-api-payload";
@@ -32,6 +33,9 @@ export class RhAssignmentsApiError extends Error {
 
 export const RH_ASSIGNMENTS_OVERLOAD_CODE = "OVERLOAD_PREVENTED";
 
+/** Slug workflow n8n DELETE — WF_RH_Assignments_Delete_v2. */
+export const RH_ASSIGNMENTS_DELETE_WORKFLOW_SLUG = "wf-rh-assignments-delete-v2";
+
 function str(v: unknown): string {
     return v != null ? String(v).trim() : "";
 }
@@ -44,13 +48,49 @@ function bool(v: unknown): boolean | null {
 
 function messageFromBody(raw: unknown, fallback: string): string {
     const root = unwrapN8nRoot(raw);
-    return str(root.message ?? root.error ?? root.detail) || fallback;
+    const msg = str(root.message ?? root.error ?? root.detail);
+    if (msg.toLowerCase().includes("workflow execution failed")) {
+        return "Le workflow WF_RH_Assignments a échoué sur n8n — consultez les exécutions.";
+    }
+    return msg || fallback;
 }
 
 function codeFromBody(raw: unknown): string | undefined {
     const root = unwrapN8nRoot(raw);
     const code = str(root.code ?? root.error_code);
     return code || undefined;
+}
+
+/** DELETE /rh/assignments/:talent_id — Bearer obligatoire (sinon n8n → 500). */
+function buildRhAssignmentsAuthHeaders(token?: string | null): Record<string, string> {
+    const headers = buildRhTalentsAuthHeaders(token);
+    if (!headers.Authorization) {
+        throw new RhAssignmentsApiError("Session expirée — reconnectez-vous pour retirer l'affectation.", {
+            httpStatus: 401,
+        });
+    }
+    return {
+        ...headers,
+        "Content-Type": "application/json",
+    };
+}
+
+const TALENT_UUID_RE =
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+/** WF_RH_Assignments DELETE — path param = `talent_id` (UUID), jamais un id numérique d'affectation. */
+function resolveDeleteTalentId(raw: string): string {
+    const talentId = raw.trim();
+    if (!talentId) {
+        throw new RhAssignmentsApiError("Identifiant talent manquant pour la suppression.", { httpStatus: 400 });
+    }
+    if (!TALENT_UUID_RE.test(talentId)) {
+        throw new RhAssignmentsApiError(
+            "Identifiant talent invalide — la suppression utilise le talent_id (UUID), pas un id numérique.",
+            { httpStatus: 400 },
+        );
+    }
+    return talentId;
 }
 
 function parseAssignmentRow(raw: unknown): RhAssignmentRow | null {
@@ -67,7 +107,7 @@ function parseAssignmentRow(raw: unknown): RhAssignmentRow | null {
         Boolean(manager_user_id || manager_name);
 
     return {
-        id,
+        id: talent_id || id,
         talent_id: talent_id || id,
         talent_name: str(r.talent_name) || null,
         talent_email: str(r.talent_email) || null,
@@ -80,6 +120,19 @@ function parseAssignmentRow(raw: unknown): RhAssignmentRow | null {
     };
 }
 
+function parseAvailableManager(raw: unknown): RhAvailableManager | null {
+    const r = asRecord(raw);
+    const manager_user_id = str(r.manager_user_id ?? r.id ?? r.user_id);
+    const manager_name = str(r.manager_name ?? r.full_name ?? r.name);
+    if (!manager_user_id) return null;
+    return {
+        manager_user_id,
+        manager_name: manager_name || manager_user_id,
+        manager_email: str(r.manager_email ?? r.email) || "",
+        role: str(r.role) || "manager",
+    };
+}
+
 export function normalizeRhAssignmentsList(raw: unknown): RhAssignmentsListResponse | null {
     if (raw == null) return null;
     const root = unwrapN8nRoot(raw);
@@ -87,9 +140,15 @@ export function normalizeRhAssignmentsList(raw: unknown): RhAssignmentsListRespo
 
     const data = asRecord(root.data);
     const assignmentsRaw = root.assignments ?? data.assignments ?? root.items;
+    const managersRaw =
+        root.available_managers ?? data.available_managers ?? root.managers ?? data.managers;
 
     const assignments = Array.isArray(assignmentsRaw)
         ? assignmentsRaw.map(parseAssignmentRow).filter((x): x is RhAssignmentRow => x != null)
+        : [];
+
+    const available_managers = Array.isArray(managersRaw)
+        ? managersRaw.map(parseAvailableManager).filter((x): x is RhAvailableManager => x != null)
         : [];
 
     if (!assignments.length && root.status !== "success" && !Array.isArray(assignmentsRaw)) {
@@ -99,6 +158,7 @@ export function normalizeRhAssignmentsList(raw: unknown): RhAssignmentsListRespo
     return {
         status: str(root.status) || undefined,
         assignments,
+        available_managers,
         message: str(root.message) || null,
     };
 }
@@ -138,9 +198,27 @@ export function rhAssignmentsCollectionUrl(apiBase?: string, params?: RhAssignme
     return `${rhAssignmentsBaseUrl(apiBase)}?${query}`;
 }
 
-export function rhAssignmentItemUrl(id: string, apiBase?: string): string {
+export function rhAssignmentItemUrl(talentId: string, apiBase?: string): string {
     const base = resolveRhWebhookBase(apiBase);
-    return `${base}/rh/assignments/${encodeURIComponent(id.trim())}`;
+    return `${base}/rh/assignments/${encodeURIComponent(talentId.trim())}`;
+}
+
+/**
+ * DELETE WF_RH_Assignments_Delete_v2 — `{base}/wf-rh-assignments-delete-v2/rh/assignments/{talent_id}`.
+ * Surcharge : `VITE_RH_ASSIGNMENTS_DELETE_URL` ou `VITE_RH_ASSIGNMENTS_DELETE_WEBHOOK_PREFIX`.
+ */
+export function buildRhAssignmentDeleteUrl(talentId: string, apiBase?: string): string {
+    const id = encodeURIComponent(talentId.trim());
+    const explicitUrl = (import.meta.env.VITE_RH_ASSIGNMENTS_DELETE_URL as string | undefined)?.trim();
+    if (explicitUrl) {
+        return explicitUrl.replace(/\{id\}/g, id).replace(/:id\b/g, id);
+    }
+    const customPrefix = (import.meta.env.VITE_RH_ASSIGNMENTS_DELETE_WEBHOOK_PREFIX as string | undefined)?.trim();
+    if (customPrefix) {
+        return `${customPrefix.replace(/\/$/, "")}/${id}`;
+    }
+    const base = resolveRhWebhookBase(apiBase).replace(/\/$/, "");
+    return `${base}/${RH_ASSIGNMENTS_DELETE_WORKFLOW_SLUG}/rh/assignments/${id}`;
 }
 
 export function mapRhAssignmentsError(err: unknown): string {
@@ -234,13 +312,17 @@ export async function createRhAssignment(
 }
 
 export async function deleteRhAssignment(
-    id: string,
+    talentId: string,
     options?: RhAssignmentsFetchOptions,
 ): Promise<{ message?: string | null }> {
-    const url = rhAssignmentItemUrl(id, options?.apiBase);
+    const id = resolveDeleteTalentId(talentId);
+    const url = buildRhAssignmentDeleteUrl(id, options?.apiBase);
+    if (import.meta.env.DEV) {
+        console.log("[RH API] DELETE assignment (JWT)", url);
+    }
     const res = await fetch(url, {
         method: "DELETE",
-        headers: buildRhTalentsAuthHeaders(options?.token),
+        headers: buildRhAssignmentsAuthHeaders(options?.token),
         credentials: "omit",
         signal: options?.signal,
     });

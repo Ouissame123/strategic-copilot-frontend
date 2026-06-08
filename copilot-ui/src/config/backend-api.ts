@@ -48,6 +48,42 @@ export const backendApi = {
     get rhUsersCreate(): string {
         return resolveUrl(readEnv("VITE_API_RH_USERS_CREATE"), "/rh/users");
     },
+    /** DELETE utilisateur manager/RH */
+    rhUserDelete(id: string): string {
+        const base = trimUrl(readEnv("VITE_API_RH_USERS_DELETE_BASE"));
+        if (base) {
+            return `${base}/${encodeURIComponent(id)}`;
+        }
+        return resolveUrl(undefined, `/rh/users/${encodeURIComponent(id)}`);
+    },
+    /** PATCH utilisateur manager/RH (change_password, toggle_status) */
+    rhUserPatch(id: string): string {
+        const base = trimUrl(readEnv("VITE_API_RH_USERS_PATCH_BASE"));
+        if (base) {
+            return `${base}/${encodeURIComponent(id)}`;
+        }
+        return resolveUrl(undefined, `/rh/users/${encodeURIComponent(id)}`);
+    },
+    /** GET/POST comptes talent (gestion des comptes) */
+    get rhAccountsTalent(): string {
+        return resolveUrl(readEnv("VITE_API_RH_ACCOUNTS_TALENT"), "/rh/accounts/talent");
+    },
+    /** DELETE compte talent */
+    rhAccountsTalentDelete(id: string): string {
+        const explicit = trimUrl(readEnv("VITE_API_RH_ACCOUNTS_TALENT"));
+        if (explicit) {
+            return `${explicit}/${encodeURIComponent(id)}`;
+        }
+        return resolveUrl(undefined, `/rh/accounts/talent/${encodeURIComponent(id)}`);
+    },
+    /** PATCH compte talent (toggle_status) */
+    rhAccountsTalentPatch(id: string): string {
+        const explicit = trimUrl(readEnv("VITE_API_RH_ACCOUNTS_TALENT"));
+        if (explicit) {
+            return `${explicit}/${encodeURIComponent(id)}`;
+        }
+        return resolveUrl(undefined, `/rh/accounts/talent/${encodeURIComponent(id)}`);
+    },
     get rhUsersRole(): string {
         return resolveUrl(readEnv("VITE_API_RH_USERS_ROLE"), "/rh/users/role");
     },

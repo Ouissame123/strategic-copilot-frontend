@@ -1,13 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { fetchRhAnalytics, fetchRhNotifications } from "@/api/rh-dashboard.api";
-import {
-    fetchRhCriticalGaps,
-    fetchRhDashboardSummary,
-    fetchRhOrganizationalAlerts,
-    fetchRhTrainingPlans,
-    postRhReallocationSimulate,
-    postRhReallocationValidate,
-} from "@/api/rh-workspace.api";
+import { fetchRhDashboardSummary, postRhReallocationSimulate, postRhReallocationValidate } from "@/api/rh-workspace.api";
 import { queryKeys } from "@/lib/query-keys";
 
 const RH_NOTIF_LIMIT = 50;
@@ -39,34 +32,9 @@ export function useRhDashboardQuery() {
     });
 }
 
-export function useRhCriticalGapsQuery() {
-    return useQuery({
-        queryKey: queryKeys.rh.criticalGaps(),
-        queryFn: ({ signal }) => fetchRhCriticalGaps({ signal }),
-    });
-}
-
-export function useRhTrainingPlansQuery() {
-    return useQuery({
-        queryKey: queryKeys.rh.trainingPlans(),
-        queryFn: ({ signal }) => fetchRhTrainingPlans({ signal }),
-    });
-}
-
-export function useRhOrganizationalAlertsQuery() {
-    return useQuery({
-        queryKey: queryKeys.rh.orgAlerts(),
-        queryFn: ({ signal }) => fetchRhOrganizationalAlerts({ signal }),
-    });
-}
-
 export function useRhReallocationSimulateMutation() {
-    const qc = useQueryClient();
     return useMutation({
         mutationFn: (body: Record<string, unknown>) => postRhReallocationSimulate(body),
-        onSuccess: () => {
-            void qc.invalidateQueries({ queryKey: queryKeys.rh.orgAlerts() });
-        },
     });
 }
 

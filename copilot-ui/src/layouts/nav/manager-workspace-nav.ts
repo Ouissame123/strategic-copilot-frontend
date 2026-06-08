@@ -2,6 +2,7 @@ import type { TFunction } from "i18next";
 import {
     AlertTriangle,
     BarChart01,
+    CheckCircle,
     Clock,
     Folder,
     LayersTwo02,
@@ -20,6 +21,7 @@ export function getManagerWorkspaceNavItems(t: TFunction<"nav", undefined>): Nav
         { label: t("managerNavTeam"), href: "/workspace/manager/team", icon: Users01 },
         { label: t("managerNavTalentRequests"), href: "/workspace/manager/talent-requests", icon: UsersEdit },
         { label: t("managerNavRhRequests"), href: "/workspace/manager/rh-requests", icon: UserPlus01 },
+        { label: t("managerNavValidations"), href: "/workspace/manager/validations", icon: CheckCircle },
         { label: t("managerNavRisks"), href: "/workspace/manager/risks", icon: AlertTriangle },
         { label: t("decisionLog"), href: "/workspace/manager/decision-log", icon: Clock },
         { label: t("managerNavReports"), href: "/workspace/manager/reports", icon: BarChart01 },

@@ -1,0 +1,194 @@
+\babel@toc {french}{}\relax 
+\contentsline {chapter}{Résumé}{9}{chapter*.3}%
+\contentsline {chapter}{Abstract}{10}{chapter*.4}%
+\contentsline {chapter}{Introduction Générale}{12}{chapter*.5}%
+\contentsline {chapter}{\numberline {1}Contexte général du projet et analyse des besoins}{16}{chapter.1}%
+\contentsline {section}{\numberline {1.1}Introduction}{16}{section.1.1}%
+\contentsline {section}{\numberline {1.2}Présentation de l'entreprise d'accueil}{17}{section.1.2}%
+\contentsline {section}{\numberline {1.3}Contexte du stage}{18}{section.1.3}%
+\contentsline {section}{\numberline {1.4}Problématique}{18}{section.1.4}%
+\contentsline {section}{\numberline {1.5}Objectifs du projet}{20}{section.1.5}%
+\contentsline {section}{\numberline {1.6}Présentation générale de Strategic Copilot}{21}{section.1.6}%
+\contentsline {subsection}{\numberline {1.6.1}Vision et positionnement}{21}{subsection.1.6.1}%
+\contentsline {subsection}{\numberline {1.6.2}Les trois espaces utilisateurs}{21}{subsection.1.6.2}%
+\contentsline {paragraph}{Espace Manager.}{21}{section*.6}%
+\contentsline {paragraph}{Espace RH.}{22}{section*.7}%
+\contentsline {paragraph}{Espace Talent.}{22}{section*.8}%
+\contentsline {subsection}{\numberline {1.6.3}Fonctionnalités transverses}{23}{subsection.1.6.3}%
+\contentsline {section}{\numberline {1.7}Analyse des besoins}{23}{section.1.7}%
+\contentsline {subsection}{\numberline {1.7.1}Acteurs et cas d'usage}{23}{subsection.1.7.1}%
+\contentsline {subsection}{\numberline {1.7.2}Besoins fonctionnels}{24}{subsection.1.7.2}%
+\contentsline {subsection}{\numberline {1.7.3}Besoins non fonctionnels}{25}{subsection.1.7.3}%
+\contentsline {subsection}{\numberline {1.7.4}Contraintes identifiées}{26}{subsection.1.7.4}%
+\contentsline {section}{\numberline {1.8}Conclusion}{27}{section.1.8}%
+\contentsline {chapter}{\numberline {2}Étude Bibliographique}{28}{chapter.2}%
+\contentsline {section}{\numberline {2.1}Introduction}{28}{section.2.1}%
+\contentsline {section}{\numberline {2.2}Transformation digitale des ressources humaines}{29}{section.2.2}%
+\contentsline {subsection}{\numberline {2.2.1}Enjeux de la digitalisation RH}{29}{subsection.2.2.1}%
+\contentsline {subsection}{\numberline {2.2.2}Systèmes d'information RH modernes}{30}{subsection.2.2.2}%
+\contentsline {section}{\numberline {2.3}Gestion des talents et des compétences}{31}{section.2.3}%
+\contentsline {subsection}{\numberline {2.3.1}Talent Management}{31}{subsection.2.3.1}%
+\contentsline {subsection}{\numberline {2.3.2}Skill Management}{31}{subsection.2.3.2}%
+\contentsline {subsection}{\numberline {2.3.3}Workforce Planning}{32}{subsection.2.3.3}%
+\contentsline {section}{\numberline {2.4}Gestion de portefeuille de projets}{33}{section.2.4}%
+\contentsline {subsection}{\numberline {2.4.1}Project Portfolio Management}{33}{subsection.2.4.1}%
+\contentsline {subsection}{\numberline {2.4.2}Allocation des ressources}{33}{subsection.2.4.2}%
+\contentsline {subsection}{\numberline {2.4.3}Indicateurs de performance et de viabilité}{34}{subsection.2.4.3}%
+\contentsline {section}{\numberline {2.5}Intelligence artificielle appliquée à l'aide à la décision}{35}{section.2.5}%
+\contentsline {subsection}{\numberline {2.5.1}Systèmes d'aide à la décision}{35}{subsection.2.5.1}%
+\contentsline {subsection}{\numberline {2.5.2}Large Language Models}{35}{subsection.2.5.2}%
+\contentsline {subsection}{\numberline {2.5.3}Recommandations automatisées}{36}{subsection.2.5.3}%
+\contentsline {subsection}{\numberline {2.5.4}Architectures multi-agents et Agentic AI}{37}{subsection.2.5.4}%
+\contentsline {section}{\numberline {2.6}Automatisation des processus métier}{37}{section.2.6}%
+\contentsline {subsection}{\numberline {2.6.1}Workflow Automation}{37}{subsection.2.6.1}%
+\contentsline {subsection}{\numberline {2.6.2}Orchestration avec n8n}{38}{subsection.2.6.2}%
+\contentsline {section}{\numberline {2.7}Technologies web modernes}{38}{section.2.7}%
+\contentsline {subsection}{\numberline {2.7.1}React.js et Vite}{38}{subsection.2.7.1}%
+\contentsline {subsection}{\numberline {2.7.2}Tailwind CSS}{39}{subsection.2.7.2}%
+\contentsline {subsection}{\numberline {2.7.3}Supabase et PostgreSQL}{40}{subsection.2.7.3}%
+\contentsline {subsection}{\numberline {2.7.4}OpenAI et IA générative}{40}{subsection.2.7.4}%
+\contentsline {subsection}{\numberline {2.7.5}Visualisation de données avec Recharts}{41}{subsection.2.7.5}%
+\contentsline {subsection}{\numberline {2.7.6}Sécurité, authentification et déploiement SaaS}{41}{subsection.2.7.6}%
+\contentsline {section}{\numberline {2.8}Synthèse et positionnement de Strategic Copilot}{42}{section.2.8}%
+\contentsline {section}{\numberline {2.9}Conclusion}{43}{section.2.9}%
+\contentsline {chapter}{\numberline {3}Cahier des charges et planification}{44}{chapter.3}%
+\contentsline {section}{\numberline {3.1}Introduction}{44}{section.3.1}%
+\contentsline {section}{\numberline {3.2}Cahier des charges}{44}{section.3.2}%
+\contentsline {subsection}{\numberline {3.2.1}Présentation générale du système}{44}{subsection.3.2.1}%
+\contentsline {subsection}{\numberline {3.2.2}Acteurs du système}{45}{subsection.3.2.2}%
+\contentsline {subsection}{\numberline {3.2.3}Fonctionnalités principales}{45}{subsection.3.2.3}%
+\contentsline {subsection}{\numberline {3.2.4}Contraintes techniques et organisationnelles}{46}{subsection.3.2.4}%
+\contentsline {section}{\numberline {3.3}Spécifications fonctionnelles}{47}{section.3.3}%
+\contentsline {subsection}{\numberline {3.3.1}Fonctionnalités de l'espace Manager}{47}{subsection.3.3.1}%
+\contentsline {subsection}{\numberline {3.3.2}Fonctionnalités de l'espace RH}{48}{subsection.3.3.2}%
+\contentsline {subsection}{\numberline {3.3.3}Fonctionnalités de l'espace Talent}{48}{subsection.3.3.3}%
+\contentsline {subsection}{\numberline {3.3.4}Fonctionnalités du Copilot intelligent}{49}{subsection.3.3.4}%
+\contentsline {section}{\numberline {3.4}Spécifications non fonctionnelles}{49}{section.3.4}%
+\contentsline {subsection}{\numberline {3.4.1}Performance}{49}{subsection.3.4.1}%
+\contentsline {subsection}{\numberline {3.4.2}Sécurité}{50}{subsection.3.4.2}%
+\contentsline {subsection}{\numberline {3.4.3}Fiabilité}{50}{subsection.3.4.3}%
+\contentsline {subsection}{\numberline {3.4.4}Maintenabilité}{50}{subsection.3.4.4}%
+\contentsline {subsection}{\numberline {3.4.5}Scalabilité}{50}{subsection.3.4.5}%
+\contentsline {subsection}{\numberline {3.4.6}Ergonomie et expérience utilisateur}{50}{subsection.3.4.6}%
+\contentsline {section}{\numberline {3.5}Planification du projet}{51}{section.3.5}%
+\contentsline {subsection}{\numberline {3.5.1}Méthodologie adoptée}{51}{subsection.3.5.1}%
+\contentsline {subsection}{\numberline {3.5.2}Découpage en phases}{51}{subsection.3.5.2}%
+\contentsline {subsection}{\numberline {3.5.3}Diagramme de Gantt}{52}{subsection.3.5.3}%
+\contentsline {subsection}{\numberline {3.5.4}Livrables du projet}{52}{subsection.3.5.4}%
+\contentsline {section}{\numberline {3.6}Gestion des risques}{53}{section.3.6}%
+\contentsline {subsection}{\numberline {3.6.1}Risques techniques}{53}{subsection.3.6.1}%
+\contentsline {subsection}{\numberline {3.6.2}Risques organisationnels}{53}{subsection.3.6.2}%
+\contentsline {subsection}{\numberline {3.6.3}Mesures d'atténuation}{53}{subsection.3.6.3}%
+\contentsline {section}{\numberline {3.7}Ressources utilisées}{53}{section.3.7}%
+\contentsline {subsection}{\numberline {3.7.1}Ressources humaines}{53}{subsection.3.7.1}%
+\contentsline {subsection}{\numberline {3.7.2}Ressources logicielles}{54}{subsection.3.7.2}%
+\contentsline {subsection}{\numberline {3.7.3}Ressources matérielles}{54}{subsection.3.7.3}%
+\contentsline {section}{\numberline {3.8}Conclusion}{54}{section.3.8}%
+\contentsline {chapter}{\numberline {4}Conception}{55}{chapter.4}%
+\contentsline {section}{\numberline {4.1}Introduction}{55}{section.4.1}%
+\contentsline {section}{\numberline {4.2}Architecture globale du système}{56}{section.4.2}%
+\contentsline {subsection}{\numberline {4.2.1}Vue d'ensemble}{56}{subsection.4.2.1}%
+\contentsline {subsection}{\numberline {4.2.2}Architecture multi-couches}{56}{subsection.4.2.2}%
+\contentsline {subsection}{\numberline {4.2.3}Architecture multi-agents}{57}{subsection.4.2.3}%
+\contentsline {section}{\numberline {4.3}Conception fonctionnelle}{57}{section.4.3}%
+\contentsline {subsection}{\numberline {4.3.1}Acteurs du système}{57}{subsection.4.3.1}%
+\contentsline {subsection}{\numberline {4.3.2}Cas d'usage}{58}{subsection.4.3.2}%
+\contentsline {subsection}{\numberline {4.3.3}Flux fonctionnels}{58}{subsection.4.3.3}%
+\contentsline {section}{\numberline {4.4}Conception de l'architecture agentique}{59}{section.4.4}%
+\contentsline {subsection}{\numberline {4.4.1}Agents d'analyse}{59}{subsection.4.4.1}%
+\contentsline {subsection}{\numberline {4.4.2}Agents de recommandation}{59}{subsection.4.4.2}%
+\contentsline {subsection}{\numberline {4.4.3}Agent orchestrateur}{59}{subsection.4.4.3}%
+\contentsline {subsection}{\numberline {4.4.4}Interaction entre agents}{60}{subsection.4.4.4}%
+\contentsline {section}{\numberline {4.5}Conception des workflows n8n}{60}{section.4.5}%
+\contentsline {subsection}{\numberline {4.5.1}Principes d'orchestration}{60}{subsection.4.5.1}%
+\contentsline {subsection}{\numberline {4.5.2}Description détaillée des workflows réellement présents}{61}{subsection.4.5.2}%
+\contentsline {subsection}{\numberline {4.5.3}Communication entre workflows}{61}{subsection.4.5.3}%
+\contentsline {subsection}{\numberline {4.5.4}Gestion des erreurs et reprise}{61}{subsection.4.5.4}%
+\contentsline {section}{\numberline {4.6}Conception de la base de données}{63}{section.4.6}%
+\contentsline {subsection}{\numberline {4.6.1}Architecture Supabase/PostgreSQL}{63}{subsection.4.6.1}%
+\contentsline {subsection}{\numberline {4.6.2}Tables principales}{63}{subsection.4.6.2}%
+\contentsline {subsection}{\numberline {4.6.3}Relations entre entités}{63}{subsection.4.6.3}%
+\contentsline {section}{\numberline {4.7}Conception du frontend}{64}{section.4.7}%
+\contentsline {subsection}{\numberline {4.7.1}Architecture React/Vite}{64}{subsection.4.7.1}%
+\contentsline {subsection}{\numberline {4.7.2}Organisation des composants}{64}{subsection.4.7.2}%
+\contentsline {subsection}{\numberline {4.7.3}Gestion des états}{64}{subsection.4.7.3}%
+\contentsline {subsection}{\numberline {4.7.4}Workspaces Manager, RH et Talent}{65}{subsection.4.7.4}%
+\contentsline {section}{\numberline {4.8}Conception des APIs}{65}{section.4.8}%
+\contentsline {subsection}{\numberline {4.8.1}Endpoints exposés}{65}{subsection.4.8.1}%
+\contentsline {subsection}{\numberline {4.8.2}Structure des réponses JSON}{66}{subsection.4.8.2}%
+\contentsline {subsection}{\numberline {4.8.3}Intégration avec React Query}{66}{subsection.4.8.3}%
+\contentsline {section}{\numberline {4.9}Sécurité et gouvernance}{67}{section.4.9}%
+\contentsline {subsection}{\numberline {4.9.1}Authentification}{67}{subsection.4.9.1}%
+\contentsline {subsection}{\numberline {4.9.2}Contrôle d'accès}{67}{subsection.4.9.2}%
+\contentsline {subsection}{\numberline {4.9.3}Traçabilité des décisions IA}{67}{subsection.4.9.3}%
+\contentsline {section}{\numberline {4.10}Conclusion}{68}{section.4.10}%
+\contentsline {chapter}{\numberline {5}Réalisation et implémentation}{69}{chapter.5}%
+\contentsline {section}{\numberline {5.1}Introduction}{69}{section.5.1}%
+\contentsline {section}{\numberline {5.2}Environnement de développement}{69}{section.5.2}%
+\contentsline {subsection}{\numberline {5.2.1}Outils utilisés}{69}{subsection.5.2.1}%
+\contentsline {subsection}{\numberline {5.2.2}Technologies retenues}{70}{subsection.5.2.2}%
+\contentsline {subsection}{\numberline {5.2.3}Configuration de l'environnement}{70}{subsection.5.2.3}%
+\contentsline {section}{\numberline {5.3}Implémentation du frontend}{71}{section.5.3}%
+\contentsline {subsection}{\numberline {5.3.1}Structure du projet React/Vite}{71}{subsection.5.3.1}%
+\contentsline {subsection}{\numberline {5.3.2}Gestion du routage}{72}{subsection.5.3.2}%
+\contentsline {subsection}{\numberline {5.3.3}Gestion des états avec React Query}{72}{subsection.5.3.3}%
+\contentsline {subsection}{\numberline {5.3.4}Design system et Tailwind CSS}{73}{subsection.5.3.4}%
+\contentsline {subsection}{\numberline {5.3.5}Workspaces Manager, RH et Talent}{73}{subsection.5.3.5}%
+\contentsline {section}{\numberline {5.4}Implémentation du backend}{73}{section.5.4}%
+\contentsline {subsection}{\numberline {5.4.1}Architecture générale des workflows n8n}{73}{subsection.5.4.1}%
+\contentsline {subsection}{\numberline {5.4.2}Principaux workflows réellement implémentés}{74}{subsection.5.4.2}%
+\contentsline {subsection}{\numberline {5.4.3}Intégration des services OpenAI}{74}{subsection.5.4.3}%
+\contentsline {subsection}{\numberline {5.4.4}Exposition des APIs via Webhooks}{75}{subsection.5.4.4}%
+\contentsline {section}{\numberline {5.5}Implémentation de la base de données}{75}{section.5.5}%
+\contentsline {subsection}{\numberline {5.5.1}Structure Supabase/PostgreSQL}{75}{subsection.5.5.1}%
+\contentsline {subsection}{\numberline {5.5.2}Principales tables}{75}{subsection.5.5.2}%
+\contentsline {subsection}{\numberline {5.5.3}Contraintes et intégrité des données}{76}{subsection.5.5.3}%
+\contentsline {section}{\numberline {5.6}Interfaces principales}{76}{section.5.6}%
+\contentsline {subsection}{\numberline {5.6.1}Tableau de bord Manager}{76}{subsection.5.6.1}%
+\contentsline {subsection}{\numberline {5.6.2}Espace RH}{76}{subsection.5.6.2}%
+\contentsline {subsection}{\numberline {5.6.3}Espace Talent}{77}{subsection.5.6.3}%
+\contentsline {subsection}{\numberline {5.6.4}Mission Control}{77}{subsection.5.6.4}%
+\contentsline {subsection}{\numberline {5.6.5}Copilot conversationnel}{77}{subsection.5.6.5}%
+\contentsline {subsection}{\numberline {5.6.6}Simulateur What-if}{78}{subsection.5.6.6}%
+\contentsline {section}{\numberline {5.7}Fonctionnalités avancées}{78}{section.5.7}%
+\contentsline {subsection}{\numberline {5.7.1}Alertes intelligentes}{78}{subsection.5.7.1}%
+\contentsline {subsection}{\numberline {5.7.2}Recommandations IA}{78}{subsection.5.7.2}%
+\contentsline {subsection}{\numberline {5.7.3}Journal des décisions}{78}{subsection.5.7.3}%
+\contentsline {subsection}{\numberline {5.7.4}Génération de rapports}{79}{subsection.5.7.4}%
+\contentsline {section}{\numberline {5.8}Difficultés rencontrées et solutions apportées}{79}{section.5.8}%
+\contentsline {section}{\numberline {5.9}Conclusion}{80}{section.5.9}%
+\contentsline {chapter}{\numberline {6}Tests et résultats}{81}{chapter.6}%
+\contentsline {section}{\numberline {6.1}Introduction}{81}{section.6.1}%
+\contentsline {section}{\numberline {6.2}Stratégie de test}{81}{section.6.2}%
+\contentsline {subsection}{\numberline {6.2.1}Objectifs des tests}{81}{subsection.6.2.1}%
+\contentsline {subsection}{\numberline {6.2.2}Méthodologie adoptée}{82}{subsection.6.2.2}%
+\contentsline {subsection}{\numberline {6.2.3}Environnement de test}{82}{subsection.6.2.3}%
+\contentsline {section}{\numberline {6.3}Tests fonctionnels}{83}{section.6.3}%
+\contentsline {subsection}{\numberline {6.3.1}Authentification et gestion des rôles}{83}{subsection.6.3.1}%
+\contentsline {subsection}{\numberline {6.3.2}Tests de l'espace Manager}{83}{subsection.6.3.2}%
+\contentsline {subsection}{\numberline {6.3.3}Tests de l'espace RH}{84}{subsection.6.3.3}%
+\contentsline {subsection}{\numberline {6.3.4}Tests de l'espace Talent}{84}{subsection.6.3.4}%
+\contentsline {subsection}{\numberline {6.3.5}Tests du Copilot intelligent}{84}{subsection.6.3.5}%
+\contentsline {section}{\numberline {6.4}Tests des APIs et des workflows n8n}{85}{section.6.4}%
+\contentsline {subsection}{\numberline {6.4.1}Validation des endpoints Webhook}{85}{subsection.6.4.1}%
+\contentsline {subsection}{\numberline {6.4.2}Tests via Postman}{85}{subsection.6.4.2}%
+\contentsline {subsection}{\numberline {6.4.3}Validation des workflows multi-agents}{86}{subsection.6.4.3}%
+\contentsline {section}{\numberline {6.5}Tests de la base de données}{86}{section.6.5}%
+\contentsline {subsection}{\numberline {6.5.1}Intégrité des données}{86}{subsection.6.5.1}%
+\contentsline {subsection}{\numberline {6.5.2}Contraintes relationnelles}{87}{subsection.6.5.2}%
+\contentsline {subsection}{\numberline {6.5.3}Cohérence des calculs}{87}{subsection.6.5.3}%
+\contentsline {section}{\numberline {6.6}Cas d'usage complet}{87}{section.6.6}%
+\contentsline {subsection}{\numberline {6.6.1}Analyse d'un projet réel}{87}{subsection.6.6.1}%
+\contentsline {subsection}{\numberline {6.6.2}Calcul du score de viabilité}{87}{subsection.6.6.2}%
+\contentsline {subsection}{\numberline {6.6.3}Recommandation Continue / Adjust / Stop}{88}{subsection.6.6.3}%
+\contentsline {subsection}{\numberline {6.6.4}Simulation What-if}{88}{subsection.6.6.4}%
+\contentsline {section}{\numberline {6.7}Résultats obtenus}{88}{section.6.7}%
+\contentsline {subsection}{\numberline {6.7.1}Résultats fonctionnels}{88}{subsection.6.7.1}%
+\contentsline {subsection}{\numberline {6.7.2}Résultats techniques}{89}{subsection.6.7.2}%
+\contentsline {subsection}{\numberline {6.7.3}Apports métier}{89}{subsection.6.7.3}%
+\contentsline {section}{\numberline {6.8}Limites observées}{89}{section.6.8}%
+\contentsline {section}{\numberline {6.9}Perspectives d'amélioration}{89}{section.6.9}%
+\contentsline {section}{\numberline {6.10}Conclusion}{90}{section.6.10}%
+\contentsline {chapter}{Conclusion générale}{91}{chapter*.9}%
+\contentsline {chapter}{Bibliographie}{94}{chapter*.9}%
+\contentsline {chapter}{Annexes}{96}{chapter*.11}%

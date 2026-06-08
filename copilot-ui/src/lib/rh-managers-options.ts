@@ -1,11 +1,11 @@
-import type { RhManagerListItem } from "@/types/rh-assignments.types";
+import type { RhAvailableManager } from "@/types/rh-assignments.types";
 
-export type RhManagerOption = RhManagerListItem;
-
-export function formatManagerSelectLabel(manager: RhManagerListItem): string {
-    return `${manager.full_name} — ${manager.email}`;
+export function formatAvailableManagerLabel(manager: RhAvailableManager): string {
+    return manager.manager_name.trim() || manager.manager_email.trim() || manager.manager_user_id;
 }
 
-export function managersToSelectOptions(managers: RhManagerListItem[]): RhManagerListItem[] {
-    return [...managers].sort((a, b) => a.full_name.localeCompare(b.full_name, "fr"));
+export function availableManagersToSelectOptions(managers: RhAvailableManager[]): RhAvailableManager[] {
+    return [...managers].sort((a, b) =>
+        formatAvailableManagerLabel(a).localeCompare(formatAvailableManagerLabel(b), "fr"),
+    );
 }

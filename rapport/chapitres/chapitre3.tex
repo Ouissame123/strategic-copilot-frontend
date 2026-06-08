@@ -1,0 +1,266 @@
+\chapter{Cahier des charges et planification}
+
+\section{Introduction}
+
+Le présent chapitre formalise le cahier des charges et la planification du projet Strategic Copilot. Il fait suite aux chapitres consacrés au contexte général, à l'analyse des besoins et à l'étude bibliographique : les acteurs, les tensions métier, les fondements théoriques et technologiques y ont été posés ; il s'agit ici de les traduire en spécifications fonctionnelles et non fonctionnelles, puis d'en décrire la mise en œuvre planifiée dans le temps. Le document de référence \emph{PFE Agentic AI Strategic Talents} et le dépôt logiciel \texttt{frontend-ui} (application \texttt{copilot-ui}) constituent les deux sources de vérité retenues pour cette formalisation.
+
+L'objectif est de présenter, de manière structurée et vérifiable, ce que le système doit faire, sous quelles contraintes, avec quelles ressources et selon quel calendrier. Le lecteur y trouvera la description du système multi-agents, le détail des fonctionnalités par espace utilisateur, les exigences de qualité, le découpage en phases, un diagramme de Gantt, la gestion des risques et l'inventaire des ressources mobilisées pendant le stage.
+
+\section{Cahier des charges}
+
+\subsection{Présentation générale du système}
+
+Strategic Copilot est une plateforme SaaS intelligente d'aide à la décision pour la gestion stratégique des talents et des projets. Elle s'inscrit dans l'écosystème \textbf{Augmented Talents} sous le nom \emph{Talent \& Project Strategic Copilot}. Le système adopte une architecture \textbf{API-first} : l'interface React ne réalise aucun calcul décisionnel critique (scores de viabilité, risques, recommandations), conformément au principe explicite de \texttt{crud-domain.ts}.
+
+Le cœur métier repose sur un \textbf{système multi-agents} orchestré par n8n. Quatre agents principaux sont documentés dans le PFE Agentic AI : le \textbf{Project Analysis Agent} (analyse KPI et dérives projet), le \textbf{Talent Matching Agent} (adéquation compétences et staffing), le \textbf{Risk \& Weak Signal Agent} (risques et signaux faibles), et le \textbf{Strategic Orchestrator} (agrégation, score de viabilité, décision Continue/Adjust/Stop). Un \textbf{Helper Copilot} complète le dispositif par un dialogue contextualisé (\texttt{WF\_Copilot\_Project\_Detail}, \texttt{/webhook/api/helper/chat}).
+
+Les données sont persistées dans \textbf{PostgreSQL} via \textbf{Supabase} ; les workflows n8n lisent et écrivent les tables métier. Le front-end consomme les \textbf{webhooks n8n} (chemins \texttt{/webhook/...} et \texttt{/api/...} proxifiés). Les services d'\textbf{intelligence artificielle} (API compatibles OpenAI, activées par \texttt{use\_ai: true} dans les workflows) sont invoqués exclusivement côté orchestrateur, jamais directement depuis le navigateur.
+
+Le score de viabilité, défini dans le cahier Agentic AI, combine Skills Fit (40\,\%), Capacité (35\,\%) et Budget (25\,\%), chaque terme étant normalisé sur 10. Les seuils de décision sont : Continue si le score est supérieur ou égal à 7,5 ; Adjust entre 4 et 7,5 ; Stop en dessous de 4.
+
+\subsection{Acteurs du système}
+
+Le système distingue trois rôles applicatifs, matérialisés par le type \texttt{UserRole} (\texttt{manager}, \texttt{rh}, \texttt{talent}) et le routage \texttt{ProtectedRoute}.
+
+Le \textbf{manager} pilote le portefeuille projet, supervise l'équipe, traite les alertes, formule des demandes RH, simule des scénarios what-if et enregistre ses décisions dans le journal Copilot. Il accède à l'espace \texttt{/workspace/manager}.
+
+Le \textbf{responsable RH} administre le référentiel talents et compétences, suit les écarts critiques, les plans de formation, la mobilité, les alertes organisationnelles et traite les demandes des managers. Il accède à \texttt{/workspace/rh}.
+
+Le \textbf{talent} consulte ses missions, projets, tâches, charge de travail, compétences et formations. Il accède à \texttt{/workspace/talent}.
+
+En arrière-plan, les \textbf{workflows n8n} et la \textbf{base PostgreSQL} constituent des acteurs techniques : ils exécutent les règles, persistant les résultats analytiques dans \texttt{project\_viability\_scores} et \texttt{ai\_decisions\_log}.
+
+\subsection{Fonctionnalités principales}
+
+Les fonctionnalités principales, alignées sur le document Agentic AI et vérifiées dans le code, couvrent les domaines suivants.
+
+La \textbf{visualisation} regroupe les tableaux de bord manager et RH, le portefeuille projets (\texttt{getCopilotDashboard}, \texttt{getCopilotProjects}), les fiches détaillées et le modal Mission Control (\texttt{ProjectMissionControlModal}).
+
+La \textbf{détection des risques} s'appuie sur l'agent Watchdog (\texttt{WF\_Project\_Risk}, \texttt{WF\_Risk\_KPI}), le scan manuel (\texttt{POST /webhook/api/watchdog/scan}), la page \texttt{RisksPage} et les notifications.
+
+Les \textbf{recommandations IA} sont produites par le Matchmaker, l'Analyst, le Strategist et le Copilot global, avec affichage des niveaux de confiance et actions suggérées dans le Helper.
+
+Les \textbf{demandes RH} typent les escalades (\texttt{skill\_gap}, \texttt{reallocation}, \texttt{training}, \texttt{overload}, \texttt{recruitment}) et suivent un cycle de traitement par PATCH.
+
+Les \textbf{simulations what-if} (\texttt{POST /webhook/api/project/what-if}, processus P5) permettent de tester l'impact d'une modification d'allocation, de délai ou de compétence avant arbitrage.
+
+Les \textbf{rapports} (board-pack PDF, historique, envoi courriel via \texttt{use-reports-n8n}) supportent la gouvernance.
+
+Le document Agentic AI structure ces capacités en six processus enchaînés, que le front-end déclenche ou consomme sans les réimplémenter. Le processus P0 (\texttt{WF\_Data\_Sync}) assure la synchronisation des référentiels projets et talents, condition préalable à toute analyse cohérente. Le processus P1 (\texttt{WF\_Project\_Analysis}) alimente les KPI et l'atmosphère projet affichés par l'Analyst Senior. Le processus P2 (\texttt{WF\_Talent\_Matching}) produit les propositions de staffing et les écarts de compétences exploités par le Matchmaker. Le processus P3 (\texttt{WF\_Risk\_KPI} et \texttt{WF\_Project\_Risk}) calcule les scores de fragilité et les alertes du Watchdog. Le processus P4 (\texttt{WF\_Strategic\_Orchestrator}) agrège les sorties précédentes en un score de viabilité et une décision Continue, Adjust ou Stop. Le processus P5 (\texttt{WF\_What\_If}) permet de simuler une modification d'allocation, de délai ou de compétence avant validation humaine. Cette chaîne constitue le fil conducteur du cahier des charges : chaque écran manager ou RH s'appuie sur une ou plusieurs étapes de ce pipeline.
+
+\subsection{Contraintes techniques et organisationnelles}
+
+Sur le plan \textbf{technique}, le front-end ne recalcule pas les scores analytiques ; toute évolution métier passe par n8n ; PostgreSQL est la source de vérité ; les secrets IA restent côté serveur ; les URLs sont configurables par variables \texttt{VITE\_*} ; le proxy Vite assure la cohérence dev/prod avec \texttt{n8nprod.aphelionxinnovations.com}.
+
+Sur le plan \textbf{organisationnel}, le projet s'inscrit dans une équipe répartissant les agents (analyse projet, matching, risques), sous encadrement EMSI (Mme Soundouss Abroun) et encadrants entreprise (MM. Youssef Moufak, Hamza Sadouk, Hicham Taoufik, Mohyi Eddine Saadani). Les livraisons sont incrémentales, avec validation régulière des parcours critiques.
+
+Le tableau~\ref{tab:apis-ch3} recense les principales interfaces HTTP consommées par \texttt{copilot-ui}. Ces contrats matérialisent le principe API-first : le navigateur n'accède jamais directement aux tables PostgreSQL pour les calculs analytiques.
+
+\begin{table}[htbp]
+\centering
+\caption{Principales API Strategic Copilot (via n8n)}
+\label{tab:apis-ch3}
+\begin{tabular}{@{}llp{5.8cm}@{}}
+\toprule
+\textbf{Méthode} & \textbf{Chemin (défaut)} & \textbf{Rôle} \\
+\midrule
+POST & \texttt{/webhook/login} & Authentification JWT. \\
+GET & \texttt{/webhook/api/copilot/dashboard} & Vue portefeuille manager. \\
+GET & \texttt{/webhook/api/copilot/projects} & Liste projets Copilot. \\
+POST & \texttt{/webhook/api/project/viability} & Score et décision (Orchestrator). \\
+POST & \texttt{/webhook/api/project/what-if} & Simulation de scénario. \\
+POST & \texttt{/webhook/api/project/risks} & Risques Watchdog. \\
+POST & \texttt{/webhook/api/project/talents} & Matching talents. \\
+POST & \texttt{/webhook/api/project/details} & Analyse projet (Analyst). \\
+POST & \texttt{/webhook/api/strategist/propose} & Options d'arbitrage. \\
+POST & \texttt{/webhook/api/strategist/execute} & Exécution d'arbitrage. \\
+POST & \texttt{/webhook/api/helper/chat} & Dialogue Helper Copilot. \\
+POST & \texttt{/webhook/api/copilot/recompute} & Relance analyses projet. \\
+GET & \texttt{/webhook/manager/rh-actions} & Liste demandes RH. \\
+PATCH & \texttt{/webhook/manager/rh-actions/:id} & Traitement demande RH. \\
+GET & \texttt{/api/rh/dashboard} & Tableau de bord RH. \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Les chemins effectifs peuvent être surchargés par des variables d'environnement \texttt{VITE\_*}, ce qui permet d'adapter l'instance n8n sans recompiler l'application lorsque les workflows sont versionnés (\texttt{wmp-detail-v1}, \texttt{wmt-list-v1}, \texttt{wmc-archive-v1}, etc.).
+
+\section{Spécifications fonctionnelles}
+
+\subsection{Fonctionnalités de l'espace Manager}
+
+L'espace manager doit permettre l'authentification et l'accès au tableau de bord consolidé (\texttt{DashboardPage}), incluant les blocs \texttt{matchmaker} et \texttt{analyst} lorsque le backend les fournit.
+
+Le manager doit pouvoir lister et ouvrir les projets (\texttt{ProjectsPage}, paramètre \texttt{openProjectId}), consulter le détail via \texttt{wmp-detail-v1} et piloter un projet dans le modal Mission Control : vue d'ensemble, équipe, tâches (\texttt{wmt-*-v1}), risques, simulation, décisions.
+
+Il doit gérer son équipe (\texttt{TeamPage}), consulter une fiche talent (\texttt{TalentDetailPage}), lancer un scan Watchdog individuel ou global, affecter ou désaffecter des talents (\texttt{wmp-assign-v1}, \texttt{wmp-unassign-v1}) avec recompute optionnel.
+
+Il doit visualiser et traiter les risques (\texttt{RisksPage}), les notifications (\texttt{NotificationsPage}), créer et suivre des demandes RH et talent, générer des rapports (\texttt{ReportsPage}, option \texttt{includeAi}), consulter le journal des décisions (\texttt{DecisionLogPage}) avec graphiques Recharts, utiliser le Helper (\texttt{HelperChatPage}) et le Copilot contextuel (\texttt{CopilotProvider}).
+
+Le portefeuille projets doit permettre une lecture kanban ou tabulaire (\texttt{manager-projects-kanban}, \texttt{manager-projects-portfolio-table}) et un filtrage cohérent avec les statuts du cycle de vie (\texttt{planned}, \texttt{active}, \texttt{on\_hold}, \texttt{completed}, \texttt{cancelled}) matérialisés par le composant \texttt{ProjectLifecycleStepper}. Lors d'une affectation, le système peut déclencher un recompute automatique si la variable \texttt{VITE\_TRIGGER\_PROJECT\_RECOMPUTE\_AFTER\_ASSIGN} est activée, afin de rafraîchir les scores après mutation. Les alertes de risque doivent pouvoir être résolues ou ignorées via \texttt{PATCH /webhook/manager/risk-alerts/:id}, garantissant une boucle de traitement explicite plutôt qu'une simple consultation passive.
+
+\subsection{Fonctionnalités de l'espace RH}
+
+L'espace RH doit fournir un tableau de bord (\texttt{RhDashboardPage}, \texttt{/api/rh/dashboard}), la gestion des employés et talents (\texttt{RhEmployeesPage}), le catalogue de compétences (\texttt{RhSkillsCatalogPage}), l'identification des écarts critiques (\texttt{RhCriticalGapsPage}), les plans de formation (\texttt{RhTrainingPlansPage}), la mobilité et réallocation (\texttt{RhMobilityPage}), les alertes organisationnelles (\texttt{RhOrgAlertsPage}).
+
+Il doit permettre le traitement des demandes managers (\texttt{rh/manager-requests}, \texttt{rh-actions.api.ts}), la gestion des comptes et sessions, les rapports, ainsi qu'une vue projets cohérente avec le portefeuille manager (\texttt{ProjectsPage}, \texttt{ProjectDetailsPage}).
+
+Les demandes RH doivent respecter un cycle de vie traçable : création côté manager à partir d'une recommandation (écart de compétence, surcharge, besoin de formation ou de recrutement), notification, puis acceptation, rejet, avancement ou clôture côté RH via les mutations PATCH documentées dans \texttt{rh-actions.api.ts}. Le référentiel compétences (\texttt{Skill}, \texttt{TalentSkill}) doit rester aligné sur les besoins exprimés dans \texttt{project\_requirements}, afin que les écarts critiques identifiés par le Matchmaker trouvent une réponse opérationnelle dans les plans de formation ou de mobilité.
+
+\subsection{Fonctionnalités de l'espace Talent}
+
+L'espace talent doit offrir un tableau de bord personnel (\texttt{TalentDashboardPage}), la consultation des projets assignés (\texttt{TalentProjectsPage}), des tâches (\texttt{TalentTasksPage}), de la charge (\texttt{TalentWorkloadPage}), des compétences (\texttt{TalentSkillsPage}) et des formations (\texttt{TalentTrainingPage}), ainsi que les notifications et le profil.
+
+Les données affichées proviennent des API workspace talent (\texttt{/api/workspace/talent/*}) et respectent le périmètre du collaborateur connecté.
+
+\subsection{Fonctionnalités du Copilot intelligent}
+
+Le Copilot intelligent regroupe les capacités transverses d'aide à la décision. Le \texttt{CopilotProvider} expose des insights selon le scope (\texttt{dashboard}, \texttt{projects\_list}, \texttt{project\_detail}, \texttt{staffing}) via \texttt{getCopilotInsights} ou routes \texttt{/webhook/api/copilot/*}.
+
+Le système doit afficher synthèse, risques, recommandations, score de viabilité et niveau de confiance, et permettre l'enregistrement d'une décision (\texttt{saveCopilotDecision}, \texttt{postStrategicDecision}).
+
+Le Helper chat doit gérer les conversations (\texttt{/webhook/manager/conversations}), les messages (\texttt{helper/chat}), les questions rapides métier et les \texttt{suggested\_actions} de navigation.
+
+Le Strategist doit proposer des options d'arbitrage (\texttt{strategist/propose}) et les exécuter après validation (\texttt{strategist/execute}).
+
+Le recompute (\texttt{/webhook/api/copilot/recompute}) doit relancer la chaîne d'agents après une mutation projet.
+
+Les traces d'agents (\texttt{buildAgentTraces}) doivent indiquer le workflow associé, la fraîcheur du dernier calcul et la possibilité de relance.
+
+Le simulateur what-if, porté par \texttt{WhatIfProvider}, doit accepter un identifiant de projet et des modifications paramétriques (\texttt{allocation\_pct}, \texttt{added\_talent\_id}, \texttt{training\_skill\_id}, \texttt{delay\_days}) et restituer un delta de score de viabilité, une décision proposée, un détail des contributions par agent et des recommandations associées dans \texttt{WhatIfResultPanel}. Le Strategist doit formaliser des options d'arbitrage (\texttt{reallocation}, \texttt{delay}, \texttt{reinforce}, \texttt{stop\_scope}) avant toute exécution, conformément au principe de validation humaine inscrit dans le document Agentic AI. Enfin, les validations asynchrones déclenchées via \texttt{POST /webhook/api/helper/validations} complètent le dispositif lorsque le Helper propose des actions métier nécessitant une confirmation explicite.
+
+\section{Spécifications non fonctionnelles}
+
+\subsection{Performance}
+
+L'application doit rester utilisable malgré la latence des workflows n8n. Les timeouts HTTP sont configurables (\texttt{VITE\_HTTP\_TIMEOUT\_MS}, délai portefeuille \texttt{VITE\_PORTFOLIO\_TIMEOUT\_MS}). React Query met en cache les réponses et invalide sélectivement après mutations (\texttt{invalidateManagerRiskQueries}, invalidation post-Strategist). Les listes volumineuses s'appuient sur la pagination ou les limites API (\texttt{limit} sur \texttt{getCopilotProjects}).
+
+\subsection{Sécurité}
+
+L'accès est contrôlé par JWT (\texttt{/webhook/login}, \texttt{/webhook/refresh}). Les routes sont protégées par rôle. Les clés API IA et secrets Supabase ne sont pas exposés dans le bundle client. Le fichier \texttt{n8n/route-validate-claims-merger-FIX.js} illustre la validation des claims JWT sur les routes manager sensibles.
+
+\subsection{Fiabilité}
+
+Le client HTTP tolère les réponses non JSON des webhooks (\texttt{http-client.ts}, \texttt{apiClient.ts}). Les erreurs sont traduites en messages utilisateur (\texttt{user-facing-api-error.ts}). Les conversations Helper gèrent les erreurs 400/401/403 avec retours explicites. Un échec de workflow n'entraîne pas de corruption d'état côté UI grâce à l'absence de recalcul local.
+
+\subsection{Maintenabilité}
+
+TypeScript structure les contrats (\texttt{api.types.ts}, \texttt{copilot.ts}, \texttt{crud-domain.ts}). Les hooks encapsulent les appels (\texttt{useProjects}, \texttt{use-manager-risk-data}, \texttt{useRhActionsListQuery}). Les URLs n8n sont centralisées (\texttt{build-n8n-url.ts}, \texttt{manager-projects-api.config.ts}). Le module \texttt{copilot/api/} parse et mappe les DTO de manière testable.
+
+\subsection{Scalabilité}
+
+L'architecture découplée permet de scaler horizontalement l'instance n8n et la base PostgreSQL indépendamment du front-end statique (build Vite, déploiement Vercel avec relais \texttt{vercel.json}). Les workflows versionnés (\texttt{wmp-detail-v1}, etc.) facilitent l'évolution sans rupture. L'ajout d'un nouvel agent se traduit par un nouveau workflow et des champs DTO, sans refonte globale de l'UI.
+
+\subsection{Ergonomie et expérience utilisateur}
+
+L'interface adopte Tailwind CSS 4, Untitled UI et React Aria pour la cohérence visuelle et l'accessibilité. L'internationalisation (i18next, locales FR/EN/AR dans \texttt{manager-workspace-locales.ts}) adapte les libellés. Le mode sombre et les styles Recharts (\texttt{globals.css}) assurent la lisibilité des graphiques. La navigation par rôle évite la surcharge cognitive : chaque espace expose uniquement les écrans pertinents.
+
+\section{Planification du projet}
+
+\subsection{Méthodologie adoptée}
+
+La méthodologie suit une approche incrémentale inspirée des pratiques agiles, adaptée au contexte PFE. Chaque itération comprend une sélection de user stories, le développement front-end, l'intégration des webhooks n8n correspondants, des tests manuels sur les parcours critiques et une revue avec les encadrants. Les processus P0 à P5 du document Agentic AI (sync, analyse, matching, risques, orchestration, what-if) ont servi de colonne vertébrale pour prioriser les intégrations backend.
+
+\subsection{Découpage en phases}
+
+La phase 1 \textbf{Analyse et cadrage} a permis de stabiliser le cahier des charges Agentic AI, les personas et les contrats API cibles. La phase 2 \textbf{Conception} a défini l'architecture multi-agents, le modèle de données et la structure des trois espaces. La phase 3 \textbf{Réalisation} a livré les écrans manager, RH et talent, les intégrations CRUD et les workflows prioritaires. La phase 4 \textbf{Intégration IA} a connecté Copilot, Helper, Matchmaker, Watchdog, Strategist et Orchestrator. La phase 5 \textbf{Validation et rédaction} a couvert les tests, les corrections, les rapports PDF et le mémoire PFE.
+
+Le tableau~\ref{tab:phases-ch3} synthétise, pour chaque phase, les objectifs principaux et les jalons de validation attendus avec les encadrants.
+
+\begin{table}[htbp]
+\centering
+\caption{Phases du projet et jalons de validation}
+\label{tab:phases-ch3}
+\begin{tabular}{@{}p{2.2cm}p{4.2cm}p{6.6cm}@{}}
+\toprule
+\textbf{Phase} & \textbf{Objectif} & \textbf{Jalon de validation} \\
+\midrule
+1 — Analyse & Cadrage Agentic AI, personas, contrats API & Cahier des charges validé. \\
+2 — Conception & Architecture multi-agents, modèle de données & Schéma des workflows et écrans cibles. \\
+3 — Réalisation & Espaces manager, RH, talent ; CRUD n8n & Parcours critiques démontrables. \\
+4 — Intégration IA & Copilot, Helper, Orchestrator, what-if & Scores et alertes cohérents en base. \\
+5 — Validation & Tests, corrections, rapport PFE & Démonstration de soutenance. \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Diagramme de Gantt}
+
+La figure~\ref{fig:gantt-ch3} présente une planification indicative sur le semestre de stage (septembre 2025 à avril 2026). Les dates sont ajustables selon le calendrier académique réel.
+
+\begin{figure}[htbp]
+\centering
+\begin{ganttchart}[
+    hgrid,
+    vgrid,
+    time slot format=isodate,
+    time slot unit=month,
+    x unit=0.55cm,
+    y unit title=0.6cm,
+    y unit chart=0.5cm,
+    title/.style={draw=none},
+    bar/.append style={fill=gray!55},
+    group/.append style={fill=gray!25}
+]{2025-09-01}{2026-04-30}
+\gantttitle{Planification Strategic Copilot — PFE 2025--2026}{8} \\
+\gantttitlecalendar{year, month=shortname} \\
+\ganttgroup{Phase 1 — Analyse}{2025-09-01}{2025-10-31} \\
+\ganttbar{Cadrage Agentic AI}{2025-09-01}{2025-09-30} \\
+\ganttbar{Spécifications API}{2025-10-01}{2025-10-31} \\
+\ganttgroup{Phase 2 — Conception}{2025-11-01}{2025-11-30} \\
+\ganttbar{Architecture multi-agents}{2025-11-01}{2025-11-15} \\
+\ganttbar{Maquettes et modèle de données}{2025-11-16}{2025-11-30} \\
+\ganttgroup{Phase 3 — Réalisation}{2025-12-01}{2026-01-31} \\
+\ganttbar{Espace Manager}{2025-12-01}{2025-12-31} \\
+\ganttbar{Espaces RH et Talent}{2026-01-01}{2026-01-15} \\
+\ganttbar{Workflows n8n P0--P3}{2026-01-16}{2026-01-31} \\
+\ganttgroup{Phase 4 — Intégration IA}{2026-02-01}{2026-02-28} \\
+\ganttbar{Orchestrator et Copilot}{2026-02-01}{2026-02-14} \\
+\ganttbar{Helper et What-if}{2026-02-15}{2026-02-28} \\
+\ganttgroup{Phase 5 — Validation}{2026-03-01}{2026-04-30} \\
+\ganttbar{Tests et corrections}{2026-03-01}{2026-03-31} \\
+\ganttbar{Rédaction et soutenance}{2026-03-15}{2026-04-30}
+\end{ganttchart}
+\caption{Diagramme de Gantt du projet Strategic Copilot}
+\label{fig:gantt-ch3}
+\end{figure}
+
+\subsection{Livrables du projet}
+
+Les livrables comprennent l'application web \texttt{copilot-ui} (build Vite), les workflows n8n documentés et versionnés, la configuration d'environnement (\texttt{.env}, variables \texttt{VITE\_*}), le présent rapport LaTeX (\texttt{rapport/main.tex}), les rapports métier PDF (board-pack), les supports de soutenance prévus dans le document Agentic AI (grille jury, script dix minutes) et le dépôt Git \texttt{frontend-ui}.
+
+Chaque livrable logiciel est assorti d'une preuve d'intégration observable dans l'interface : le build front-end démontre la couverture des trois rôles ; les workflows versionnés garantissent la reproductibilité des calculs ; le rapport formalise les choix et les écarts éventuels entre ambition documentaire et implémentation effective. Cette traçabilité répond à l'exigence académique du PFE tout en servant la maintenance industrielle du produit Augmented Talents.
+
+\section{Gestion des risques}
+
+\subsection{Risques techniques}
+
+Les risques techniques identifiés incluent l'indisponibilité ou la lenteur de l'instance n8n, les ruptures de contrat JSON entre workflows et front-end, les erreurs 500 sur l'Orchestrator lors de données invalides (par exemple talent non UUID dans what-if, d'où la sanitization dans \texttt{orchestrator.api.ts}), et les dérives de configuration entre environnements (proxy Vite versus production Vercel).
+
+\subsection{Risques organisationnels}
+
+Les risques organisationnels concernent la disponibilité des encadrants pour valider les arbitrages métier, la qualité des données en base (impact direct sur la pertinence des alertes), et la dispersion des responsabilités entre plusieurs agents IA au sein de l'équipe projet.
+
+\subsection{Mesures d'atténuation}
+
+Les mesures d'atténuation retenues sont : timeouts et messages d'erreur explicites ; typage TypeScript strict ; tests répétés des parcours critiques ; documentation des webhooks ; revues régulières avec les encadrants ; principe « pas de calcul front » pour garantir une seule source de vérité analytique ; et sauvegarde du dépôt Git avec scripts de déploiement (\texttt{commit-et-push.cmd}).
+
+\section{Ressources utilisées}
+
+\subsection{Ressources humaines}
+
+L'étudiant Ouissame Mahtour a assuré le développement front-end et l'agent Project Analysis. Un membre de l'équipe (Mohammed) a contribué à l'agent Talent Matching. L'agent Risk \& Weak Signal a été co-construit. L'encadrement pédagogique a été assuré par Mme Soundouss Abroun (EMSI Tanger). L'encadrement entreprise a été assuré par MM. Youssef Moufak, Hamza Sadouk, Hicham Taoufik et Mohyi Eddine Saadani.
+
+\subsection{Ressources logicielles}
+
+Les ressources logicielles comprennent React 19, Vite 7, TypeScript, Tailwind CSS 4, React Router 7, TanStack React Query, axios, i18next, Recharts, n8n (instance \texttt{n8nprod.aphelionxinnovations.com}), PostgreSQL/Supabase, Cursor/VS Code, LaTeX Workshop (MiKTeX), Git, et les services d'IA configurés dans les workflows n8n (API compatibles OpenAI, paramètre \texttt{use\_ai}).
+
+\subsection{Ressources matérielles}
+
+Les ressources matérielles comprennent les postes de développement des membres de l'équipe, l'accès réseau à l'instance n8n et à Supabase, et l'environnement de déploiement (Vercel pour le front-end statique). Aucune infrastructure propriétaire supplémentaire n'a été requise au-delà de ces services.
+
+\section{Conclusion}
+
+Ce chapitre a formalisé le cahier des charges et la planification de Strategic Copilot. Le système a été présenté comme une plateforme SaaS multi-agents, API-first, reposant sur n8n, PostgreSQL/Supabase et une interface React typée. Les spécifications fonctionnelles ont été déclinées par espace (manager, RH, talent) et pour le Copilot intelligent ; les spécifications non fonctionnelles ont encadré performance, sécurité, fiabilité, maintenabilité, scalabilité et ergonomie. La planification par phases, le diagramme de Gantt, la gestion des risques et l'inventaire des ressources complètent ce cadrage.
+
+Le chapitre suivant détaillera la conception fonctionnelle et technique complète telle qu'implémentée dans le dépôt \texttt{frontend-ui}.

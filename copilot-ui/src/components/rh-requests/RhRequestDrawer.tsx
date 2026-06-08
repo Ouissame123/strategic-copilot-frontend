@@ -1,7 +1,7 @@
 import { useMemo } from "react";
 import { Link } from "react-router";
 import { X } from "lucide-react";
-import { RH_DETAIL_STATUS_PATCH } from "@/components/manager/rh-requests/rh-request-detail-modal";
+import { MANAGER_RH_CANCEL_PATCH_BODY } from "@/api/rh-actions.constants";
 import {
     isRhRequestDecider,
     primaryMessage,
@@ -227,4 +227,4 @@ export function RhRequestDrawer({
     );
 }
 
-export { RH_DETAIL_STATUS_PATCH };
+export { MANAGER_RH_CANCEL_PATCH_BODY };

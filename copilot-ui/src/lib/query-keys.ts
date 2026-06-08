@@ -23,10 +23,19 @@ export const queryKeys = {
     rh: {
         all: ["rh"] as const,
         actions: () => [...queryKeys.rh.all, "actions"] as const,
+        /** WF_RH_Requests_Decision — GET/PATCH `/webhook/rh/requests`. */
+        requests: () => [...queryKeys.rh.all, "requests"] as const,
+        /** WF_RH_Conversations + WF_RH_Chat */
+        chat: {
+            conversationsRoot: ["rh", "chat", "conversations"] as const,
+            conversations: (params: {
+                status?: string;
+                search?: string;
+                limit?: number;
+            }) => ["rh", "chat", "conversations", params.status ?? "all", params.search ?? "", params.limit ?? 50] as const,
+            detail: (id: string) => ["rh", "chat", "detail", id] as const,
+        },
         dashboard: () => [...queryKeys.rh.all, "dashboard"] as const,
-        criticalGaps: () => [...queryKeys.rh.all, "critical-gaps"] as const,
-        trainingPlans: () => [...queryKeys.rh.all, "training-plans"] as const,
-        orgAlerts: () => [...queryKeys.rh.all, "org-alerts"] as const,
         analytics: (enterpriseId: string) => [...queryKeys.rh.all, "analytics", enterpriseId] as const,
         notifications: (enterpriseId: string, limit: number) =>
             [...queryKeys.rh.all, "notifications", enterpriseId, limit] as const,
@@ -53,5 +62,7 @@ export const queryKeys = {
             ["analyst-mobility", ctx] as const,
         projectDetail: (id: string) => [...queryKeys.manager.all, "project-detail", id] as const,
         projectRisks: (projectId: string | null) => [...queryKeys.manager.all, "project-risks", projectId ?? "all"] as const,
+        validations: (scope: string, params?: { types?: string[]; limit?: number }) =>
+            [...queryKeys.manager.all, "validations", scope, params?.types?.join(",") ?? "", params?.limit ?? 100] as const,
     },
 } as const;

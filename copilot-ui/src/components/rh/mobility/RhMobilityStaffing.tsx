@@ -23,11 +23,10 @@ import {
 import {
     deleteRhAssignment,
     fetchRhAssignmentsList,
-    fetchRhManagersList,
     mapRhAssignmentsError,
 } from "@/services/rh-assignments.api";
 import { useToast } from "@/providers/toast-provider";
-import type { RhAssignmentRow, RhManagerListItem } from "@/types/rh-assignments.types";
+import type { RhAssignmentRow, RhAvailableManager } from "@/types/rh-assignments.types";
 import type { RhTalentListItem } from "@/types/rh-talents.types";
 import { RH_ALERT_ERROR } from "@/utils/rh-workspace-theme";
 import { cx } from "@/utils/cx";
@@ -43,7 +42,7 @@ export function RhMobilityStaffing({ enterpriseId, apiBase = RH_TALENTS_WEBHOOK_
     const resolvedBase = useMemo(() => resolveRhWebhookBase(apiBase), [apiBase]);
 
     const [assignments, setAssignments] = useState<RhAssignmentRow[]>([]);
-    const [managers, setManagers] = useState<RhManagerListItem[]>([]);
+    const [managers, setManagers] = useState<RhAvailableManager[]>([]);
     const [talents, setTalents] = useState<RhTalentListItem[]>([]);
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
@@ -78,15 +77,9 @@ export function RhMobilityStaffing({ enterpriseId, apiBase = RH_TALENTS_WEBHOOK_
                     fetchRhTalentsList({ enterprise_id: enterpriseId, status: "all", limit: 500 }, { token, apiBase }),
                 ]);
                 setAssignments(assignRes.assignments);
+                setManagers(assignRes.available_managers ?? []);
                 setTalents(talentsRes.talents);
                 setError(null);
-
-                try {
-                    const managersRes = await fetchRhManagersList({ token, apiBase: resolvedBase });
-                    setManagers(managersRes.managers);
-                } catch {
-                    setManagers([]);
-                }
             } catch (e) {
                 setError(mapRhAssignmentsError(e));
                 setAssignments([]);
@@ -141,11 +134,14 @@ export function RhMobilityStaffing({ enterpriseId, apiBase = RH_TALENTS_WEBHOOK_
     };
 
     const handleDelete = async () => {
-        const id = deleteRow?.talent_id ?? deleteRow?.id;
-        if (!id) return;
+        const talentId = deleteRow?.talent_id?.trim();
+        if (!talentId) {
+            pushToast("Impossible de retirer l'affectation : talent_id manquant.", "error");
+            return;
+        }
         setDeleting(true);
         try {
-            await deleteRhAssignment(id, { token, apiBase: resolvedBase });
+            await deleteRhAssignment(talentId, { token, apiBase: resolvedBase });
             pushToast("Affectation retirée.", "success");
             setDeleteRow(null);
             void loadData("refresh");

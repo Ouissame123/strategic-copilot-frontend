@@ -1,0 +1,265 @@
+\chapter{Réalisation et implémentation}
+
+\section{Introduction}
+
+Le présent chapitre décrit la réalisation concrète de Strategic Copilot, plateforme SaaS d'aide à la décision pour la gestion des talents et des projets, telle qu'elle est livrée dans le dépôt \texttt{frontend-ui}. Il fait suite au chapitre de conception : les architectures, workflows et contrats y ont été formalisés ; il s'agit ici d'expliquer comment elles ont été implémentées, dans quel environnement de développement, et quelles interfaces sont effectivement utilisables par les profils manager, RH et talent.
+
+La réalisation s'organise autour d'une application React (\texttt{copilot-ui}) consommant des webhooks n8n hébergés sur \texttt{n8nprod.aphelionxinnovations.com}, avec persistance PostgreSQL (Supabase) et enrichissement IA orchestré côté serveur (paramètre \texttt{use\_ai: true}, API compatibles OpenAI). Aucune fonctionnalité non présente dans le code source n'est décrite : chaque affirmation de ce chapitre est vérifiable dans les fichiers TypeScript, de configuration Vite/Vercel et dans le script d'intégration \texttt{n8n/route-validate-claims-merger-FIX.js}.
+
+\section{Environnement de développement}
+
+\subsection{Outils utilisés}
+
+Le développement a été mené avec Visual Studio Code ou Cursor, Git pour le versionnement du dépôt \texttt{frontend-ui}, et npm pour la gestion des dépendances à la racine du monorepo. La compilation du présent rapport utilise LaTeX Workshop (MiKTeX) sur le dossier \texttt{rapport/}. Les tests manuels s'effectuent dans un navigateur moderne (Chrome ou Edge) contre l'instance n8n de production ou de préproduction, relayée en local par le proxy Vite.
+
+Les scripts npm principaux, définis dans le \texttt{package.json} racine, sont \texttt{npm run dev} (serveur Vite sur le port 5173), \texttt{npm run build} (bundle de production dans \texttt{copilot-ui/dist}), \texttt{npm run typecheck} et \texttt{npm run build:check} (vérification TypeScript avant build). Le sous-dossier \texttt{copilot-ui} contient un \texttt{package.json} minimal qui délègue ces commandes à la racine, ce qui évite la duplication des dépendances React.
+
+\subsection{Technologies retenues}
+
+Le tableau~\ref{tab:stack-ch5} synthétise la stack effectivement déclarée dans les manifestes du projet.
+
+\begin{table}[htbp]
+\centering
+\caption{Stack technique de Strategic Copilot (versions du \texttt{package.json} racine)}
+\label{tab:stack-ch5}
+\begin{tabular}{@{}ll@{}}
+\toprule
+\textbf{Composant} & \textbf{Version / bibliothèque} \\
+\midrule
+Runtime UI & React 19.2, React DOM 19.2 \\
+Build & Vite 7.3, plugin \texttt{@vitejs/plugin-react-swc} \\
+Langage & TypeScript 5.9 \\
+Routage & React Router 7.13 \\
+Données serveur & TanStack React Query 5.90 \\
+HTTP & axios 1.13 \\
+Styles & Tailwind CSS 4.1, plugins typography et react-aria \\
+Formulaires & react-hook-form 7.54, zod 3.24 \\
+i18n & i18next 25.8, react-i18next 16.5 \\
+Graphiques & Recharts 2.15 \\
+Composants & React Aria Components 1.15, Untitled UI \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Le backend métier n'est pas un serveur Node dédié dans ce dépôt : il est constitué des workflows n8n et de PostgreSQL. L'IA générative est invoquée dans les graphes n8n lorsque le corps de requête contient \texttt{use\_ai: true}, sans SDK OpenAI embarqué dans le bundle client.
+
+\subsection{Configuration de l'environnement}
+
+Le fichier \texttt{copilot-ui/.env} documente les variables essentielles. \texttt{VITE\_N8N\_BASE\_URL} pointe vers l'hôte n8n ; en développement, le client HTTP utilise des chemins relatifs \texttt{/webhook/...} pour profiter du proxy défini dans \texttt{vite.config.ts}. \texttt{VITE\_API\_BASE\_URL} peut surcharger la base des webhooks versionnés (\texttt{wmp-*}, \texttt{wmt-*}). Les clés Supabase (\texttt{VITE\_SUPABASE\_URL}, \texttt{VITE\_SUPABASE\_ANON\_KEY}) sont réservées au stockage fichier ; les requêtes analytiques passent par n8n.
+
+Le fichier \texttt{copilot-ui/.env.production} fixe les chemins d'authentification et RH pour le déploiement Vercel (\texttt{VITE\_API\_LOGIN=/webhook/login}, \texttt{VITE\_API\_RH\_USERS\_LIST=/webhook/rh/users}, etc.). Le fichier \texttt{vercel.json} à la racine relaie \texttt{/webhook/:path*} vers \texttt{n8nprod.aphelionxinnovations.com}, ce qui aligne production et développement sur le même schéma d'URL côté navigateur.
+
+La figure~\ref{fig:archi-dev-ch5} schématise l'environnement de développement local.
+
+\begin{figure}[htbp]
+\centering
+\fbox{\parbox{0.92\textwidth}{\centering\vspace{0.8cm}
+\textbf{Schéma d'exécution en développement}\\[0.4cm]
+Navigateur $\rightarrow$ \texttt{localhost:5173} (Vite)\\
+$\rightarrow$ proxy \texttt{/webhook}, \texttt{/api}, \texttt{/n8n-webhook}\\
+$\rightarrow$ \texttt{n8nprod.aphelionxinnovations.com}\\
+$\rightarrow$ PostgreSQL / OpenAI (nœuds n8n)\vspace{0.8cm}}}
+\caption{Enchaînement des appels en mode développement (proxy Vite)}
+\label{fig:archi-dev-ch5}
+\end{figure}
+
+\section{Implémentation du frontend}
+
+\subsection{Structure du projet React/Vite}
+
+La racine Vite est \texttt{copilot-ui} (\texttt{root: appRoot} dans \texttt{vite.config.ts}). Le point d'entrée \texttt{src/main.tsx} monte l'arbre React avec les providers globaux (\texttt{ThemeProvider}, \texttt{AuthProvider}, \texttt{QueryClientProviderWrapper}, \texttt{ToastProvider}, \texttt{CopilotProvider}, \texttt{WhatIfProvider}) et le routeur. L'alias \texttt{@} résout vers \texttt{src/}, ce qui simplifie les imports métier.
+
+L'arborescence suit une séparation par responsabilité. Le répertoire \texttt{pages/} contient les écrans par workspace (\texttt{manager/}, \texttt{workspace/rh/}, \texttt{workspace/talent-workspace-pages}). Le répertoire \texttt{components/} regroupe les blocs réutilisables (Copilot, Mission Control, formulaires RH). Le répertoire \texttt{api/} centralise les appels HTTP typés ; \texttt{hooks/} encapsule React Query ; \texttt{features/manager/project-detail/} concentre la logique du modal Mission Control (traces d'agents, recompute). Le répertoire \texttt{types/} définit les contrats (\texttt{api.types.ts}, \texttt{crud-domain.ts}, \texttt{copilot.ts}).
+
+Le principe fondamental du domaine est codifié en tête de \texttt{crud-domain.ts} : le front-end n'effectue aucun recalcul de scores ni de recommandations. L'extrait suivant en fixe la portée.
+
+\begin{lstlisting}[caption={Principe pas de calcul front (\texttt{crud-domain.ts})},label={lst:crud-domain}]
+/** Champs analytiques : lecture seule depuis l'API.
+ *  Le frontend ne recalcule pas scores ni recommandations. */
+export interface Project {
+  viability_score?: number | null;
+  risk_score?: number | null;
+  decision?: string | null;
+}
+\end{lstlisting}
+
+\subsection{Gestion du routage}
+
+React Router 7 déclare trois layouts protégés par rôle dans \texttt{main.tsx}. \texttt{ProtectedRoute} redirige vers \texttt{/login} si la session est absente et vérifie le tableau \texttt{roles} pour les routes sensibles. Les chemins legacy (\texttt{/projects/:id}, \texttt{/decision-log}) redirigent vers les workspaces via \texttt{LegacyProjectDetailRedirect} et composants associés, préservant les liens profonds.
+
+L'espace manager vit sous \texttt{/workspace/manager/*} avec \texttt{ManagerWorkspaceLayout} ; l'espace RH sous \texttt{/workspace/rh/*} avec \texttt{RhWorkspaceLayout} ; l'espace talent sous \texttt{/workspace/talent/*} avec \texttt{TalentWorkspaceAppLayout}. La route \texttt{/workspace/rh/manager-requests} est partagée entre manager et RH (\texttt{RhManagerRequestsEntry}) pour le traitement des demandes. Le panneau \texttt{CopilotPanel} est rendu au niveau racine du routeur, visible sur les écrans autorisés selon le contexte fourni par \texttt{CopilotProvider}.
+
+\subsection{Gestion des états avec React Query}
+
+\texttt{QueryClientProviderWrapper} configure un \texttt{QueryClient} partagé : \texttt{staleTime} de 60 secondes, \texttt{gcTime} de cinq minutes, deux tentatives maximum sur erreur transitoire, \texttt{refetchOnWindowFocus} activé. Chaque domaine métier possède des hooks dédiés : \texttt{useDashboard}, \texttt{use-portfolio}, \texttt{useProjects}, \texttt{use-manager-risk-data}, \texttt{use-rh-actions-query}, \texttt{use-talent-workspace-page-query}, \texttt{use-copilot-query}.
+
+Les mutations invalident sélectivement les caches. Après une affectation projet, \texttt{useProjects} peut déclencher \texttt{/webhook/api/copilot/recompute} si \texttt{VITE\_TRIGGER\_PROJECT\_RECOMPUTE\_AFTER\_ASSIGN=1}. Après exécution Strategist, les requêtes risques et portefeuille sont rafraîchies. \texttt{CrossRoleQuerySync} propage les invalidations lors d'un changement de session pour éviter l'affichage de données d'un autre rôle.
+
+L'état UI local (onglets Mission Control, modales, formulaires) reste dans les composants React ou dans des contextes (\texttt{WhatIfProvider} pour le simulateur global). Cette séparation évite de mélanger cache serveur et brouillons utilisateur.
+
+\subsection{Design system et Tailwind CSS}
+
+Tailwind CSS 4 est intégré via \texttt{@tailwindcss/vite}. Les styles globaux (\texttt{globals.css}) définissent les variables de thème clair/sombre et les surcharges Recharts pour la lisibilité des graphiques. Les composants s'appuient sur \texttt{tailwind-merge} et sur la bibliothèque Untitled UI (icônes, boutons, modales). React Aria assure l'accessibilité clavier et les rôles ARIA sur les champs et tableaux.
+
+L'internationalisation couvre le workspace manager en français, anglais et arabe (\texttt{manager-workspace-locales.ts}, chargé depuis \texttt{i18n.ts}). Les dates relatives utilisent \texttt{localeForDateFormatting} (\texttt{ui-locale.ts}) pour adapter le formatage au locale actif. Le \texttt{ThemeProvider} permet le basculement clair/sombre sans rechargement.
+
+\subsection{Workspaces Manager, RH et Talent}
+
+L'espace manager regroupe le pilotage opérationnel : \texttt{DashboardPage} consomme \texttt{useDashboard} et les blocs \texttt{matchmaker}/\texttt{analyst} ; \texttt{ProjectsPageManager} ouvre \texttt{ProjectMissionControlModal} ; \texttt{TeamPage} et \texttt{TalentDetailPage} appellent les webhooks équipe et Watchdog ; \texttt{RisksPage} agrège \texttt{/webhook/api/project/risks} ; \texttt{ManagerRhRequestsPage} et \texttt{TalentRequestsPage} gèrent les escalades ; \texttt{ReportsPage} et \texttt{DecisionLogPage} complètent la gouvernance.
+
+L'espace RH implémente le référentiel et la politique RH : pages \texttt{rh-dashboard-page}, \texttt{rh-employees-page}, \texttt{rh-skills-catalog-page}, \texttt{rh-critical-gaps-page}, \texttt{rh-training-plans-page}, \texttt{rh-mobility-page}, \texttt{rh-org-alerts-page}, plus \texttt{rh-accounts-workspace-page} et \texttt{rh-sessions-workspace-page} branchés sur \texttt{rhService.ts} (\texttt{/webhook/rh/users}, \texttt{/webhook/rh/sessions}).
+
+L'espace talent expose huit vues alimentées par \texttt{fetchTalentWorkspacePage} sur \texttt{/api/workspace/talent/dashboard}, \texttt{.../projects}, \texttt{.../tasks}, \texttt{.../workload}, \texttt{.../skills}, \texttt{.../trainings}, \texttt{.../notifications} et \texttt{.../profile}. La mise à jour d'une tâche passe par \texttt{talent-task-update.api.ts} (\texttt{/api/talent/tasks/:id}, méthode configurable).
+
+\section{Implémentation du backend}
+
+\subsection{Architecture générale des workflows n8n}
+
+Les workflows n8n ne sont pas exportés dans le dépôt front-end ; leur contrat est inféré des chemins HTTP et des noms \texttt{WF\_*} référencés dans le code. Chaque flux suit généralement le patron Webhook $\rightarrow$ validation JWT $\rightarrow$ nœuds Postgres $\rightarrow$ branche \texttt{use\_ai} $\rightarrow$ Respond to Webhook. Le script \texttt{route-validate-claims-merger-FIX.js} montre que la fusion des claims et le routage manager team sont traités en amont des handlers.
+
+En développement, trois préfixes coexistent : \texttt{/webhook} (chemins bruts), \texttt{/api} (réécrit en \texttt{/webhook/api} sauf \texttt{/api/rh/actions} vers le webhook UUID \texttt{c8bae94d-...}), et \texttt{/n8n-webhook} (réécrit vers \texttt{/webhook} pour les tâches \texttt{wmt-*-v1}).
+
+\subsection{Principaux workflows réellement implémentés}
+
+La réalisation couvre plusieurs familles de workflows, toutes consommées par \texttt{copilot-ui}.
+
+La famille \textbf{manager projet} (\texttt{WF\_Manager\_Projects}, \texttt{wmp-detail-v1}, \texttt{wmp-update-v1}, \texttt{wmp-assign-v1}, \texttt{wmp-unassign-v1}) assure liste, détail, mise à jour et affectations. La famille \textbf{tâches} (\texttt{WF\_Manager\_Project\_Tasks}, \texttt{wmt-list-v1} à \texttt{wmt-delete-v1}) est implémentée dans \texttt{projectTasksApi.ts}. La famille \textbf{équipe} (\texttt{WF\_Manager\_Team}, \texttt{wmt-detail-v1/manager/team/:talentId}) alimente \texttt{TalentDetailPage}.
+
+La famille \textbf{agentique} comprend \texttt{WF\_Project\_Analysis} (\texttt{POST /webhook/api/project/details}), \texttt{WF\_Project\_Risk} (\texttt{.../risks}), \texttt{WF\_Talent\_Matching} (\texttt{.../talents}), \texttt{WF\_Project\_Viability} (\texttt{.../viability}), le what-if (\texttt{.../what-if}), le recompute (\texttt{.../copilot/recompute}), le Strategist (\texttt{.../strategist/propose|execute}) et le Helper (\texttt{.../helper/chat}, \texttt{.../validations}). Les traces affichées dans Mission Control proviennent de \texttt{buildAgentTraces} dans \texttt{agent-trace.ts}.
+
+La famille \textbf{RH et demandes} regroupe \texttt{WF\_Manager\_RH\_Actions}, les agrégats \texttt{/api/rh/*} et le PATCH dédié sur \texttt{/api/rh/actions/:id}. La famille \textbf{rapports} expose \texttt{/webhook/reports/generate-board-pack}, \texttt{generate-project-dossier}, \texttt{history}, \texttt{send-email} et \texttt{schedule}. La famille \textbf{auth} couvre login, refresh, logout et profil.
+
+\subsection{Intégration des services OpenAI}
+
+Aucune clé OpenAI n'est présente dans le code React. L'intégration est réalisée dans n8n : les appels front-end passent \texttt{use\_ai: true} lorsque l'analyse enrichie est requise, par exemple dans \texttt{agents.api.ts} pour les risques et le matching, sur \texttt{RisksPage} et \texttt{TeamPage} pour le scan Watchdog (\texttt{POST /webhook/api/watchdog/scan}), et dans \texttt{project-viability-refresh.ts} pour la viabilité.
+
+Le Helper (\texttt{helper.api.ts}, \texttt{chat.api.ts}) envoie le contexte projet et la conversation à \texttt{POST /webhook/api/helper/chat} ; la réponse structurée inclut texte et \texttt{suggested\_actions}. Le panneau Copilot global peut appeler \texttt{POST /webhook/v1/copilot/insights} (\texttt{copilot-provider.tsx}) avec un contexte portfolio construit par \texttt{buildInsightsContextPayload}.
+
+\subsection{Exposition des APIs via Webhooks}
+
+\texttt{httpClient} (axios) attache le Bearer JWT sur chaque requête et gère le refresh sur 401 via \texttt{/webhook/refresh}. \texttt{apiGet} et \texttt{apiPost} (\texttt{apiClient.ts}) servent les routes \texttt{/api/copilot/*} et workspace talent. Les réponses n8n souvent imbriquées (\texttt{json}, \texttt{body}) sont aplaties par \texttt{flattenN8nRow} dans \texttt{use-reports-n8n.ts} et par des parseurs métier (\texttt{copilot-api.parse.ts}, \texttt{rh-api-parse.ts}).
+
+Le tableau~\ref{tab:impl-api-ch5} rappelle les endpoints les plus sollicités lors de la réalisation.
+
+\begin{table}[htbp]
+\centering
+\caption{Endpoints critiques de la réalisation}
+\label{tab:impl-api-ch5}
+\begin{tabular}{@{}ll@{}}
+\toprule
+\textbf{Endpoint} & \textbf{Fichier client principal} \\
+\midrule
+\texttt{POST /webhook/api/project/viability} & \texttt{orchestrator.api.ts} \\
+\texttt{POST /webhook/api/copilot/recompute} & \texttt{recompute.api.ts}, \texttt{useProjects.ts} \\
+\texttt{GET /webhook/api/copilot/dashboard} & \texttt{copilot.api.ts} \\
+\texttt{GET /webhook/wmp-detail-v1/.../projects/:id} & \texttt{manager-projects.api.ts} \\
+\texttt{POST /webhook/api/helper/chat} & \texttt{helper.api.ts} \\
+\texttt{GET /api/workspace/talent/*} & \texttt{talent-workspace-pages.api.ts} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\section{Implémentation de la base de données}
+
+\subsection{Structure Supabase/PostgreSQL}
+
+PostgreSQL héberge les tables métier et les tables de résultats analytiques. Supabase fournit l'hébergement managé et le bucket pour les PDF de rapports (\texttt{file\_url} renvoyé par \texttt{GenerateReportResponse}). Les workflows n8n accèdent aux tables via des nœuds Postgres ; le front-end n'exécute pas de SQL.
+
+\subsection{Principales tables}
+
+Les entités manipulées indirectement par l'UI correspondent aux types TypeScript et au cahier Agentic AI. \texttt{projects} porte les scores \texttt{viability\_score}, \texttt{risk\_score} et la décision en lecture seule côté client. \texttt{project\_tasks}, \texttt{project\_requirements} et \texttt{project\_assignments} structurent le travail et le staffing. \texttt{talents}, \texttt{skills} et \texttt{talent\_skills} modélisent le référentiel RH. \texttt{workload\_snapshots} alimente les vues de charge. \texttt{project\_viability\_scores} et \texttt{ai\_decisions\_log} historisent les sorties orchestrateur et les validations humaines.
+
+Les demandes RH et alertes sont matérialisées dans des tables ou vues backend exposées sous forme de DTO (\texttt{RhActionItem}, notifications dans \texttt{notifications.api.ts}).
+
+\subsection{Contraintes et intégrité des données}
+
+L'intégrité repose sur des UUID validés côté client avant envoi (\texttt{assertUuid} dans \texttt{manager-api-contract}, \texttt{rh-actions.api.ts}). \texttt{orchestrator.api.ts} sanitise les identifiants talent pour le what-if afin d'éviter les erreurs serveur sur UUID invalides. Les corps POST d'affectation (\texttt{wmp-assign-v1}) imposent des champs nullables explicites conformément au contrat n8n.
+
+Les mutations CRUD projet peuvent renvoyer un bloc \texttt{analysis\_refresh} (\texttt{CrudMutationResult}) pour afficher les scores à jour sans recalcul local. Les contraintes métier (statuts projet, types de demandes RH) sont appliquées dans les workflows ; le front-end reflète les énumérations reçues (\texttt{Continue}, \texttt{Adjust}, \texttt{Stop}, types \texttt{skill\_gap}, \texttt{training}, etc.).
+
+\section{Interfaces principales}
+
+\subsection{Tableau de bord Manager}
+
+\texttt{DashboardPage} agrège les indicateurs via \texttt{useDashboard} (\texttt{GET /webhook/manager/dashboard} et données Copilot associées). La page affiche des KPI avec sparklines SVG, les sections \texttt{AnalystSection} et les recommandations Matchmaker construites par \texttt{buildExecutiveRecommendations} et \texttt{buildSkillGapsSorted} à partir des données serveur, sans inventer de scores. Des liens ouvrent Mission Control sur un projet via \texttt{managerProjectsOpenModalPath}.
+
+La figure~\ref{fig:ui-dashboard-ch5} indique l'emplacement prévu pour une capture d'écran du tableau de bord (à insérer sous \texttt{rapport/figures/dashboard-manager.png} si disponible).
+
+\begin{figure}[htbp]
+\centering
+\IfFileExists{figures/dashboard-manager.png}{%
+  \includegraphics[width=0.92\textwidth]{figures/dashboard-manager.png}}{%
+  \fbox{\parbox{0.9\textwidth}{\centering\vspace{1.2cm}
+  \textit{Figure : tableau de bord manager}\\
+  KPI, blocs Analyst et Matchmaker, liens vers projets\vspace{1.2cm}}}}
+\caption{Tableau de bord de l'espace manager (\texttt{DashboardPage})}
+\label{fig:ui-dashboard-ch5}
+\end{figure}
+
+\subsection{Espace RH}
+
+Les pages RH consomment \texttt{rh-workspace.api.ts} : \texttt{fetchRhDashboard} sur \texttt{/api/rh/dashboard}, \texttt{fetchRhCriticalGaps}, \texttt{fetchRhTrainingPlans}, \texttt{fetchRhOrgAlerts}, ainsi que les endpoints de simulation de réallocation (\texttt{/api/rh/reallocation/simulate} et \texttt{validate}). La gestion des comptes utilise \texttt{listRhUsers}, \texttt{createRhUser}, \texttt{patchRhUserRole} et \texttt{patchRhUserStatus} vers les webhooks \texttt{/webhook/rh/users}. Le catalogue de compétences et la mobilité s'appuient sur les hooks CRUD \texttt{skills} et \texttt{talents} lorsque configurés.
+
+\subsection{Espace Talent}
+
+Chaque page talent est implémentée dans \texttt{talent-workspace-pages.tsx} et charge ses données via \texttt{use-talent-workspace-page-query} et le chemin dédié \texttt{/api/workspace/talent/...}. Le tableau de bord talent, la liste des projets assignés, les tâches, la charge, les compétences et les formations sont en lecture seule côté métier analytique ; seule la mise à jour de tâche autorise une mutation explicite. Les notifications peuvent utiliser \texttt{VITE\_TALENT\_NOTIFICATIONS\_URL} ou l'agrégat workspace.
+
+\subsection{Mission Control}
+
+\texttt{ProjectMissionControlModal} (\texttt{project-mission-control-modal.tsx}, plus de 1\,000 lignes) concentre le pilotage d'un projet. Six onglets sont implémentés : \texttt{overview}, \texttt{team}, \texttt{tasks}, \texttt{risks}, \texttt{simulation} et \texttt{decisions}, correspondant au type \texttt{MissionControlWorkspaceTabId}. Le modal charge le détail via \texttt{wmp-detail-v1}, affiche le stepper de cycle de vie, les traces d'agents (\texttt{buildAgentTraces}), permet assign/unassign, la gestion des tâches, le rafraîchissement de viabilité (\texttt{use-project-viability-refresh}) et l'intégration du panneau risques (\texttt{ProjectMissionControlRisks}).
+
+\begin{figure}[htbp]
+\centering
+\fbox{\parbox{0.9\textwidth}{\centering\vspace{1cm}
+\textit{Figure : Mission Control — onglets overview, équipe, tâches, risques, simulation, décisions}\vspace{1cm}}}
+\caption{Modal \texttt{ProjectMissionControlModal} (centre de pilotage projet)}
+\label{fig:ui-mission-ch5}
+\end{figure}
+
+\subsection{Copilot conversationnel}
+
+Deux niveaux coexistent. Le \texttt{CopilotPanel} global (\texttt{CopilotProvider}) envoie le contexte de page (\texttt{dashboard}, \texttt{projects\_list}, \texttt{project\_detail}, \texttt{staffing}) vers les insights et permet d'enregistrer une décision stratégique (\texttt{saveCopilotDecision}, \texttt{postStrategicDecision}). La page \texttt{HelperChatPage} implémente le dialogue multi-tours avec historique (\texttt{managerConversationsApi}, archivage \texttt{PATCH .../archive}). \texttt{ManagerProjectCopilotPanel} restreint le Copilot au contexte d'un projet ouvert dans Mission Control.
+
+\subsection{Simulateur What-if}
+
+\texttt{WhatIfProvider} enveloppe l'application et expose \texttt{open()} / \texttt{close()} pour lancer une simulation depuis plusieurs écrans. \texttt{ProjectWhatIfSimulator} collecte les paramètres ; l'appel principal utilise \texttt{orchestratorApi.whatIf} (\texttt{POST /webhook/api/project/what-if}) ou \texttt{postCopilotProjectWhatIf} selon le chemin configuré. \texttt{WhatIfResultPanel} affiche score, décision, breakdown et recommandations renvoyés par le serveur, sans recalcul local.
+
+\section{Fonctionnalités avancées}
+
+\subsection{Alertes intelligentes}
+
+\texttt{RisksPage} et \texttt{use-manager-risk-data} consomment les risques projet via POST ou GET sur \texttt{/webhook/api/project/risks}. Le scan Watchdog (\texttt{POST /webhook/api/watchdog/scan} avec \texttt{use\_ai: true}) peut être déclenché depuis l'équipe. Les notifications manager (\texttt{NotificationsPage}, barre supérieure) agrègent alertes risque et actions RH. Le PATCH \texttt{/webhook/manager/risk-alerts/:id} permet d'acquitter ou ignorer une alerte. Côté RH, \texttt{RhOrgAlertsPage} charge \texttt{/api/rh/organizational-alerts}.
+
+\subsection{Recommandations IA}
+
+Les recommandations proviennent des blocs \texttt{matchmaker} et \texttt{analyst} du dashboard, du matching projet (\texttt{talent-matching-panel}), du Copilot insights, du Helper (\texttt{suggested\_actions}) et des options Strategist. L'affichage utilise \texttt{formatUserFacingExplanation} et \texttt{stripTechnicalScoringSegments} pour présenter des textes métier lisibles. Le paramètre \texttt{use\_ai: true} est systématique sur les analyses à forte valeur ajoutée côté manager.
+
+\subsection{Journal des décisions}
+
+\texttt{DecisionLogPage} appelle \texttt{useDecisions} (\texttt{GET /webhook/manager/copilot-decisions}) et visualise la distribution Continue / Adjust / Stop avec Recharts (barres et courbes, couleurs sémantiques \texttt{\#059669}, \texttt{\#d97706}, \texttt{\#dc2626}). Chaque entrée peut renvoyer vers Mission Control ou les demandes RH. L'enregistrement d'une nouvelle décision passe par les API Copilot décrites en section~4.
+
+\subsection{Génération de rapports}
+
+\texttt{ReportsPage} et \texttt{use-reports-n8n.ts} implémentent le cycle complet : synthèse (\texttt{GET /webhook/reports/summary}), génération board-pack ou dossier projet (\texttt{POST /webhook/reports/generate-board-pack}, \texttt{generate-project-dossier}), historique (\texttt{GET /webhook/reports/history}), envoi courriel (\texttt{POST /webhook/reports/send-email}) et planification (\texttt{POST /webhook/reports/schedule}). Les PDF sont stockés côté Supabase ; l'UI affiche \texttt{file\_url} pour téléchargement. Les erreurs utilisent \texttt{skipGlobalHttpErrorToast} pour un traitement localisé.
+
+\section{Difficultés rencontrées et solutions apportées}
+
+La réalisation a confronté plusieurs difficultés techniques, documentées implicitement dans le code par des contournements explicites.
+
+La \textbf{latence et la variabilité des réponses n8n} ont imposé des timeouts configurables (\texttt{VITE\_HTTP\_TIMEOUT\_MS}, \texttt{VITE\_PORTFOLIO\_TIMEOUT\_MS}) et l'usage de React Query pour ne pas bloquer l'UI pendant les analyses longues. Le proxy Vite utilise un délai de 60 secondes pour les mutations lourdes.
+
+Le \textbf{format JSON encapsulé} des webhooks (champs \texttt{json} ou \texttt{body}) a nécessité des fonctions d'aplatissement (\texttt{flattenN8nRow}, \texttt{unwrapDataPayload}, parseurs RH et Copilot) pour stabiliser l'affichage indépendamment des variations de sortie des nœuds n8n.
+
+Les \textbf{contraintes CORS en développement} ont été résolues par le proxy \texttt{/webhook}, \texttt{/api} et \texttt{/n8n-webhook} plutôt que par des appels directs cross-origin depuis le navigateur, sauf configuration explicite \texttt{VITE\_N8N\_DIRECT\_IN\_DEV=1}.
+
+La \textbf{coexistence de plusieurs conventions d'URL} (chemins versionnés \texttt{wmp-*}, webhooks UUID, routes \texttt{/api/rh/actions} distinctes) est gérée par des fichiers de configuration (\texttt{manager-projects-api.config.ts}, \texttt{wmp-assignments-webhook.config.ts}, \texttt{crud-api.ts}) et par des variables \texttt{VITE\_*} documentées dans \texttt{vite-env.d.ts}.
+
+La \textbf{gestion des sessions JWT} (expiration, refresh, appels \texttt{/webhook/auth/me} intempestifs) est centralisée dans \texttt{http-client.ts} et \texttt{auth-provider.tsx}, avec file d'attente des requêtes pendant le refresh.
+
+Enfin, le respect strict de la règle « pas de calcul front » a parfois complexifié l'UX (attente des workflows après mutation) ; le recompute automatique optionnel après affectation et le bloc \texttt{analysis\_refresh} après CRUD compensent en rafraîchissant les scores affichés dès que le serveur répond.
+
+\section{Conclusion}
+
+Ce chapitre a présenté la réalisation et l'implémentation de Strategic Copilot : environnement de développement npm/Vite, stack React 19 et TypeScript, configuration proxy et production Vercel, structure du front-end et gestion d'état avec React Query, implémentation des workflows n8n et de l'intégration OpenAI côté serveur, modèle de données PostgreSQL/Supabase, interfaces manager, RH et talent (dont Mission Control, Copilot, what-if et rapports), ainsi que les difficultés techniques rencontrées et les solutions retenues.
+
+Le livrable \texttt{copilot-ui} constitue une application SaaS opérationnelle, alignée sur le principe API-first et sur l'architecture multi-agents documentée dans les chapitres précédents. Les captures d'écran peuvent être ajoutées dans \texttt{rapport/figures/} pour enrichir les figures~\ref{fig:ui-dashboard-ch5} et~\ref{fig:ui-mission-ch5} lors de la version finale du mémoire. Le chapitre suivant présente la stratégie de test, les résultats des validations et l'évaluation globale de la solution sur l'environnement de préproduction.

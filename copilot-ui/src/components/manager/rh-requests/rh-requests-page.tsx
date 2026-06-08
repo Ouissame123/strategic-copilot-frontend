@@ -27,9 +27,11 @@ import {
     labelRhActionPriority,
     labelRhActionType,
     RH_ACTION_TYPE_LABELS,
+    isRhActionPendingStatus,
 } from "@/lib/manager-rh-actions-labels";
+import { MANAGER_RH_CANCEL_PATCH_BODY } from "@/api/rh-actions.constants";
 import { useToast } from "@/providers/toast-provider";
-import type { RhActionItem, RhActionPatchStatus, RhActionPriority } from "@/types/manager-rh-actions.types";
+import type { RhActionItem, RhActionPriority } from "@/types/manager-rh-actions.types";
 import { UUID_REGEX } from "@/utils/rh-actions-workflow";
 import { cx } from "@/utils/cx";
 
@@ -47,7 +49,12 @@ function normalizeStatusKey(status: string): string {
 function matchesStatusTab(item: RhActionItem, tab: StatusTabId): boolean {
     if (tab === "all") return true;
     const s = normalizeStatusKey(item.status);
-    if (tab === "pending") return s === "pending" || s === "open" || s === "new" || !s;
+    if (tab === "pending") return isRhActionPendingStatus(item.status);
+    if (tab === "refused") return s === "refused";
+    if (tab === "rejected") return s === "rejected";
+    if (tab === "in_progress") return s === "in_progress" || s.includes("progress");
+    if (tab === "done") return s === "done" || s === "completed" || s === "resolved";
+    if (tab === "cancelled") return s === "cancelled" || s === "canceled";
     return s === tab;
 }
 
@@ -122,11 +129,11 @@ export default function RHRequestsPage() {
         }
     }, []);
 
-    const handlePatch = useCallback(
-        async (id: string, status: RhActionPatchStatus) => {
+    const handleCancel = useCallback(
+        async (id: string) => {
             try {
-                await patchMutation.mutateAsync({ id, body: { status } });
-                toast("Demande mise à jour", "success");
+                await patchMutation.mutateAsync({ id, body: { ...MANAGER_RH_CANCEL_PATCH_BODY } });
+                toast("Demande annulée", "success");
                 await listQuery.refetch();
             } catch (err) {
                 toast(mapRhActionsWorkflowError(err), "error");
@@ -282,7 +289,7 @@ export default function RHRequestsPage() {
                         <RhActionsWorkflowList
                             items={filteredItems}
                             viewMode={viewMode}
-                            onPatch={(id, status) => void handlePatch(id, status)}
+                            onCancel={(id) => void handleCancel(id)}
                             isPatching={patchMutation.isPending}
                         />
                     ) : null}

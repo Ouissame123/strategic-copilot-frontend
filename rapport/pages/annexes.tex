@@ -1,0 +1,41 @@
+\chapter*{Annexes}
+\addcontentsline{toc}{chapter}{Annexes}
+
+Les annexes regroupent les éléments complémentaires du projet \emph{Strategic Copilot} qui, par leur nature technique ou illustrative, ne peuvent être exposés en détail dans le corps du rapport sans alourdir la lecture. Elles visent à documenter de manière reproductible les artefacts produits ou mobilisés au cours du stage : requêtes et structures de données, contrats d'échange entre le front-end React et les services orchestrés par n8n, interfaces utilisateur livrées dans le dépôt \texttt{copilot-ui}, ainsi que les schémas d'architecture et de flux complémentaires.
+
+Le lecteur y trouvera notamment~:
+\begin{itemize}
+    \item des \textbf{extraits de code SQL} illustrant le modèle relationnel PostgreSQL (tables talents, compétences, projets, scores de viabilité, journal des décisions et alertes)~;
+    \item des \textbf{exemples de réponses JSON} renvoyées par les webhooks n8n consommés par l'application (\texttt{/webhook/manager/...}, \texttt{/webhook/api/project/...})~;
+    \item des \textbf{captures d'écran des interfaces} par espace métier (manager, RH, talent)~: tableaux de bord, portefeuille projet, fiche talent, notifications, simulateur what-if et assistant Copilot~;
+    \item des \textbf{extraits de workflows n8n} décrivant les processus P0 à P5 (synchronisation des données, analyse projet, matching, risques, orchestration stratégique, simulation)~;
+    \item des \textbf{diagrammes complémentaires} (architecture logicielle, enchaînement des agents, séquences d'appels API) venant compléter ceux présentés dans les chapitres de conception et de réalisation.
+\end{itemize}
+
+Ces documents permettent de vérifier la cohérence entre les spécifications du cahier des charges, l'implémentation effective et les démonstrations réalisées lors des phases de tests. Ils sont numérotés ci-dessous pour faciliter les renvois depuis le corps du rapport.
+
+\section*{Annexe A --- Extraits de code SQL}
+\label{annexe:sql}
+
+Cette annexe présente des requêtes et définitions de schéma PostgreSQL utiles à la compréhension du modèle de données (référentiels RH, affectations projet, persistance des scores analytiques et des alertes).
+
+\section*{Annexe B --- Exemples de réponses JSON}
+\label{annexe:json}
+
+Cette annexe regroupe des exemples de payloads échangés entre \texttt{copilot-ui} et les endpoints n8n (tableau de bord manager, détail projet, alertes de risque, actions RH, résultats what-if).
+
+\section*{Annexe C --- Captures d'écran des interfaces}
+\label{annexe:captures}
+
+Cette annexe illustre les principaux écrans de la plateforme~: espaces \texttt{/workspace/manager}, \texttt{/workspace/rh} et \texttt{/workspace/talent}, ainsi que les composants transverses (notifications, journal des décisions, Copilot intégré).
+
+\section*{Annexe D --- Extraits de workflows n8n}
+\label{annexe:n8n}
+
+Cette annexe documente des extraits des workflows d'orchestration (\texttt{WF\_Data\_Sync}, \texttt{WF\_Project\_Analysis}, \texttt{WF\_Talent\_Matching}, \texttt{WF\_Risk\_KPI}, \texttt{WF\_Strategic\_Orchestrator}, \texttt{WF\_What\_If}) et leurs points d'entrée webhook.
+
+\section*{Annexe E --- Diagrammes complémentaires}
+\label{annexe:diagrammes}
+
+Cette annexe complète les figures du rapport par des vues d'architecture (couches présentation, orchestration, persistance), de déploiement et de séquence entre acteurs (utilisateur, front-end, n8n, Supabase, modèle IA).
+\newpage

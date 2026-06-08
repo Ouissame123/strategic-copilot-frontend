@@ -20,7 +20,7 @@ export function RhPageShell({ title, description, children }: RhPageShellProps) 
             role="rh"
             eyebrow={t("rhPlaceholder.eyebrow")}
             title={title}
-            description={description ?? t("rhPlaceholder.description")}
+            description={description === undefined ? (children ? undefined : t("rhPlaceholder.description")) : description}
         >
             {children ?? (
                 <div

@@ -90,17 +90,11 @@ export function resolveBreadcrumbs(pathname: string, t: Translate, options?: Bre
     if (matchPath({ path: "/workspace/rh/employees", end: true }, pathname)) {
         return [hub(), { label: t("nav:rhNavEmployees") }];
     }
-    if (matchPath({ path: "/workspace/rh/skills-catalog", end: true }, pathname)) {
-        return [hub(), { label: t("nav:rhNavSkills") }];
-    }
-    if (matchPath({ path: "/workspace/rh/critical-gaps", end: true }, pathname)) {
-        return [hub(), { label: t("nav:rhNavGaps") }];
-    }
-    if (matchPath({ path: "/workspace/rh/training-plans", end: true }, pathname)) {
-        return [hub(), { label: t("nav:rhNavTraining") }];
-    }
     if (matchPath({ path: "/workspace/rh/manager-requests", end: true }, pathname)) {
         return [hub(), { label: t("nav:rhNavManagerRequests") }];
+    }
+    if (matchPath({ path: "/workspace/rh/accounts", end: false }, pathname)) {
+        return [hub(), { label: t("nav:rhNavAccounts") }];
     }
     if (matchPath({ path: "/workspace/rh/workforce-arbitration", end: true }, pathname)) {
         return [hub(), { label: t("nav:rhNavWorkforceArbitration") }];
@@ -108,8 +102,8 @@ export function resolveBreadcrumbs(pathname: string, t: Translate, options?: Bre
     if (matchPath({ path: "/workspace/rh/mobility", end: true }, pathname)) {
         return [hub(), { label: t("nav:rhNavMobility") }];
     }
-    if (matchPath({ path: "/workspace/rh/org-alerts", end: true }, pathname)) {
-        return [hub(), { label: t("nav:rhNavAlerts") }];
+    if (matchPath({ path: "/workspace/rh/chat", end: true }, pathname)) {
+        return [hub(), { label: "Assistant RH IA" }];
     }
     if (matchPath({ path: "/workspace/rh/projects", end: true }, pathname)) {
         return [hub(), { label: t("nav:projects") }];
@@ -149,9 +143,6 @@ export function resolveBreadcrumbs(pathname: string, t: Translate, options?: Bre
         return [hub(), { label: t("nav:rhNavManagerRequests") }];
     }
 
-    if (matchPath({ path: "/workspace/rh/accounts", end: true }, pathname)) {
-        return [hub(), { label: t("nav:rhNavAccounts") }];
-    }
     if (matchPath({ path: "/workspace/rh/sessions", end: true }, pathname)) {
         return [hub(), { label: t("nav:sessions") }];
     }
@@ -191,6 +182,9 @@ export function resolveBreadcrumbs(pathname: string, t: Translate, options?: Bre
     }
     if (matchPath({ path: "/workspace/manager/profile", end: true }, pathname)) {
         return [hub(), { label: t("nav:profile") }];
+    }
+    if (matchPath({ path: "/workspace/manager/validations", end: true }, pathname)) {
+        return [hub(), { label: t("nav:managerNavValidations") }];
     }
     if (matchPath({ path: "/workspace/manager/decision-log", end: true }, pathname)) {
         return [hub(), { label: t("nav:decisionLog") }];

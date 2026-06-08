@@ -17,6 +17,15 @@ export const RH_DASHBOARD_NOTIFICATIONS_URL = `${RH_DASHBOARD_WEBHOOK_BASE}/rh/n
 /** @deprecated Utiliser `RH_DASHBOARD_WEBHOOK_BASE`. */
 export const DEFAULT_RH_WEBHOOK_BASE = RH_DASHBOARD_WEBHOOK_BASE;
 
+/** Annulation React Query (navigation, démontage) — pas une erreur réseau. */
+function isFetchAborted(err: unknown): boolean {
+    if (err instanceof Error && err.name === "AbortError") return true;
+    if (typeof DOMException !== "undefined" && err instanceof DOMException && err.name === "AbortError") {
+        return true;
+    }
+    return false;
+}
+
 function num(v: unknown, fallback = 0): number {
     const n = Number(v);
     return Number.isFinite(n) ? n : fallback;
@@ -559,6 +568,9 @@ export async function fetchRhNotifications(
         }
         return parseNotificationsResponse(json);
     } catch (err) {
+        if (isFetchAborted(err)) {
+            return null;
+        }
         if (softFail) {
             if (import.meta.env.DEV) {
                 console.warn("[RH API] notifications", err);

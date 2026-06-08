@@ -16,3 +16,9 @@ export const RH_ACTIONS_LIST_POST_URL_PRODUCTION = `${RH_ACTIONS_N8N_ORIGIN}${RH
 export const RH_ACTIONS_PATCH_PATH = `/webhook/${RH_ACTIONS_PATCH_WEBHOOK_ID}/api/rh/actions`;
 
 export const RH_ACTIONS_PATCH_URL_PRODUCTION = `${RH_ACTIONS_N8N_ORIGIN}${RH_ACTIONS_PATCH_PATH}`;
+
+/** Seule transition PATCH autorisée côté manager (WF_Manager_RH_Actions). */
+export const MANAGER_RH_CANCEL_PATCH_BODY = {
+    status: "cancelled",
+    response_message: "Demande annulée par le manager",
+} as const;

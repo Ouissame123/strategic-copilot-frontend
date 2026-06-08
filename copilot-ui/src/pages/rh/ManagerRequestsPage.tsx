@@ -1,39 +1,34 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link, useSearchParams } from "react-router";
 import { useTranslation } from "react-i18next";
-import { Dialog, Modal, ModalOverlay } from "@/components/application/modals/modal";
+import { X } from "lucide-react";
+import { formatRhRequestMessage } from "@/components/rh-requests/formatRhRequestMessage";
+import {
+    displayTitleFromRow,
+    primaryMessage,
+    stripLeadingSubjectPrefix,
+} from "@/components/manager/rh-requests/rh-requests-utils";
 import { Button } from "@/components/base/buttons/button";
 import { WorkspacePageShell } from "@/components/workspace/workspace-page-shell";
 import { useWorkspaceTopbarMeta } from "@/layouts/workspace-topbar-meta";
-import { usePatchRhAction, useRhActions } from "@/hooks/useNotifications";
+import {
+    mapRhRequestsDecisionError,
+    useRhRequestsDecision,
+    useRhRequestsListQuery,
+} from "@/hooks/use-rh-requests-decision";
 import { stripTechnicalScoringSegments } from "@/lib/business-explanation";
-import { rowsFromRhActionsPayload } from "@/utils/rh-actions-list";
+import {
+    labelRhRequestStatus,
+    readRhRequestField,
+    rhActionItemToRow,
+    rhRequestStatusToBucket,
+    type RhRequestStatusBucket,
+    RH_REQUEST_STATUS_BUCKETS,
+} from "@/utils/rh-requests-decision";
 import { cx } from "@/utils/cx";
 import { managerProjectsOpenModalPath } from "@/utils/workspace-routes";
 
-type RhActionType = "accept" | "reject" | "progress" | "done" | "cancel";
-
-type StatusBucket = "pending" | "accepted" | "in_progress" | "done" | "rejected";
-
-const STATUS_ORDER: StatusBucket[] = ["pending", "accepted", "in_progress", "done", "rejected"];
-
-function readString(row: Record<string, unknown>, keys: string[]): string {
-    for (const k of keys) {
-        const v = row[k];
-        if (v != null && String(v).trim()) return String(v).trim();
-    }
-    return "";
-}
-
-function normalizeStatusBucket(raw: string): StatusBucket | null {
-    const s = raw.toLowerCase().replace(/\s+/g, "_").replace(/-/g, "_");
-    if (s === "pending" || s === "open" || s === "new") return "pending";
-    if (s === "accepted" || s === "approve" || s === "approved") return "accepted";
-    if (s === "in_progress" || s === "inprogress" || s === "progress") return "in_progress";
-    if (s === "done" || s === "completed" || s === "closed") return "done";
-    if (s === "rejected" || s === "refused" || s === "declined" || s === "cancelled" || s === "canceled") return "rejected";
-    return null;
-}
+type RhDecisionChoice = "accept" | "reject" | "progress" | "done";
 
 function formatRelativeFr(iso: string): string {
     const t = new Date(iso).getTime();
@@ -52,7 +47,7 @@ function formatRelativeFr(iso: string): string {
 function typeLabelFr(type: string): string {
     const t = type.toLowerCase();
     const map: Record<string, string> = {
-        skill_gap: "Skill gap",
+        skill_gap: "Écart de compétences",
         reallocation: "Réaffectation",
         training: "Formation",
         overload: "Surcharge",
@@ -79,8 +74,8 @@ function recommendedAction(type: string): string {
     return "Examiner la demande et décider avec le métier.";
 }
 
-function statusKpiLabel(bucket: StatusBucket): string {
-    const m: Record<StatusBucket, string> = {
+function statusKpiLabel(bucket: RhRequestStatusBucket): string {
+    const m: Record<RhRequestStatusBucket, string> = {
         pending: "En attente",
         accepted: "Acceptées",
         in_progress: "En cours",
@@ -90,19 +85,8 @@ function statusKpiLabel(bucket: StatusBucket): string {
     return m[bucket];
 }
 
-function statusTicketPillLabel(bucket: StatusBucket): string {
-    const m: Record<StatusBucket, string> = {
-        pending: "En attente",
-        accepted: "Acceptée",
-        in_progress: "En cours",
-        done: "Terminée",
-        rejected: "Rejetée",
-    };
-    return m[bucket];
-}
-
-function statusPillClass(bucket: StatusBucket): string {
-    const map: Record<StatusBucket, string> = {
+function statusPillClass(bucket: RhRequestStatusBucket): string {
+    const map: Record<RhRequestStatusBucket, string> = {
         pending: "border-amber-200/90 bg-amber-50 text-amber-950 dark:border-amber-800 dark:bg-amber-950/35 dark:text-amber-100",
         accepted: "border-sky-200/90 bg-sky-50 text-sky-950 dark:border-sky-800 dark:bg-sky-950/35 dark:text-sky-100",
         in_progress: "border-violet-200/90 bg-violet-50 text-violet-950 dark:border-violet-800 dark:bg-violet-950/35 dark:text-violet-100",
@@ -112,8 +96,8 @@ function statusPillClass(bucket: StatusBucket): string {
     return map[bucket];
 }
 
-function kpiCardSurface(bucket: StatusBucket, active: boolean): string {
-    const base: Record<StatusBucket, string> = {
+function kpiCardSurface(bucket: RhRequestStatusBucket, active: boolean): string {
+    const base: Record<RhRequestStatusBucket, string> = {
         pending: "border-amber-200/70 bg-gradient-to-br from-amber-50/90 to-primary dark:from-amber-950/25 dark:to-primary",
         accepted: "border-sky-200/70 bg-gradient-to-br from-sky-50/90 to-primary dark:from-sky-950/25 dark:to-primary",
         in_progress: "border-violet-200/70 bg-gradient-to-br from-violet-50/90 to-primary dark:from-violet-950/25 dark:to-primary",
@@ -132,10 +116,18 @@ function humanizeField(value: string): string {
     return t || "Non disponible";
 }
 
+function requestTitle(row: Record<string, unknown>, tr: (k: string) => string): string {
+    return displayTitleFromRow(row, tr);
+}
+
+function requestMessageRaw(row: Record<string, unknown>): string {
+    return stripLeadingSubjectPrefix(primaryMessage(row));
+}
+
 export default function ManagerRequestsPage() {
     const { t } = useTranslation("common");
     const [searchParams, setSearchParams] = useSearchParams();
-    const [statusFilter, setStatusFilter] = useState<StatusBucket | "all">("pending");
+    const [statusFilter, setStatusFilter] = useState<RhRequestStatusBucket | "all">("pending");
     const [search, setSearch] = useState("");
     const [filterPriority, setFilterPriority] = useState<"all" | "urgent" | "normal" | "low">("all");
     const [filterType, setFilterType] = useState<string>("all");
@@ -143,51 +135,44 @@ export default function ManagerRequestsPage() {
     const [drawerOpen, setDrawerOpen] = useState(false);
     const [drawerId, setDrawerId] = useState<string | null>(null);
     const [note, setNote] = useState("");
+    const [patchError, setPatchError] = useState<string | null>(null);
 
-    const { data, isLoading, isError, refetch } = useRhActions({ limit: 500 });
-    const patch = usePatchRhAction();
+    /** Liste complète (KPI + filtres locaux) — le filtre statut reste côté UI. */
+    const listFilters = useMemo(
+        () => ({
+            type: filterType === "all" ? undefined : filterType,
+            priority: filterPriority === "all" ? undefined : filterPriority,
+        }),
+        [filterType, filterPriority],
+    );
 
-    const rows = useMemo(() => {
-        const payload = data && typeof data === "object" ? (data as Record<string, unknown>) : null;
-        const viaRhActions = payload?.rh_actions;
-        const normalized =
-            Array.isArray(viaRhActions) && viaRhActions.length > 0 ? { items: viaRhActions } : data;
-        return rowsFromRhActionsPayload(normalized).filter((r) => r.id);
-    }, [data]);
+    const listQuery = useRhRequestsListQuery(listFilters);
+    const decision = useRhRequestsDecision();
 
-    const payload = (data && typeof data === "object" ? data : {}) as Record<string, unknown>;
-    const byStatusApi = payload.by_status as Record<string, number> | undefined;
+    const rows = useMemo(
+        () => (listQuery.data?.items ?? []).map(rhActionItemToRow).filter((r) => r.id),
+        [listQuery.data?.items],
+    );
 
     const counts = useMemo(() => {
-        const base: Record<StatusBucket, number> = {
+        const base: Record<RhRequestStatusBucket, number> = {
             pending: 0,
             accepted: 0,
             in_progress: 0,
             done: 0,
             rejected: 0,
         };
-        if (byStatusApi && typeof byStatusApi === "object") {
-            let any = false;
-            for (const k of STATUS_ORDER) {
-                const v = byStatusApi[k];
-                if (typeof v === "number" && !Number.isNaN(v)) {
-                    base[k] = v;
-                    any = true;
-                }
-            }
-            if (any) return base;
-        }
         for (const row of rows) {
-            const b = normalizeStatusBucket(String(row.status ?? row.state ?? ""));
+            const b = rhRequestStatusToBucket(String(row.status ?? row.state ?? ""));
             if (b) base[b] += 1;
         }
         return base;
-    }, [byStatusApi, rows]);
+    }, [rows]);
 
     const projectOptions = useMemo(() => {
         const names = new Set<string>();
         for (const row of rows) {
-            const n = readString(row, ["project_name", "projectName", "project"]);
+            const n = readRhRequestField(row, ["project_name", "projectName", "project"]);
             if (n) names.add(n);
         }
         return [...names].sort((a, b) => a.localeCompare(b, "fr"));
@@ -196,8 +181,8 @@ export default function ManagerRequestsPage() {
     const typeOptions = useMemo(() => {
         const types = new Set<string>();
         for (const row of rows) {
-            const t = String(row.type ?? "").trim();
-            if (t) types.add(t);
+            const ty = String(row.type ?? "").trim();
+            if (ty) types.add(ty);
         }
         return [...types].sort((a, b) => a.localeCompare(b, "fr"));
     }, [rows]);
@@ -205,7 +190,7 @@ export default function ManagerRequestsPage() {
     const filteredRows = useMemo(() => {
         const q = search.trim().toLowerCase();
         return rows.filter((row) => {
-            const bucket = normalizeStatusBucket(String(row.status ?? row.state ?? ""));
+            const bucket = rhRequestStatusToBucket(String(row.status ?? row.state ?? ""));
             if (statusFilter !== "all" && bucket !== statusFilter) return false;
             if (filterPriority !== "all") {
                 const pr = String(row.priority ?? "").toLowerCase();
@@ -213,12 +198,12 @@ export default function ManagerRequestsPage() {
             }
             if (filterType !== "all" && String(row.type ?? "").toLowerCase() !== filterType.toLowerCase()) return false;
             if (filterProject !== "all") {
-                const pn = readString(row, ["project_name", "projectName", "project"]);
+                const pn = readRhRequestField(row, ["project_name", "projectName", "project"]);
                 if (pn !== filterProject) return false;
             }
             if (!q) return true;
             const msg = stripTechnicalScoringSegments(String(row.message ?? row.title ?? "")).toLowerCase();
-            const pn = readString(row, ["project_name", "projectName", "project"]).toLowerCase();
+            const pn = readRhRequestField(row, ["project_name", "projectName", "project"]).toLowerCase();
             return msg.includes(q) || pn.includes(q);
         });
     }, [rows, statusFilter, search, filterPriority, filterType, filterProject]);
@@ -231,12 +216,14 @@ export default function ManagerRequestsPage() {
     const openDrawer = useCallback((id: string) => {
         setDrawerId(id);
         setNote("");
+        setPatchError(null);
         setDrawerOpen(true);
     }, []);
 
     const closeDrawer = useCallback(() => {
         setDrawerOpen(false);
         setDrawerId(null);
+        setPatchError(null);
         setSearchParams((prev) => {
             const next = new URLSearchParams(prev);
             next.delete("action");
@@ -247,59 +234,56 @@ export default function ManagerRequestsPage() {
     useEffect(() => {
         const id = searchParams.get("action")?.trim();
         if (!id) return;
-        const found = rows.some((r) => r.id === id);
-        if (found) {
+        if (rows.some((r) => r.id === id)) {
             setDrawerId(id);
             setDrawerOpen(true);
         }
     }, [searchParams, rows]);
 
-    const submit = (id: string, action: RhActionType) => {
-        patch.mutate(
-            { id, body: { action, response_message: note.trim() || undefined } },
-            {
-                onSuccess: () => {
-                    closeDrawer();
-                    setNote("");
-                },
-            },
-        );
+    const runDecision = async (id: string, choice: RhDecisionChoice) => {
+        setPatchError(null);
+        try {
+            const msg = note.trim() || undefined;
+            if (choice === "accept") await decision.acceptRequest(id, msg);
+            else if (choice === "reject") {
+                if (!note.trim()) {
+                    setPatchError("Le motif de refus est obligatoire.");
+                    return;
+                }
+                await decision.rejectRequest(id, note.trim());
+            } else if (choice === "progress") await decision.setInProgress(id, msg);
+            else if (choice === "done") await decision.markDone(id, msg);
+            closeDrawer();
+            setNote("");
+            await listQuery.refetch();
+        } catch (err) {
+            setPatchError(mapRhRequestsDecisionError(err));
+        }
     };
 
-    const addNoteOnly = (id: string) => {
-        if (!note.trim()) return;
-        patch.mutate(
-            { id, body: { action: "progress", response_message: note.trim() } },
-            {
-                onSuccess: () => {
-                    closeDrawer();
-                    setNote("");
-                },
-            },
-        );
-    };
+    const listErrorMessage = listQuery.error ? mapRhRequestsDecisionError(listQuery.error) : null;
 
     useWorkspaceTopbarMeta(t("managerWorkspace.pendingRh.listPageTitle"), t("managerWorkspace.pendingRh.listPageSubtitle"));
 
     return (
         <WorkspacePageShell
-            role="manager"
-            eyebrow={t("workspaceRoles.manager")}
+            role="rh"
+            eyebrow={t("workspaceRoles.rh")}
             title={t("managerWorkspace.pendingRh.listPageTitle")}
             omitHeader
         >
             <div className="space-y-4">
                 <div className="flex flex-wrap justify-end gap-2">
                     <Link
-                        to="/workspace/manager/notifications"
+                        to="/workspace/rh/dashboard"
                         className="inline-flex items-center justify-center rounded-lg border border-brand-secondary/40 bg-brand-primary/10 px-3 py-2 text-xs font-semibold text-brand-secondary transition hover:bg-brand-primary/20"
                     >
-                        {t("managerWorkspace.pendingRh.backToAlerts")}
+                        Tableau de bord RH
                     </Link>
                 </div>
 
                 <section aria-label="Indicateurs par statut" className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
-                    {STATUS_ORDER.map((key) => (
+                    {RH_REQUEST_STATUS_BUCKETS.map((key) => (
                         <button
                             key={key}
                             type="button"
@@ -348,11 +332,11 @@ export default function ManagerRequestsPage() {
                             Statut (liste)
                             <select
                                 value={statusFilter}
-                                onChange={(e) => setStatusFilter(e.target.value as StatusBucket | "all")}
+                                onChange={(e) => setStatusFilter(e.target.value as RhRequestStatusBucket | "all")}
                                 className="rounded-lg border border-secondary bg-primary px-2.5 py-2 text-sm text-primary outline-none focus:border-brand-secondary/50 focus:ring-1 focus:ring-brand-secondary/25"
                             >
                                 <option value="all">Tous</option>
-                                {STATUS_ORDER.map((s) => (
+                                {RH_REQUEST_STATUS_BUCKETS.map((s) => (
                                     <option key={s} value={s}>
                                         {statusKpiLabel(s)}
                                     </option>
@@ -380,9 +364,9 @@ export default function ManagerRequestsPage() {
                                 className="rounded-lg border border-secondary bg-primary px-2.5 py-2 text-sm text-primary outline-none focus:border-brand-secondary/50 focus:ring-1 focus:ring-brand-secondary/25"
                             >
                                 <option value="all">Tous</option>
-                                {typeOptions.map((t) => (
-                                    <option key={t} value={t}>
-                                        {typeLabelFr(t)}
+                                {typeOptions.map((ty) => (
+                                    <option key={ty} value={ty}>
+                                        {typeLabelFr(ty)}
                                     </option>
                                 ))}
                             </select>
@@ -405,33 +389,35 @@ export default function ManagerRequestsPage() {
                     </div>
                 </div>
 
-                <section aria-label="File d’actions RH" className="space-y-2">
-                    {isLoading ? <p className="py-6 text-center text-sm text-tertiary">Chargement…</p> : null}
-                    {isError ? (
+                <section aria-label="Demandes RH" className="space-y-2">
+                    {listQuery.isPending ? <p className="py-6 text-center text-sm text-tertiary">Chargement…</p> : null}
+                    {listErrorMessage ? (
                         <div className="rounded-xl border border-rose-200/80 bg-rose-50/80 px-4 py-3 text-sm text-rose-900 dark:border-rose-900/50 dark:bg-rose-950/30 dark:text-rose-100">
-                            Impossible de charger les actions.{" "}
-                            <button type="button" className="font-semibold underline" onClick={() => void refetch()}>
+                            {listErrorMessage}{" "}
+                            <button type="button" className="font-semibold underline" onClick={() => void listQuery.refetch()}>
                                 Réessayer
                             </button>
                         </div>
                     ) : null}
-                    {!isLoading && !isError && filteredRows.length === 0 ? (
+                    {!listQuery.isPending && !listErrorMessage && filteredRows.length === 0 ? (
                         <p className="rounded-xl border border-dashed border-secondary/80 bg-secondary_subtle/40 py-10 text-center text-sm text-tertiary">
-                            Aucune action ne correspond aux filtres.
+                            Aucune demande ne correspond aux filtres.
                         </p>
                     ) : null}
 
                     <ul className="space-y-2">
                         {filteredRows.map((rh) => {
                             const id = String(rh.id);
-                            const bucket = normalizeStatusBucket(String(rh.status ?? rh.state ?? "")) ?? "pending";
+                            const bucket = rhRequestStatusToBucket(String(rh.status ?? rh.state ?? "")) ?? "pending";
                             const type = String(rh.type ?? "");
-                            const msg = humanizeField(String(rh.message ?? rh.title ?? ""));
-                            const project = readString(rh, ["project_name", "projectName", "project"]);
+                            const title = requestTitle(rh, t);
+                            const msgPreview = requestMessageRaw(rh);
+                            const project = readRhRequestField(rh, ["project_name", "projectName", "project"]);
                             const pr = String(rh.priority ?? "");
                             const pri = priorityLabelFr(pr);
                             const created = String(rh.created_at ?? rh.createdAt ?? "");
                             const urgentVisual = pr.toLowerCase() === "urgent";
+                            const statusLabel = labelRhRequestStatus(rh.status ?? rh.state);
 
                             return (
                                 <li
@@ -458,10 +444,13 @@ export default function ManagerRequestsPage() {
                                                     {typeLabelFr(type)}
                                                 </span>
                                                 <span className={cx("rounded-md border px-2 py-0.5 text-[10px] font-semibold", statusPillClass(bucket))}>
-                                                    {statusTicketPillLabel(bucket)}
+                                                    {statusLabel}
                                                 </span>
                                             </div>
-                                            <h3 className="text-sm font-semibold leading-snug text-primary">{msg}</h3>
+                                            <h3 className="line-clamp-2 text-sm font-semibold leading-snug text-primary">{title}</h3>
+                                            {msgPreview && msgPreview !== title ? (
+                                                <p className="line-clamp-2 text-xs text-tertiary">{humanizeField(msgPreview.slice(0, 200))}</p>
+                                            ) : null}
                                             <p className="text-xs text-secondary">
                                                 <span className="font-medium text-tertiary">Projet :</span>{" "}
                                                 {project ? <span className="text-primary">{project}</span> : <span className="italic">Non disponible</span>}
@@ -471,12 +460,9 @@ export default function ManagerRequestsPage() {
                                                 <span className="font-semibold text-primary">Action recommandée :</span> {recommendedAction(type)}
                                             </p>
                                         </div>
-                                        <div className="flex shrink-0 flex-col gap-2 sm:w-40">
+                                        <div className="flex shrink-0 flex-col gap-2 sm:w-44">
                                             <Button size="sm" color="primary" onPress={() => openDrawer(id)}>
-                                                Répondre
-                                            </Button>
-                                            <Button size="sm" color="secondary" onPress={() => openDrawer(id)}>
-                                                Voir contexte
+                                                Traiter
                                             </Button>
                                         </div>
                                     </div>
@@ -487,31 +473,31 @@ export default function ManagerRequestsPage() {
                 </section>
             </div>
 
-            <RhActionDrawer
+            <RhRequestDecisionDrawer
                 open={drawerOpen}
                 row={drawerRow}
                 note={note}
                 onNoteChange={setNote}
                 onClose={closeDrawer}
-                isPending={patch.isPending}
-                onSubmit={submit}
-                onAddNote={addNoteOnly}
+                isPending={decision.isPending}
+                patchError={patchError}
+                onDecision={runDecision}
+                tr={t}
             />
         </WorkspacePageShell>
     );
 }
 
-type DrawerChoice = "accept" | "reject" | "progress" | "note";
-
-function RhActionDrawer({
+function RhRequestDecisionDrawer({
     open,
     row,
     note,
     onNoteChange,
     onClose,
     isPending,
-    onSubmit,
-    onAddNote,
+    patchError,
+    onDecision,
+    tr,
 }: {
     open: boolean;
     row: (Record<string, unknown> & { id: string }) | null;
@@ -519,10 +505,11 @@ function RhActionDrawer({
     onNoteChange: (v: string) => void;
     onClose: () => void;
     isPending: boolean;
-    onSubmit: (id: string, action: RhActionType) => void;
-    onAddNote: (id: string) => void;
+    patchError: string | null;
+    onDecision: (id: string, choice: RhDecisionChoice) => void;
+    tr: (k: string) => string;
 }) {
-    const [choice, setChoice] = useState<DrawerChoice>("accept");
+    const [choice, setChoice] = useState<RhDecisionChoice>("accept");
 
     useEffect(() => {
         if (row?.id) setChoice("accept");
@@ -531,57 +518,71 @@ function RhActionDrawer({
     if (!open || !row) return null;
 
     const id = String(row.id);
-    const bucket = normalizeStatusBucket(String(row.status ?? row.state ?? "")) ?? "pending";
-    const pending = bucket === "pending";
+    const bucket = rhRequestStatusToBucket(String(row.status ?? row.state ?? "")) ?? "pending";
+    const canAcceptReject = bucket === "pending";
+    const canProgress = bucket === "pending" || bucket === "accepted";
+    const canDone = bucket === "pending" || bucket === "accepted" || bucket === "in_progress";
     const type = String(row.type ?? "");
-    const msg = humanizeField(String(row.message ?? row.title ?? ""));
-    const project = readString(row, ["project_name", "projectName", "project"]);
-    const pid = readString(row, ["project_id", "projectId"]);
-    const aiReason = readString(row, ["ai_reason", "reason", "rationale", "copilot_reason", "explanation", "description"]);
-    const impact = readString(row, ["expected_impact", "impact", "business_impact", "outcome"]);
+    const title = requestTitle(row, tr);
+    const messageRaw = requestMessageRaw(row);
+    const project = readRhRequestField(row, ["project_name", "projectName", "project"]);
+    const pid = readRhRequestField(row, ["project_id", "projectId"]);
+    const responseText = readRhRequestField(row, ["response_message", "responseMessage", "reason"]);
 
-    const confirmDisabled =
-        isPending || (choice === "note" && !note.trim()) || (choice === "reject" && !note.trim());
+    const decisionOptions: { value: RhDecisionChoice; label: string; hint: string; show: boolean }[] = [
+        { value: "accept", label: "Accepter", hint: "Valider la demande.", show: canAcceptReject },
+        { value: "reject", label: "Rejeter", hint: "Refuser avec un motif obligatoire.", show: canAcceptReject },
+        { value: "progress", label: "Mettre en cours", hint: "Prise en charge par les RH.", show: canProgress },
+        { value: "done", label: "Terminer", hint: "Clôturer le traitement RH.", show: canDone },
+    ];
 
-    const onConfirm = () => {
-        if (choice === "note") {
-            onAddNote(id);
-            return;
-        }
-        onSubmit(id, choice);
-    };
+    const visibleOptions = decisionOptions.filter((o) => o.show);
+    const confirmDisabled = isPending || (choice === "reject" && !note.trim());
 
     return (
-        <ModalOverlay isOpen={open} onOpenChange={(v) => !v && onClose()} isDismissable>
-            <Modal className="items-stretch justify-end p-0 sm:p-4 sm:pl-0">
-                <Dialog
-                    className={cx(
-                        "flex h-dvh w-full max-w-full flex-col border-secondary bg-primary shadow-2xl outline-hidden sm:max-w-md sm:border-l sm:border-t-0",
-                        "sm:h-[min(100dvh,880px)] sm:rounded-l-2xl sm:border-l sm:border-secondary",
-                    )}
-                >
-                    <header className="flex shrink-0 items-start justify-between gap-2 border-b border-secondary px-4 py-3">
-                        <div className="min-w-0">
-                            <p className="text-[10px] font-semibold uppercase tracking-wide text-tertiary">Action RH</p>
-                            <h2 className="mt-0.5 line-clamp-2 text-base font-semibold text-primary">{msg}</h2>
-                            <div className="mt-2 flex flex-wrap gap-2">
-                                <span className={cx("rounded-md border px-2 py-0.5 text-[10px] font-semibold", statusPillClass(bucket))}>
-                                    {statusTicketPillLabel(bucket)}
-                                </span>
-                                <span className="rounded-md border border-secondary/80 bg-secondary_subtle px-2 py-0.5 text-[10px] font-semibold text-secondary">
-                                    {typeLabelFr(type)}
-                                </span>
-                            </div>
+        <>
+            <button
+                type="button"
+                className="fixed inset-0 z-40 bg-overlay/60 backdrop-blur-[2px]"
+                aria-label="Fermer"
+                onClick={onClose}
+            />
+            <aside
+                className="fixed top-0 right-0 z-50 flex h-dvh w-full max-w-md flex-col border-l border-secondary bg-primary shadow-2xl"
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby="rh-decision-drawer-title"
+            >
+                <header className="flex shrink-0 items-start justify-between gap-3 border-b border-secondary px-4 py-3 sm:px-5">
+                    <div className="min-w-0 flex-1">
+                        <p className="text-[10px] font-semibold uppercase tracking-wide text-tertiary">Demande RH</p>
+                        <h2 id="rh-decision-drawer-title" className="mt-0.5 line-clamp-3 text-base font-semibold text-primary">
+                            {title}
+                        </h2>
+                        <div className="mt-2 flex flex-wrap gap-2">
+                            <span className={cx("rounded-md border px-2 py-0.5 text-[10px] font-semibold", statusPillClass(bucket))}>
+                                {labelRhRequestStatus(row.status ?? row.state)}
+                            </span>
+                            <span className="rounded-md border border-secondary/80 bg-secondary_subtle px-2 py-0.5 text-[10px] font-semibold text-secondary">
+                                {typeLabelFr(type)}
+                            </span>
                         </div>
-                        <Button size="sm" color="tertiary" onPress={onClose}>
-                            Fermer
-                        </Button>
-                    </header>
+                    </div>
+                    <button
+                        type="button"
+                        onClick={onClose}
+                        className="shrink-0 rounded-lg p-2 text-tertiary transition hover:bg-secondary_subtle hover:text-primary"
+                        aria-label="Fermer"
+                    >
+                        <X className="size-5" aria-hidden />
+                    </button>
+                </header>
 
-                    <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-4 py-4">
-                        <section className="space-y-1 rounded-xl border border-secondary/70 bg-secondary_subtle/30 p-3 text-sm">
-                            <h3 className="text-[11px] font-semibold uppercase tracking-wide text-tertiary">Demande</h3>
-                            <p className="leading-relaxed text-secondary">{msg}</p>
+                <div className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto px-4 py-4 sm:px-5">
+                    <div className="space-y-4">
+                        <section className="min-w-0 rounded-xl border border-secondary/70 bg-secondary_subtle/30 p-3">
+                            <h3 className="text-[11px] font-semibold uppercase tracking-wide text-tertiary">Message</h3>
+                            <div className="mt-2 text-sm leading-relaxed text-secondary">{formatRhRequestMessage(messageRaw)}</div>
                         </section>
 
                         <dl className="grid gap-3 text-sm">
@@ -607,40 +608,24 @@ function RhActionDrawer({
                                     )}
                                 </dd>
                             </div>
-                            <div>
-                                <dt className="text-[11px] font-semibold uppercase text-tertiary">Raison (IA)</dt>
-                                <dd className="mt-0.5 leading-relaxed text-secondary">{humanizeField(aiReason)}</dd>
-                            </div>
-                            <div>
-                                <dt className="text-[11px] font-semibold uppercase text-tertiary">Impact attendu</dt>
-                                <dd className="mt-0.5 leading-relaxed text-secondary">{humanizeField(impact)}</dd>
-                            </div>
                         </dl>
 
-                        {readString(row, ["response_message", "responseMessage"]) ? (
+                        {responseText ? (
                             <div className="rounded-lg border border-secondary/80 bg-primary p-3 text-xs text-secondary">
-                                <span className="font-semibold text-primary">Commentaire enregistré :</span>{" "}
-                                {humanizeField(readString(row, ["response_message", "responseMessage"]))}
+                                <span className="font-semibold text-primary">Réponse RH :</span> {humanizeField(responseText)}
                             </div>
                         ) : null}
 
-                        {pending ? (
+                        {visibleOptions.length > 0 ? (
                             <section className="space-y-3">
                                 <h3 className="text-[11px] font-semibold uppercase text-tertiary">Décision</h3>
                                 <fieldset className="space-y-2">
                                     <legend className="sr-only">Choisir une décision</legend>
-                                    {(
-                                        [
-                                            { value: "accept" as const, label: "Accepter", hint: "Valider la proposition du Copilot." },
-                                            { value: "reject" as const, label: "Rejeter", hint: "Refuser avec un motif (commentaire obligatoire)." },
-                                            { value: "progress" as const, label: "Mettre en cours", hint: "La demande est prise en charge côté métier." },
-                                            { value: "note" as const, label: "Ajouter une note", hint: "Enregistrer un commentaire et passer en traitement." },
-                                        ] as const
-                                    ).map((opt) => (
+                                    {visibleOptions.map((opt) => (
                                         <label
                                             key={opt.value}
                                             className={cx(
-                                                "flex cursor-pointer gap-3 rounded-xl border p-3 transition",
+                                                "flex w-full cursor-pointer gap-3 rounded-xl border p-3 transition",
                                                 choice === opt.value
                                                     ? "border-brand-secondary/60 bg-brand-primary/10 ring-1 ring-brand-secondary/30"
                                                     : "border-secondary/70 bg-primary hover:border-secondary",
@@ -652,58 +637,62 @@ function RhActionDrawer({
                                                 value={opt.value}
                                                 checked={choice === opt.value}
                                                 onChange={() => setChoice(opt.value)}
-                                                className="mt-1 size-4 shrink-0 accent-brand-solid"
+                                                className="mt-0.5 size-4 shrink-0 accent-brand-solid"
                                             />
-                                            <span className="min-w-0">
+                                            <span className="min-w-0 flex-1">
                                                 <span className="block text-sm font-semibold text-primary">{opt.label}</span>
                                                 <span className="mt-0.5 block text-xs text-tertiary">{opt.hint}</span>
                                             </span>
                                         </label>
                                     ))}
                                 </fieldset>
-                                <div>
+                                <div className="min-w-0">
                                     <label htmlFor="rh-drawer-note" className="text-[11px] font-semibold uppercase text-tertiary">
-                                        Commentaire
+                                        {choice === "reject" ? "Motif de refus" : "Commentaire (optionnel)"}
                                     </label>
                                     <textarea
                                         id="rh-drawer-note"
                                         value={note}
                                         onChange={(e) => onNoteChange(e.target.value)}
-                                        placeholder={
-                                            choice === "reject"
-                                                ? "Motif du refus (obligatoire)"
-                                                : "Précisions pour le suivi RH (optionnel selon le choix)"
-                                        }
+                                        placeholder={choice === "reject" ? "Ex. Budget insuffisant" : "Précisions pour le suivi RH"}
                                         rows={3}
-                                        className="mt-1 w-full resize-y rounded-lg border border-secondary bg-primary p-2.5 text-sm text-primary outline-none focus:border-brand-secondary/50 focus:ring-1 focus:ring-brand-secondary/25"
+                                        className="mt-1 w-full max-w-full resize-y rounded-lg border border-secondary bg-primary p-2.5 text-sm text-primary outline-none focus:border-brand-secondary/50 focus:ring-1 focus:ring-brand-secondary/25"
                                     />
                                 </div>
+                                {patchError ? (
+                                    <p className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-900 dark:border-rose-900 dark:bg-rose-950/40 dark:text-rose-100">
+                                        {patchError}
+                                    </p>
+                                ) : null}
                             </section>
                         ) : (
                             <p className="rounded-lg border border-secondary/60 bg-secondary_subtle/40 p-3 text-xs text-secondary">
-                                Cette action n’est plus en attente. Les décisions rapides ne sont disponibles que pour les demandes en attente.
+                                Cette demande est en statut final.
                             </p>
                         )}
                     </div>
+                </div>
 
-                    {pending ? (
-                        <footer className="shrink-0 space-y-2 border-t border-secondary px-4 py-3">
-                            <Button className="w-full" color="primary" isDisabled={confirmDisabled} isLoading={isPending} onPress={onConfirm}>
-                                Confirmer
-                            </Button>
-                            <p className="text-center text-[10px] text-tertiary">
-                                Le commentaire est transmis avec votre décision lorsque vous le renseignez.
-                            </p>
-                        </footer>
-                    ) : (
-                        <footer className="shrink-0 border-t border-secondary px-4 py-3">
-                            <Button className="w-full" color="secondary" onPress={onClose}>
-                                Fermer
-                            </Button>
-                        </footer>
-                    )}
-                </Dialog>
-            </Modal>
-        </ModalOverlay>
+                {visibleOptions.length > 0 ? (
+                    <footer className="shrink-0 border-t border-secondary bg-primary px-4 py-3 sm:px-5">
+                        <Button
+                            className="w-full"
+                            color="primary"
+                            isDisabled={confirmDisabled}
+                            isLoading={isPending}
+                            onPress={() => void onDecision(id, choice)}
+                        >
+                            Confirmer
+                        </Button>
+                    </footer>
+                ) : (
+                    <footer className="shrink-0 border-t border-secondary bg-primary px-4 py-3 sm:px-5">
+                        <Button className="w-full" color="secondary" onPress={onClose}>
+                            Fermer
+                        </Button>
+                    </footer>
+                )}
+            </aside>
+        </>
     );
 }

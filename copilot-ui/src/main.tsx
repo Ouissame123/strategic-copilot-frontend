@@ -30,16 +30,13 @@ import { CopilotPanel } from "@/components/copilot/copilot-panel";
 import { CopilotProvider } from "@/providers/copilot-provider";
 import { WhatIfProvider } from "@/providers/what-if-provider";
 import {
-    RhAccountsPage,
-    RhCriticalGapsPage,
     RhDashboardPage,
     RhEmployeesPage,
     RhMobilityPage,
-    RhOrgAlertsPage,
     RhProfilePage,
-    RhSkillsCatalogPage,
-    RhTrainingPlansPage,
     RhWorkforceArbitrationPage,
+    RhChatPage,
+    RhAccountsPage,
 } from "@/pages/workspace/rh";
 import DashboardPage from "@/pages/manager/DashboardPage";
 import ProjectsPageManager from "@/pages/manager/ProjectsPage";
@@ -52,6 +49,7 @@ import ManagerDecisionLogPage from "@/pages/manager/DecisionLogPage";
 import ManagerProfilePage from "@/pages/manager/ProfilePage";
 import NotificationsPage from "@/pages/manager/NotificationsPage";
 import HelperChatPage from "@/pages/manager/HelperChatPage";
+import ValidationsPage from "@/pages/manager/ValidationsPage";
 import ManagerRhRequestsPage from "@/pages/workspace/manager/manager-rh-requests-page";
 import {
     TalentDashboardPage,
@@ -95,7 +93,7 @@ createRoot(document.getElementById("root")!).render(
                                         path="/users"
                                         element={
                                             <ProtectedRoute roles={["rh"]}>
-                                                <Navigate to="/workspace/rh/accounts" replace />
+                                                <Navigate to="/workspace/rh/employees" replace />
                                             </ProtectedRoute>
                                         }
                                     />
@@ -122,14 +120,16 @@ createRoot(document.getElementById("root")!).render(
                                         <Route index element={<Navigate to="dashboard" replace />} />
                                         <Route path="dashboard" element={<RhDashboardPage />} />
                                         <Route path="employees" element={<RhEmployeesPage />} />
-                                        <Route path="skills-catalog" element={<RhSkillsCatalogPage />} />
-                                        <Route path="critical-gaps" element={<RhCriticalGapsPage />} />
-                                        <Route path="training-plans" element={<RhTrainingPlansPage />} />
+                                        <Route path="copilot" element={<Navigate to="/workspace/rh/chat" replace />} />
                                         <Route path="mobility" element={<RhMobilityPage />} />
                                         <Route path="workforce-arbitration" element={<RhWorkforceArbitrationPage />} />
-                                        <Route path="org-alerts" element={<RhOrgAlertsPage />} />
+                                        <Route path="chat" element={<RhChatPage />} />
                                         <Route path="profile" element={<RhProfilePage />} />
                                         <Route path="accounts" element={<RhAccountsPage />} />
+                                        <Route path="skills-catalog" element={<Navigate to="/workspace/rh/dashboard" replace />} />
+                                        <Route path="critical-gaps" element={<Navigate to="/workspace/rh/dashboard" replace />} />
+                                        <Route path="training-plans" element={<Navigate to="/workspace/rh/dashboard" replace />} />
+                                        <Route path="org-alerts" element={<Navigate to="/workspace/rh/dashboard" replace />} />
                                         <Route path="talent/*" element={<Navigate to="/workspace/rh/employees" replace />} />
                                         <Route path="actions/*" element={<Navigate to="/workspace/rh/manager-requests" replace />} />
                                         <Route path="sessions" element={<Navigate to="/workspace/rh/dashboard" replace />} />
@@ -160,6 +160,7 @@ createRoot(document.getElementById("root")!).render(
                                         <Route path="recommendations" element={<Navigate to="/workspace/manager/dashboard" replace />} />
                                         <Route path="what-if" element={<Navigate to="/workspace/manager/projects" replace />} />
                                         <Route path="reports" element={<ReportsPage />} />
+                                        <Route path="validations" element={<ValidationsPage />} />
                                         <Route path="decision-log" element={<ManagerDecisionLogPage />} />
                                         <Route path="notifications" element={<NotificationsPage />} />
                                         <Route path="helper" element={<HelperChatPage />} />

@@ -360,16 +360,17 @@ export function buildRhRequestViewModel(
 
 export const KANBAN_COLUMNS: KpiBucket[] = ["pending", "accepted", "in_progress", "done", "rejected"];
 
+/** Transitions kanban — réservées au rôle RH (le manager ne valide pas via PATCH). */
 export function kanbanPatchBody(column: KpiBucket): Record<string, unknown> | null {
     switch (column) {
         case "accepted":
-            return { status: "accepted", response_message: "Demande acceptée par le manager" };
+            return { status: "accepted", response_message: "Demande acceptée par les RH" };
         case "in_progress":
             return { status: "in_progress", response_message: "Demande en cours de traitement" };
         case "done":
             return { status: "done", response_message: "Demande traitée avec succès" };
         case "rejected":
-            return { status: "refused", response_message: "Demande refusée par le manager" };
+            return { status: "refused", response_message: "Demande refusée par les RH" };
         case "pending":
             return { status: "pending", response_message: "Demande remise en attente" };
         default:

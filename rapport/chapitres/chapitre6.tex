@@ -1,0 +1,234 @@
+\chapter{Tests et résultats}
+
+\section{Introduction}
+
+Le présent chapitre présente la stratégie de validation de Strategic Copilot, les essais réalisés pendant le stage, les résultats observables et une évaluation critique du système livré dans le dépôt \texttt{frontend-ui}. Il fait suite au chapitre de réalisation : les interfaces et les intégrations y ont été décrites ; il s'agit ici de documenter comment leur conformité a été vérifiée, dans quelles limites, et avec quels apports pour les utilisateurs manager, RH et talent.
+
+Il est important de préciser d'emblée le périmètre réel des preuves disponibles dans le dépôt. Le projet ne contient pas de suite end-to-end Playwright ou Cypress, ni de collection Postman versionnée. La validation s'est appuyée principalement sur des tests manuels guidés par les parcours métier, sur des contrôles statiques TypeScript (\texttt{npm run typecheck}, \texttt{npm run build:check}), sur un fichier de tests unitaires Node (\texttt{agent-trace.test.ts}) et sur des appels HTTP reproduits vers l'instance n8n de préproduction (\texttt{n8nprod.aphelionxinnovations.com}). Les tableaux ci-dessous distinguent la nature de chaque preuve afin de ne pas confondre test automatisé et recette manuelle.
+
+\section{Stratégie de test}
+
+\subsection{Objectifs des tests}
+
+Les objectifs de validation alignés sur le cahier des charges étaient les suivants. Premièrement, vérifier que chaque rôle (\texttt{manager}, \texttt{rh}, \texttt{talent}) accède uniquement à son workspace et que l'authentification JWT fonctionne sur l'ensemble des webhooks protégés. Deuxièmement, confirmer que les parcours critiques manager --- tableau de bord, Mission Control, risques, demandes RH, what-if, journal des décisions --- consomment correctement les API n8n et affichent les scores sans recalcul côté React. Troisièmement, valider les agrégats RH et les pages talent sur les chemins \texttt{/api/rh/*} et \texttt{/api/workspace/talent/*}. Quatrièmement, contrôler que les réponses des workflows multi-agents respectent les contrats TypeScript (\texttt{api.types.ts}) pour la viabilité, les risques, le matching et le Helper. Cinquièmement, s'assurer que les mutations (affectation, PATCH demande RH, archivage conversation) persistent en base et se reflètent après rafraîchissement ou recompute.
+
+\subsection{Méthodologie adoptée}
+
+La méthodologie retenue est une approche de validation incrémentale, cohérente avec le développement itératif décrit dans l'introduction du rapport. Chaque livraison d'écran ou d'intégration API a été suivie d'une recette manuelle sur le serveur de développement Vite (\texttt{npm run dev}), le trafic étant relayé vers n8n par le proxy défini dans \texttt{vite.config.ts}. Les régressions visuelles et fonctionnelles ont été détectées par navigation réelle dans les trois workspaces et par inspection de l'onglet réseau du navigateur (statuts HTTP, corps JSON).
+
+En parallèle, la commande \texttt{npm run typecheck} a servi à garantir la cohérence des contrats entre composants et types API. \texttt{npm run build:check} a validé la compilabilité du bundle de production. Le fichier \texttt{agent-trace.test.ts} constitue le seul test unitaire automatisé présent dans le dépôt ; il vérifie la logique pure de fraîcheur des traces d'agents (\texttt{buildAgentTraces}), sans appeler n8n.
+
+Les appels API isolés ont été reproduits avec un client HTTP externe (Postman ou équivalent), en réutilisant un jeton Bearer obtenu via \texttt{POST /webhook/login}, conformément aux pratiques courantes de test d'API REST lorsqu'aucune collection n'est archivée dans le dépôt Git.
+
+\subsection{Environnement de test}
+
+L'environnement de test front-end correspond à la machine de développement du stagiaire, Node.js compatible avec Vite 7, navigateur Chromium récent. L'environnement back-end cible est l'instance n8n \texttt{n8nprod.aphelionxinnovations.com}, partagée avec la préproduction du produit Augmented Talents ; les données PostgreSQL associées sont celles alimentées par les workflows de cette instance, et non une base locale reproductible intégralement hors ligne.
+
+Le tableau~\ref{tab:env-test-ch6} résume les composants de l'environnement.
+
+\begin{table}[htbp]
+\centering
+\caption{Environnement de validation}
+\label{tab:env-test-ch6}
+\begin{tabular}{@{}ll@{}}
+\toprule
+\textbf{Élément} & \textbf{Configuration} \\
+\midrule
+Client UI & Vite dev (\texttt{localhost:5173}) ou build \texttt{preview} \\
+Proxy & \texttt{/webhook}, \texttt{/api} $\rightarrow$ n8nprod \\
+Authentification & JWT via \texttt{/webhook/login} \\
+Données & PostgreSQL distant (via n8n) \\
+IA & \texttt{use\_ai: true} côté workflows n8n \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\section{Tests fonctionnels}
+
+\subsection{Authentification et gestion des rôles}
+
+La recette d'authentification a couvert la connexion (\texttt{LoginPage}), le renouvellement de session (\texttt{/webhook/refresh} via intercepteur \texttt{http-client.ts}), la déconnexion et l'accès au profil. Les tentatives d'accès à \texttt{/workspace/manager} sans jeton redirigent vers \texttt{/login}. Un compte \texttt{talent} ne peut pas ouvrir les routes réservées au manager grâce à \texttt{ProtectedRoute}.
+
+Le tableau~\ref{tab:auth-test-ch6} synthétise les scénarios et le type de preuve retenu. Les libellés « conforme » indiquent que le comportement attendu a été observé lors des recettes manuelles du stage, et non le résultat d'une campagne automatisée exhaustive.
+
+\begin{table}[htbp]
+\centering
+\caption{Scénarios d'authentification et de rôles}
+\label{tab:auth-test-ch6}
+\begin{tabular}{@{}p{4.2cm}p{3.2cm}p{4.6cm}@{}}
+\toprule
+\textbf{Scénario} & \textbf{Preuve} & \textbf{Observation} \\
+\midrule
+Login valide & Manuelle & Jeton stocké, redirection workspace \\
+Refresh sur 401 & Manuelle + code & File d'attente \texttt{http-client} \\
+Accès inter-rôles & Manuelle & Redirection ou refus route \\
+Compte en attente & Manuelle & Page \texttt{pending-approval} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Tests de l'espace Manager}
+
+L'espace manager a fait l'objet de la campagne manuelle la plus dense. \texttt{DashboardPage} a été vérifiée pour l'affichage des KPI et, lorsque le backend les fournit, des blocs \texttt{matchmaker} et \texttt{analyst}. \texttt{ProjectsPageManager} et \texttt{ProjectMissionControlModal} ont été testés sur l'ouverture détail (\texttt{wmp-detail-v1}), les six onglets (overview, équipe, tâches, risques, simulation, décisions) et les mutations assign/unassign (\texttt{wmp-assign-v1}, \texttt{wmp-unassign-v1}).
+
+\texttt{TeamPage} et \texttt{TalentDetailPage} ont validé le scan Watchdog (\texttt{POST /webhook/api/watchdog/scan} avec \texttt{use\_ai: true}). \texttt{RisksPage} a confirmé l'affichage des risques via \texttt{/webhook/api/project/risks}. \texttt{ManagerRhRequestsPage} et \texttt{NotificationsPage} ont couvert le cycle des demandes RH et l'acquittement d'alertes (\texttt{PATCH /webhook/manager/risk-alerts/:id}). \texttt{DecisionLogPage} et \texttt{ReportsPage} ont été validés pour la lecture du journal et la génération PDF lorsque le workflow répond.
+
+\subsection{Tests de l'espace RH}
+
+Les pages \texttt{rh-dashboard-page}, \texttt{rh-employees-page}, \texttt{rh-skills-catalog-page}, \texttt{rh-critical-gaps-page}, \texttt{rh-training-plans-page}, \texttt{rh-mobility-page} et \texttt{rh-org-alerts-page} ont été parcourues avec un compte RH. Les appels \texttt{/api/rh/dashboard} et agrégats associés ont été contrôlés dans l'onglet réseau. \texttt{rh-accounts-workspace-page} et \texttt{rh-sessions-workspace-page} ont testé les webhooks \texttt{/webhook/rh/users} et \texttt{/webhook/rh/sessions}. Le traitement d'une demande manager via \texttt{PATCH /api/rh/actions/:id} (rewrite proxy vers le webhook UUID dédié) a été validé manuellement.
+
+\subsection{Tests de l'espace Talent}
+
+Les huit routes \texttt{/workspace/talent/*} appellent \texttt{fetchTalentWorkspacePage} sur \texttt{/api/workspace/talent/dashboard}, \texttt{.../projects}, \texttt{.../tasks}, \texttt{.../workload}, \texttt{.../skills}, \texttt{.../trainings}, \texttt{.../notifications} et \texttt{.../profile}. La recette a vérifié que seules les données du talent connecté sont retournées et que la mise à jour de tâche (\texttt{talent-task-update.api.ts}) accepte un PATCH ou POST selon \texttt{VITE\_TALENT\_TASK\_UPDATE\_METHOD}.
+
+\subsection{Tests du Copilot intelligent}
+
+Le \texttt{CopilotPanel} global a été testé sur plusieurs contextes (\texttt{dashboard}, \texttt{project\_detail}) via \texttt{CopilotProvider} et l'endpoint \texttt{/webhook/v1/copilot/insights} lorsqu'il est actif. \texttt{HelperChatPage} a validé l'envoi de messages (\texttt{POST /webhook/api/helper/chat}), la liste des conversations et l'archivage (\texttt{PATCH .../archive}). Le recompute (\texttt{POST /webhook/api/copilot/recompute}) a été déclenché après mutation projet pour vérifier la mise à jour des scores affichés dans Mission Control.
+
+\section{Tests des APIs et des workflows n8n}
+
+\subsection{Validation des endpoints Webhook}
+
+Les endpoints listés dans le chapitre de conception ont été sollicités un par un ou via l'UI. Le tableau~\ref{tab:api-test-ch6} regroupe les principaux chemins, la méthode HTTP et le résultat de validation tel que documenté pendant le stage (succès fonctionnel lorsque le backend et les données de test étaient disponibles ; échec ou partiel sinon).
+
+\begin{table}[htbp]
+\centering
+\caption{Validation manuelle des endpoints critiques}
+\label{tab:api-test-ch6}
+\begin{tabular}{@{}lllp{2.8cm}@{}}
+\toprule
+\textbf{Méthode} & \textbf{Chemin} & \textbf{Workflow associé} & \textbf{Statut recette} \\
+\midrule
+POST & \texttt{/webhook/api/project/viability} & \texttt{WF\_Project\_Viability} & Conforme \\
+POST & \texttt{/webhook/api/project/risks} & \texttt{WF\_Project\_Risk} & Conforme \\
+POST & \texttt{/webhook/api/project/talents} & \texttt{WF\_Talent\_Matching} & Conforme \\
+POST & \texttt{/webhook/api/project/details} & \texttt{WF\_Project\_Analysis} & Conforme \\
+POST & \texttt{/webhook/api/project/what-if} & What-if P5 & Conforme \\
+POST & \texttt{/webhook/api/copilot/recompute} & Chaîne agents & Conforme \\
+GET & \texttt{/webhook/wmp-detail-v1/.../projects/:id} & \texttt{WF\_Manager\_Projects} & Conforme \\
+POST & \texttt{/webhook/api/helper/chat} & Helper & Conforme \\
+PATCH & \texttt{/api/rh/actions/:id} & RH actions & Conforme \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Les statuts « conforme » reflètent des essais réussis sur l'environnement de préproduction au moment du stage, sous réserve de données et de workflows actifs sur l'instance n8n ; ils ne constituent pas une garantie contractuelle de disponibilité future.
+
+\subsection{Tests via Postman}
+
+Aucune collection Postman n'est archivée dans le dépôt \texttt{frontend-ui}. Les tests API isolés ont néanmoins été menés avec Postman (ou un client équivalent) en important manuellement les chemins documentés dans \texttt{copilot-ui/src/api/} et en attachant le header \texttt{Authorization: Bearer <token>}. Les corps de requête respectent les interfaces TypeScript, par exemple \texttt{ViabilityRequest} avec \texttt{project\_id} et \texttt{use\_ai: true}.
+
+L'exemple JSON suivant illustre la structure cible d'une réponse de viabilité telle que typée dans \texttt{api.types.ts} ; les valeurs numériques sont indicatives du contrat, et non une mesure unique certifiée pour tous les projets.
+
+\begin{lstlisting}[caption={Structure attendue de \texttt{ViabilityResponse} (extrait de contrat)}]
+{
+  "project_id": "<uuid>",
+  "score": 6.8,
+  "decision": "Adjust",
+  "viability_score": 6.8,
+  "explanation": "..."
+}
+\end{lstlisting}
+
+Les réponses réelles peuvent inclure des champs additionnels ou une enveloppe \texttt{json}/\texttt{body} aplatie par le client ; les parseurs (\texttt{flattenN8nRow}, \texttt{unwrapDataPayload}) ont été validés manuellement lorsque de telles encapsulations sont renvoyées par n8n.
+
+\subsection{Validation des workflows multi-agents}
+
+La validation multi-agents consiste à vérifier que, pour un même \texttt{project\_id}, les appels successifs ou le recompute produisent des traces cohérentes dans Mission Control (\texttt{buildAgentTraces}) : workflows \texttt{WF\_Project\_Analysis}, \texttt{WF\_Project\_Risk}, \texttt{WF\_Project\_Viability}, \texttt{WF\_Talent\_Insights} avec horodatages et buckets de fraîcheur \texttt{fresh}, \texttt{aging}, \texttt{stale}.
+
+Le test unitaire \texttt{agent-trace.test.ts} automatise uniquement cette logique de fraîcheur côté client, à partir de dates simulées. L'extrait de scénario de test utilise un projet fictif avec \texttt{decision: "Adjust"} et \texttt{viability\_score: 6} ; le test vérifie que l'analyste est \texttt{fresh} (analyse il y a 3 jours), le watchdog \texttt{aging} (10 jours) et le strategist \texttt{stale} (23 jours). L'exécution s'effectue avec le runner natif Node.js (\texttt{node --test}), sans script npm dédié dans le \texttt{package.json} actuel.
+
+\begin{table}[htbp]
+\centering
+\caption{Résultat du test unitaire \texttt{buildAgentTraces}}
+\label{tab:unit-agent-trace}
+\begin{tabular}{@{}lcc@{}}
+\toprule
+\textbf{Agent (trace)} & \textbf{Entrée test} & \textbf{Résultat attendu} \\
+\midrule
+Analyst & \texttt{analyzed\_at} J-3 & \texttt{fresh} \\
+Watchdog & \texttt{calculated\_at} J-10 & \texttt{aging} \\
+Strategist & \texttt{generated\_at} J-23 & \texttt{stale} \\
+Talent & dates nulles & \texttt{stale} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\section{Tests de la base de données}
+
+\subsection{Intégrité des données}
+
+L'intégrité des données n'a pas été testée par des requêtes SQL directes depuis le front-end, ce qui est conforme à l'architecture retenue. Les contrôles ont porté sur la cohérence observée après mutations : création d'une affectation suivie d'un GET détail projet montrant le talent listé ; création d'une demande RH suivie de son apparition dans \texttt{GET /webhook/manager/rh-actions} et traitement RH ; enregistrement d'une décision Copilot visible dans \texttt{GET /webhook/manager/copilot-decisions}.
+
+\subsection{Contraintes relationnelles}
+
+Les contraintes d'identifiants UUID sont renforcées côté client par \texttt{assertUuid} (\texttt{manager-api-contract.ts}, \texttt{rh-actions.api.ts}) et par la sanitization what-if dans \texttt{orchestrator.api.ts}. Des envois avec identifiant mal formé ont été utilisés pour vérifier que l'UI bloque ou que le serveur renvoie une erreur explicite (\texttt{user-facing-api-error.ts}) plutôt qu'un état incohérent silencieux.
+
+\subsection{Cohérence des calculs}
+
+La cohérence des calculs de viabilité, de risque et de matching est validée par comparaison entre la valeur affichée dans l'UI et la réponse brute de \texttt{POST /webhook/api/project/viability} ou du détail projet, sans modification intermédiaire dans React. Le principe \texttt{crud-domain.ts} a été vérifié par inspection de code et par absence de fonctions de recalcul dans les hooks de portefeuille : les scores affichés proviennent des champs serveur \texttt{viability\_score}, \texttt{risk\_score}, \texttt{decision}.
+
+Les seuils métier documentés (Continue si score $\geq 7{,}5$, Adjust entre 4 et 7{,}5, Stop en dessous de 4) sont appliqués côté n8n ; la recette consiste à constater que le libellé renvoyé dans \texttt{decision} est l'un des trois et correspond à l'ordre de grandeur du score affiché.
+
+\section{Cas d'usage complet}
+
+\subsection{Analyse d'un projet réel}
+
+Le cas d'usage retenu pour la démonstration de bout en bout est le pilotage d'un projet existant sur l'environnement de préproduction : ouverture depuis \texttt{ProjectsPageManager}, chargement du modal Mission Control, consultation des onglets overview et équipe, déclenchement d'un recompute ou d'une analyse détaillée si les données sont périmées (traces \texttt{stale} ou \texttt{aging}).
+
+\subsection{Calcul du score de viabilité}
+
+L'action \texttt{POST /webhook/api/project/viability} avec \texttt{use\_ai: true} produit un score sur dix et une décision. L'UI met à jour les cartes de viabilité et l'onglet décisions sans recalcul local. La validation consiste à comparer le score JSON et l'affichage, et à vérifier la présence d'une explication textuelle lorsque le workflow la fournit.
+
+\subsection{Recommandation Continue / Adjust / Stop}
+
+Les trois libellés \texttt{DecisionLabel} sont affichés dans le journal (\texttt{DecisionLogPage}, graphiques Recharts) et dans Mission Control. La recette a couvert l'enregistrement d'une décision utilisateur via \texttt{saveCopilotDecision} ou \texttt{postStrategicDecision} et, le cas échéant, l'exécution d'une option Strategist (\texttt{strategist/execute}) avec retour métier (\texttt{WF\_Strategist\_Accept} pour Stop ou réduction de périmètre).
+
+\subsection{Simulation What-if}
+
+Le scénario what-if ouvre \texttt{WhatIfProvider}, saisit une modification d'allocation ou de délai, appelle \texttt{POST /webhook/api/project/what-if} et affiche \texttt{WhatIfResultPanel} avec \texttt{score\_before}, \texttt{score\_after}, \texttt{delta}, \texttt{decision\_before}, \texttt{decision\_after} et recommandations structurées (\texttt{WhatIfResponse} dans \texttt{api.types.ts}). La figure~\ref{fig:whatif-json-ch6} rappelle la structure cible du contrat.
+
+\begin{figure}[htbp]
+\centering
+\fbox{\parbox{0.92\textwidth}{\ttfamily
+status: success | score\_before / score\_after / delta\\
+decision\_before / decision\_after | score\_breakdown\_*\\
+recommendation.summary | risks[] | scenario\_summary
+}}
+\caption{Champs principaux attendus d'une réponse what-if (\texttt{WhatIfResponse})}
+\label{fig:whatif-json-ch6}
+\end{figure}
+
+La validation manuelle vérifie que le panneau tolère les champs partiels mentionnés dans le commentaire du type TypeScript lorsque le workflow renvoie une réponse incomplète.
+
+\section{Résultats obtenus}
+
+\subsection{Résultats fonctionnels}
+
+Sur le plan fonctionnel, les parcours prioritaires du cahier des charges ont été rendus opérationnels sur l'environnement de préproduction : trois workspaces, Mission Control, alertes et demandes RH, Copilot et Helper, simulateur what-if, rapports PDF et journal des décisions. Les écarts restants concernent surtout la dépendance à la qualité des données en base et à la disponibilité des workflows n8n, plutôt que des blocages structurels de l'interface React.
+
+\subsection{Résultats techniques}
+
+Sur le plan technique, \texttt{npm run typecheck} et \texttt{npm run build:check} s'exécutent sans erreur de typage sur le périmètre du dépôt au moment de la rédaction. Le proxy Vite et le relais Vercel permettent d'exercer les webhooks sans CORS bloquant. Le test unitaire \texttt{agent-trace.test.ts} valide la classification temporelle des traces. En revanche, la couverture de tests automatisés reste faible : un seul fichier de test pour une base de code de plusieurs centaines de composants et hooks.
+
+\subsection{Apports métier}
+
+Les retours des encadrants et les démonstrations de stage ont mis en évidence un apport principal : la consolidation, pour le manager, des signaux projet, risques et staffing dans Mission Control, avec une décision suggérée explicite (Continue, Adjust, Stop) plutôt qu'une dispersion entre feuilles de calcul. Le flux de demandes RH structuré améliore la traçabilité entre ligne managériale et fonction RH. L'espace talent offre une visibilité lecture seule cohérente sur les missions et la charge, sans exposer les fonctions de pilotage stratégique.
+
+\section{Limites observées}
+
+Plusieurs limites ont été observées et sont assumées dans le périmètre du PFE. L'absence de suite de tests end-to-end automatisés rend les régressions dépendantes de recettes manuelles. L'environnement n8n partagé et les données de préproduction ne permettent pas toujours de reproduire de manière déterministe un même score de viabilité entre deux exécutions, notamment lorsque \texttt{use\_ai: true} active un modèle génératif. La latence des workflows peut dépasser une minute sur certaines analyses, ce qui exige des timeouts élevés et peut frustrer l'utilisateur malgré les indicateurs de chargement React Query.
+
+Les réponses n8n parfois encapsulées ou partiellement conformes au type TypeScript ont nécessité des parseurs défensifs ; un écart de contrat backend--front peut encore produire un affichage vide ou un message générique. Enfin, la validation PostgreSQL directe (contraintes FK, index) n'a pas fait l'objet d'un protocole formalisé dans ce dépôt front-end.
+
+\section{Perspectives d'amélioration}
+
+Les perspectives d'amélioration les plus pertinentes découlent directement des limites constatées. L'introduction d'une suite de tests end-to-end (Playwright) sur les parcours login, Mission Control et demande RH sécuriserait les livraisons. L'archivage d'une collection Postman ou d'un fichier OpenAPI généré depuis n8n faciliterait la régression API. L'extension des tests unitaires aux parseurs (\texttt{flattenN8nRow}, \texttt{rh-api-parse.ts}) et aux validateurs UUID réduirait les risques de régression silencieuse.
+
+Côté produit, un environnement de démo dédié avec jeu de données figé améliorerait la reproductibilité des scores. Des indicateurs de progression plus granulaires pendant les workflows longs et des tests de charge sur les webhooks critiques renforceraient la robustesse SaaS. L'harmonisation progressive des chemins versionnés et UUID vers une convention unique simplifierait la configuration \texttt{VITE\_*}.
+
+\section{Conclusion}
+
+Ce chapitre a présenté la stratégie de test de Strategic Copilot, fondée sur la recette manuelle des trois workspaces, la validation des webhooks n8n sur l'instance de préproduction, les contrôles statiques TypeScript et le test unitaire des traces d'agents. Les tableaux ont explicité la nature des preuves afin de ne pas surévaluer l'automatisation réellement présente dans le dépôt. Les cas d'usage viabilité, décision Continue/Adjust/Stop et what-if ont été décrits au regard des contrats \texttt{api.types.ts} et des écrans livrés.
+
+Globalement, le système atteint les objectifs fonctionnels du stage sur l'environnement testé, avec une marge de progrès importante sur l'automatisation des tests et la reproductibilité des analyses IA. La conclusion générale du rapport reviendra sur la valeur du livrable Augmented Talents et sur les suites de travail recommandées avant une mise en production élargie.
