@@ -17,16 +17,6 @@ export type ProjectTasksTabProps = {
 
 type StatusFilter = "all" | ProjectTaskStatus;
 
-function TasksSkeleton() {
-    return (
-        <div className="space-y-2">
-            {Array.from({ length: 4 }).map((_, i) => (
-                <div key={i} className="h-28 animate-pulse rounded-2xl border border-secondary bg-secondary_subtle/60" />
-            ))}
-        </div>
-    );
-}
-
 function StatCard({ label, value }: { label: string; value: number }) {
     return (
         <article className="rounded-2xl border border-secondary bg-primary px-3 py-2 shadow-xs">
@@ -149,15 +139,13 @@ export function ProjectTasksTab({ projectId, enabled = true, taskAssignableTalen
                 </div>
             </div>
 
-            {tasksQuery.isLoading ? <TasksSkeleton /> : null}
-
             {tasksQuery.isError ? (
                 <p className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-100">
                     {readUserFacingApiErrorMessage(tasksQuery.error, tt("loadError"))}
                 </p>
             ) : null}
 
-            {!tasksQuery.isLoading && filtered.length === 0 ? (
+            {filtered.length === 0 && !tasksQuery.isError ? (
                 <div className="rounded-2xl border border-dashed border-secondary bg-secondary_subtle/30 px-4 py-10 text-center">
                     <p className="text-sm font-medium text-fg-primary">{tt("emptyTitle")}</p>
                     <p className="mt-1 text-xs text-fg-tertiary">{tt("emptyHint")}</p>

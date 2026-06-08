@@ -186,6 +186,7 @@ export const useDecisionLog = (params?: { project_id?: string; scope?: string; l
         queryKey: ["decision-log", rest],
         queryFn: () => managerNotificationsApi.decisions(rest).then((r) => r.data),
         enabled,
+        staleTime: 120_000,
     });
 };
 

@@ -275,7 +275,7 @@ function readAxiosResponseDetail(err: AxiosError): string {
     return String(data).slice(0, 200);
 }
 
-/** Erreur HTTP après `PATCH /webhook/manager/conversations/:id/archive` (archivage logique, pas DELETE). */
+/** Erreur HTTP après `PATCH /webhook/wmc-archive-v1/manager/conversations/:id/archive` (archivage logique, pas DELETE). */
 export function friendlyArchiveConversationError(err: unknown): string {
     if (!isAxiosError(err)) return "Erreur lors de l’archivage de la conversation.";
     const status = err.response?.status;
@@ -288,7 +288,7 @@ export function friendlyArchiveConversationError(err: unknown): string {
         return detail ? `Accès refusé : ${detail}` : "Accès refusé : tu ne peux pas archiver cette conversation.";
     }
     if (status === 405) {
-        return "Le serveur n’accepte pas PATCH sur cette URL. Dans n8n, vérifie que le nœud Webhook autorise bien la méthode PATCH pour `/manager/conversations/:id/archive`.";
+        return "Le serveur n’accepte pas PATCH sur cette URL. Dans n8n, vérifie que le nœud Webhook autorise bien la méthode PATCH pour `/webhook/wmc-archive-v1/manager/conversations/:id/archive`.";
     }
     if (status === 400) {
         return detail || "Requête refusée. Vérifie que la conversation existe et que ton compte y a accès.";

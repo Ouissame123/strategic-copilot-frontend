@@ -1,10 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Minus, Sparkles, TrendingDown, TrendingUp } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { buildStrictAssignTalentPayload } from "@/api/manager-projects.api";
 import { ProjectMissionControlRisks } from "@/components/manager/project-mission-control-risks";
-import { RiskMatrix as ProjectRiskMatrix } from "@/components/projects/RiskMatrix";
 import { ProjectTasksTab } from "@/components/projects/tasks/ProjectTasksTab";
 import { StrategistArbitrageOptions } from "@/components/manager/strategist-arbitrage-options";
+import { CopilotDrawer } from "@/components/copilot/CopilotDrawer";
+import { CopilotFloatingButton } from "@/components/copilot/CopilotFloatingButton";
 import { ManagerProjectCopilotPanel, type CopilotPrefetchedProjectContext } from "@/components/copilot/ManagerProjectCopilotPanel";
 import { stripTechnicalScoringSegments } from "@/lib/business-explanation";
 import { readMissionControlHttpErrorMessage, readUserFacingApiErrorMessage } from "@/lib/user-facing-api-error";
@@ -34,6 +36,7 @@ import {
 import type { AssignTalentRequest, AssignmentItem, ProjectListItem, ProjectStatus, WmpAssignmentType } from "@/types/api.types";
 import { useToast } from "@/providers/toast-provider";
 import { cx } from "@/utils/cx";
+import type { MissionControlWorkspaceTabId } from "@/utils/workspace-routes";
 import {
     formatMissionExecutiveSummary,
     formatMissionViabilityExplanation,
@@ -46,17 +49,18 @@ import {
     readLatestViabilityScore,
 } from "@/utils/format";
 
-export type ProjectMissionControlModalProps = {
-    open: boolean;
-    projectId: string | null;
-    listProject: ProjectListItem | undefined;
+export type { MissionControlWorkspaceTabId } from "@/utils/workspace-routes";
+
+export type ProjectMissionControlWorkspaceProps = {
+    projectId: string;
+    listProject?: ProjectListItem;
     onClose: () => void;
-    initialWorkspaceTab?: MissionControlWorkspaceTabId;
+    workspaceTab?: MissionControlWorkspaceTabId;
+    onWorkspaceTabChange?: (tab: MissionControlWorkspaceTabId) => void;
 };
 
-export type MissionControlWorkspaceTabId = "overview" | "team" | "tasks" | "risks" | "simulation" | "decisions";
 type WorkspaceTabId = MissionControlWorkspaceTabId;
-type MobileMissionTabId = WorkspaceTabId | "copilot";
+type MobileMissionTabId = WorkspaceTabId;
 
 function clamp(n: number, lo: number, hi: number): number {
     return Math.min(hi, Math.max(lo, n));
@@ -114,6 +118,139 @@ function decisionBadgeClass(decision: string): string {
     return "border-violet-300 bg-violet-50 text-violet-900 dark:border-violet-600 dark:bg-violet-950/45 dark:text-violet-100";
 }
 
+function statusPillClass(status: string | null | undefined): string {
+    const v = String(status ?? "")
+        .trim()
+        .toLowerCase()
+        .replace(/\s+/g, "_");
+    if (v === "on_hold" || v === "onhold") return "bg-amber-100 text-amber-800";
+    if (v === "completed") return "bg-green-100 text-green-800";
+    if (v === "active") return "bg-blue-100 text-blue-800";
+    if (v === "planned") return "bg-slate-100 text-slate-700";
+    if (v === "cancelled") return "bg-red-100 text-red-800";
+    return "bg-slate-100 text-slate-700";
+}
+
+function decisionPillClass(decision: string | null | undefined): string {
+    const k = String(decision ?? "").trim().toLowerCase();
+    if (k === "continue" || k === "proceed") return "bg-emerald-100 text-emerald-800";
+    if (k === "adjust") return "bg-amber-100 text-amber-800";
+    if (k === "stop" || k === "reject") return "bg-red-100 text-red-800";
+    return "bg-violet-100 text-violet-800";
+}
+
+function scoreBarTone(score: number): string {
+    if (score < 4) return "bg-red-500";
+    if (score < 7) return "bg-orange-500";
+    return "bg-emerald-500";
+}
+
+type MissionKpiCardKind = "health" | "viability" | "alerts" | "talents" | "progress";
+
+type MissionKpiCardProps = {
+    label: string;
+    value: string;
+    unit?: string;
+    scoreBarPct?: number | null;
+    progressBarPct?: number | null;
+    kind: MissionKpiCardKind;
+    alertsCount?: number;
+};
+
+function kpiAccentBorder(kind: MissionKpiCardKind, scoreBarPct?: number | null, progressBarPct?: number | null, alertsCount = 0): string {
+    if (kind === "talents") return "border-l-blue-500";
+    if (kind === "alerts") {
+        if (alertsCount >= 3) return "border-l-red-500";
+        if (alertsCount >= 1) return "border-l-orange-500";
+        return "border-l-emerald-500";
+    }
+    const score = scoreBarPct ?? (progressBarPct != null ? progressBarPct / 10 : null);
+    if (score == null) return "border-l-slate-300";
+    if (score < 4) return "border-l-red-500";
+    if (score < 7) return "border-l-orange-500";
+    return "border-l-emerald-500";
+}
+
+function KpiTrendHint({
+    kind,
+    scoreBarPct,
+    progressBarPct,
+    alertsCount = 0,
+}: {
+    kind: MissionKpiCardKind;
+    scoreBarPct?: number | null;
+    progressBarPct?: number | null;
+    alertsCount?: number;
+}) {
+    let tone: "up" | "down" | "neutral" = "neutral";
+    if (kind === "alerts") {
+        tone = alertsCount >= 2 ? "down" : alertsCount === 0 ? "up" : "neutral";
+    } else {
+        const score = scoreBarPct ?? (progressBarPct != null ? progressBarPct / 10 : null);
+        if (score != null) {
+            if (score >= 7) tone = "up";
+            else if (score < 4) tone = "down";
+        }
+    }
+
+    const TrendIcon = tone === "up" ? TrendingUp : tone === "down" ? TrendingDown : Minus;
+    const trendColor = tone === "up" ? "text-emerald-500" : tone === "down" ? "text-red-500" : "text-slate-400";
+    const barTone =
+        tone === "up"
+            ? "from-emerald-200 via-emerald-400 to-emerald-200"
+            : tone === "down"
+              ? "from-red-200 via-red-400 to-red-200"
+              : "from-slate-200 via-slate-300 to-slate-200";
+
+    return (
+        <div className="mt-3 flex items-center gap-2">
+            <TrendIcon className={cx("size-3.5 shrink-0", trendColor)} aria-hidden />
+            <div className={cx("h-1 flex-1 rounded-full bg-gradient-to-r opacity-80", barTone)} aria-hidden />
+        </div>
+    );
+}
+
+function MissionKpiCard({ label, value, unit, scoreBarPct, progressBarPct, kind, alertsCount = 0 }: MissionKpiCardProps) {
+    const accent = kpiAccentBorder(kind, scoreBarPct, progressBarPct, alertsCount);
+
+    return (
+        <article
+            className={cx(
+                "flex min-h-[9rem] flex-col justify-between rounded-xl border border-slate-100 bg-white p-5 shadow-sm transition-shadow duration-200 ease-out hover:shadow-md dark:border-secondary dark:bg-primary sm:min-h-[9.5rem]",
+                "border-l-4",
+                accent,
+            )}
+        >
+            <p className="text-xs font-medium uppercase tracking-widest text-slate-400">{label}</p>
+            <div className="mt-2 flex flex-1 flex-col justify-center">
+                <p className="flex items-baseline gap-1.5 leading-none">
+                    <span className="text-4xl font-bold tabular-nums text-slate-900 dark:text-fg-primary">{value}</span>
+                    {unit ? <span className="text-base font-medium text-slate-500">{unit}</span> : null}
+                </p>
+                <KpiTrendHint kind={kind} scoreBarPct={scoreBarPct} progressBarPct={progressBarPct} alertsCount={alertsCount} />
+                {scoreBarPct != null ? (
+                    <div className="mt-2 h-1 w-full overflow-hidden rounded-full bg-slate-100 dark:bg-secondary_subtle">
+                        <div
+                            className={cx("h-full rounded-full transition-all duration-200 ease-out", scoreBarTone(scoreBarPct))}
+                            style={{ width: `${Math.min(100, Math.max(0, scoreBarPct * 10))}%` }}
+                            aria-hidden
+                        />
+                    </div>
+                ) : null}
+                {progressBarPct != null ? (
+                    <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-slate-100 dark:bg-secondary_subtle">
+                        <div
+                            className="h-full rounded-full bg-gradient-to-r from-blue-500 to-blue-600 transition-all duration-200 ease-out"
+                            style={{ width: `${Math.min(100, Math.max(0, progressBarPct))}%` }}
+                            aria-hidden
+                        />
+                    </div>
+                ) : null}
+            </div>
+        </article>
+    );
+}
+
 function decisionSummary(d: CopilotDecision): string {
     const raw = stripTechnicalScoringSegments(d.reason ?? "").replace(/\s+/g, " ").trim();
     if (!raw) return "—";
@@ -168,138 +305,15 @@ function formatAllocation(value: number | string): string {
     return `${n}%`;
 }
 
-/** Radar synthétique (viabilité, santé, marge charge, calme alertes) — dérivé des KPI déjà chargés. */
-function MissionRadar({
-    viability,
-    health,
-    loadPct,
-    alertCount,
-}: {
-    viability: number | null;
-    health: number | null;
-    loadPct: number | null;
-    alertCount: number;
-}) {
-    const { t } = useTranslation("common");
-    const tm = (key: string) => t(`managerWorkspace.missionControl.${key}`);
-    const axes = useMemo(() => {
-        const vScore = viability != null && Number.isFinite(viability) ? clamp(viability, 0, 10) : null;
-        const v = vScore != null ? vScore / 10 : 0.5;
-        const hScore = health != null && Number.isFinite(health) ? clamp(health, 0, 10) : null;
-        const h = hScore != null ? hScore / 10 : 0.5;
-        const load = loadPct != null && Number.isFinite(loadPct) ? clamp(loadPct, 0, 100) : null;
-        const l = load != null ? clamp(1 - load / 100, 0, 1) : 0.5;
-        const calmPct = alertCount <= 0 ? 100 : Math.round(clamp(1 - Math.min(alertCount, 8) / 8, 0, 1) * 100);
-        const a = calmPct / 100;
-        return [
-            { label: tm("axisViability"), t: v, percentLabel: formatViabilityScore(vScore).pct },
-            { label: tm("axisHealth"), t: h, percentLabel: hScore != null ? `${Math.round(hScore * 10)}%` : "—" },
-            {
-                label: tm("axisLoadMargin"),
-                t: l,
-                percentLabel: load != null ? `${Math.round(100 - load)}%` : "—",
-            },
-            { label: tm("axisCalmAlerts"), t: a, percentLabel: `${calmPct}%` },
-        ];
-    }, [viability, health, loadPct, alertCount, t]);
-
-    const n = axes.length;
-    const cx0 = 50;
-    const cy0 = 50;
-    const r = 36;
-    const outerPts = axes
-        .map((_, i) => {
-            const ang = (-Math.PI / 2 + (2 * Math.PI * i) / n) as number;
-            return `${cx0 + r * Math.cos(ang)},${cy0 + r * Math.sin(ang)}`;
-        })
-        .join(" ");
-    const pts = axes.map((ax, i) => {
-        const ang = (-Math.PI / 2 + (2 * Math.PI * i) / n) as number;
-        const rr = r * (0.2 + 0.8 * ax.t);
-        return { x: cx0 + rr * Math.cos(ang), y: cy0 + rr * Math.sin(ang) };
-    });
-    const d = pts.map((p) => `${p.x},${p.y}`).join(" ");
-
-    return (
-        <section className="rounded-xl border border-secondary bg-primary p-3">
-            <h4 className="mb-2 text-xs font-semibold uppercase tracking-wide text-fg-tertiary">{tm("radarTitle")}</h4>
-            <div className="flex justify-center">
-                <svg viewBox="0 0 100 100" className="h-36 w-full max-w-[200px]" aria-hidden>
-                    <polygon points={outerPts} fill="currentColor" className="text-secondary_subtle/40" stroke="currentColor" strokeWidth={0.5} />
-                    <polygon points={d} fill="currentColor" className="text-brand-secondary/25" stroke="currentColor" strokeWidth={1} />
-                </svg>
-            </div>
-            <ul className="mt-2 grid grid-cols-2 gap-1 text-[10px] text-fg-tertiary">
-                {axes.map((ax) => (
-                    <li key={ax.label} className="flex justify-between gap-1 rounded bg-secondary_subtle/50 px-1.5 py-0.5">
-                        <span>{ax.label}</span>
-                        <span className="tabular-nums text-fg-secondary">{ax.percentLabel}</span>
-                    </li>
-                ))}
-            </ul>
-        </section>
-    );
-}
-
-function TeamHeatmap({
-    assignments,
-    teamNameById,
-}: {
-    assignments: AssignmentItem[];
-    teamNameById: Map<string, string | undefined>;
-}) {
-    const { t } = useTranslation("common");
-    const unknownTalent = t("managerWorkspace.missionControl.unknownTalent");
-    const tm = (key: string) => t(`managerWorkspace.missionControl.${key}`);
-    return (
-        <section className="rounded-xl border border-secondary bg-primary p-3">
-            <h4 className="mb-2 text-xs font-semibold uppercase tracking-wide text-fg-tertiary">{tm("heatmapTitle")}</h4>
-            <div className="space-y-2">
-                {assignments.length === 0 ? <p className="text-xs text-fg-tertiary">{tm("heatmapEmpty")}</p> : null}
-                {assignments.map((a, idx) => {
-                    const id = String(a.talent_id ?? "").trim();
-                    const key = normalizeId(a.talent_id);
-                    const rowKey = String(a.id ?? "").trim() || `${id || "talent"}-${idx}`;
-                    const pct = typeof a.allocation_pct === "number" ? a.allocation_pct : Number(a.allocation_pct);
-                    const w = Number.isFinite(pct) ? clamp(pct, 0, 100) : 0;
-                    const label = pickTalentDisplayName(
-                        {
-                            talentName: a.talent_name,
-                            mappedName: teamNameById.get(key),
-                            talentEmail: a.talent_email,
-                            talentId: id,
-                        },
-                        unknownTalent,
-                    );
-                    return (
-                        <div key={rowKey} className="space-y-0.5">
-                            <div className="flex justify-between gap-1 text-[11px] text-fg-secondary">
-                                <span className="truncate font-medium text-fg-primary">{label}</span>
-                                <span className="shrink-0 tabular-nums">{formatAllocation(a.allocation_pct)}</span>
-                            </div>
-                            <div className="h-2 overflow-hidden rounded-full bg-secondary_subtle">
-                                <div
-                                    className="h-full rounded-full bg-gradient-to-r from-brand-secondary to-brand-solid"
-                                    style={{ width: `${w}%` }}
-                                />
-                            </div>
-                        </div>
-                    );
-                })}
-            </div>
-        </section>
-    );
-}
-
-export function ProjectMissionControlModal({
-    open,
+export function ProjectMissionControlWorkspace({
     projectId,
     listProject,
     onClose,
-    initialWorkspaceTab,
-}: ProjectMissionControlModalProps) {
-    const enabled = open && Boolean(projectId);
-    const pid = projectId ?? "";
+    workspaceTab: workspaceTabProp = "overview",
+    onWorkspaceTabChange,
+}: ProjectMissionControlWorkspaceProps) {
+    const enabled = Boolean(projectId);
+    const pid = projectId;
     const { user } = useAuth();
 
     const detail = useProjectDetail(pid);
@@ -339,8 +353,19 @@ export function ProjectMissionControlModal({
         assignment_type: WmpAssignmentType;
     }>({ talent_id: "", allocation_pct: 50, assignment_type: "part_time" });
     const [whatIfAllocationPct, setWhatIfAllocationPct] = useState("");
-    const [workspaceTab, setWorkspaceTab] = useState<WorkspaceTabId>("overview");
-    const [mobileMissionTab, setMobileMissionTab] = useState<MobileMissionTabId>("overview");
+    const [workspaceTab, setWorkspaceTab] = useState<WorkspaceTabId>(workspaceTabProp);
+    const [mobileMissionTab, setMobileMissionTab] = useState<MobileMissionTabId>(workspaceTabProp);
+    const [isCopilotOpen, setIsCopilotOpen] = useState(false);
+    const copilotFabRef = useRef<HTMLButtonElement>(null);
+
+    const applyWorkspaceTab = useCallback(
+        (tab: WorkspaceTabId) => {
+            setWorkspaceTab(tab);
+            setMobileMissionTab(tab);
+            onWorkspaceTabChange?.(tab);
+        },
+        [onWorkspaceTabChange],
+    );
 
     const { t, i18n } = useTranslation("common");
     const tm = useCallback(
@@ -352,24 +377,12 @@ export function ProjectMissionControlModal({
     );
 
     useEffect(() => {
-        if (!open) return;
-        const onKey = (e: KeyboardEvent) => {
-            if (e.key === "Escape") onClose();
-        };
-        window.addEventListener("keydown", onKey);
-        return () => window.removeEventListener("keydown", onKey);
-    }, [open, onClose]);
+        setWorkspaceTab(workspaceTabProp);
+        setMobileMissionTab(workspaceTabProp);
+    }, [workspaceTabProp, projectId]);
 
     useEffect(() => {
-        if (open) {
-            const tab = initialWorkspaceTab ?? "overview";
-            setWorkspaceTab(tab);
-            setMobileMissionTab(tab);
-        }
-    }, [open, projectId, initialWorkspaceTab]);
-
-    useEffect(() => {
-        if (!open || !projectId) return;
+        if (!projectId) return;
         const project = detail.data?.project;
         const rowMatches =
             listProject &&
@@ -384,7 +397,6 @@ export function ProjectMissionControlModal({
             milestone_at: toDateInputValue(src.milestone_at != null ? String(src.milestone_at) : ""),
         });
     }, [
-        open,
         projectId,
         detail.data?.project?.status,
         detail.data?.project?.priority,
@@ -398,7 +410,7 @@ export function ProjectMissionControlModal({
     useEffect(() => {
         assignmentTypeTouched.current = false;
         setAssignPayload({ talent_id: "", allocation_pct: 50, assignment_type: "part_time" });
-    }, [open, projectId]);
+    }, [projectId]);
 
     const refreshProjectSnapshot = useCallback(() => {
         const enterpriseId = user?.enterpriseId?.trim();
@@ -417,10 +429,6 @@ export function ProjectMissionControlModal({
     }, [pid, pushToast, runViabilityRefresh, tm, user?.enterpriseId]);
 
     useEffect(() => {
-        if (!open) {
-            viabilityScanKeyRef.current = null;
-            return;
-        }
         if (!pid) return;
         const enterpriseId = user?.enterpriseId?.trim();
         if (!enterpriseId) return;
@@ -436,10 +444,10 @@ export function ProjectMissionControlModal({
                 },
             },
         );
-    }, [open, pid, runViabilityRefresh, user?.enterpriseId]);
+    }, [pid, runViabilityRefresh, user?.enterpriseId]);
 
     const editBaseline = useMemo(() => {
-        if (!open || !projectId) return null;
+        if (!projectId) return null;
         const project = detail.data?.project;
         const rowMatches =
             listProject &&
@@ -453,7 +461,6 @@ export function ProjectMissionControlModal({
             milestone_at: toDateInputValue(src.milestone_at != null ? String(src.milestone_at) : ""),
         };
     }, [
-        open,
         projectId,
         detail.data?.project?.status,
         detail.data?.project?.priority,
@@ -492,11 +499,11 @@ export function ProjectMissionControlModal({
         [detail.data?.assignments],
     );
     const strategistArbitrage = useProjectStrategistArbitrage({
-        open,
+        open: enabled,
         projectId: pid,
         enterpriseId: user?.enterpriseId,
         detail: detail.data,
-        detailLoading: detail.isLoading,
+        detailLoading: !detail.data && !listProject,
         listProject,
         simulationTabActive,
     });
@@ -518,10 +525,7 @@ export function ProjectMissionControlModal({
     }, [latestKpi, detail.data, listProject?.progress_pct]);
     const progressLabel = formatProgressPercent(progressPct);
     const health = readLatestKpiHealthScore(latestKpi);
-    const loadRaw = latestKpi?.capacity_load_pct;
-    const loadPct = loadRaw != null && Number.isFinite(Number(loadRaw)) ? Number(loadRaw) : null;
     const delayDays = readLatestKpiDelayDays(latestKpi);
-    const alertCount = detail.data?.active_alerts?.length ?? 0;
     const projectName = detail.data?.project.name ?? listProject?.name ?? tm("projectNameFallback");
     const latestDecisionRaw = detail.data?.latest_viability?.decision ?? listProject?.latest_decision ?? null;
     const decisionBadge = latestDecisionRaw ?? "—";
@@ -679,31 +683,20 @@ export function ProjectMissionControlModal({
         });
     }, [lifecyclePatchSource, pid, updateProject]);
 
-    if (!open || !projectId) return null;
-
-    const leftPanel = (
-        <div className="flex min-h-0 min-w-0 flex-col gap-3 overflow-y-auto p-2">
-            <MissionRadar viability={viabilityScore} health={health} loadPct={loadPct} alertCount={alertCount} />
-            <ProjectRiskMatrix
-                alerts={detail.data?.active_alerts ?? []}
-                loading={detail.isLoading}
-                onAlertClick={() => {
-                    setWorkspaceTab("risks");
-                    setMobileMissionTab("risks");
-                }}
-            />
-            <TeamHeatmap assignments={detail.data?.assignments ?? []} teamNameById={teamNameById} />
-        </div>
-    );
+    if (!projectId) return null;
 
     const mobileChip = (id: MobileMissionTabId, label: string) => (
         <button
             type="button"
             key={id}
-            onClick={() => setMobileMissionTab(id)}
+            role="tab"
+            aria-selected={mobileMissionTab === id}
+            onClick={() => applyWorkspaceTab(id)}
             className={cx(
-                "shrink-0 rounded-lg px-2.5 py-1.5 text-[11px] font-semibold transition sm:px-3 sm:text-xs",
-                mobileMissionTab === id ? "bg-brand-solid text-white" : "text-fg-secondary hover:bg-secondary_subtle",
+                "shrink-0 border-b-2 px-3 py-2.5 text-xs font-medium transition-colors duration-200 ease-out focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500 sm:text-sm",
+                mobileMissionTab === id
+                    ? "border-blue-600 font-semibold text-blue-600"
+                    : "border-transparent text-slate-500 hover:text-slate-800",
             )}
         >
             {label}
@@ -720,110 +713,130 @@ export function ProjectMissionControlModal({
         : "—";
     const priorityBadge = detail.data?.project.priority ?? listProject?.priority ?? "—";
 
-    const copilotColumn = (
-        <div className="flex min-h-0 min-w-0 flex-col overflow-hidden border-secondary/50 lg:border-l">
-            <div className="min-h-0 flex-1 overflow-hidden p-2">
-                <ManagerProjectCopilotPanel
-                    projectId={pid}
-                    projectName={projectName}
-                    compact
-                    prefetchedContext={copilotPrefetched}
-                    onRefreshProjectSnapshot={refreshProjectSnapshot}
-                    refreshingProjectSnapshot={viabilityRefreshing}
-                />
-            </div>
-        </div>
+    const copilotPanel = (
+        <ManagerProjectCopilotPanel
+            projectId={pid}
+            projectName={projectName}
+            compact
+            embeddedInDrawer
+            prefetchedContext={copilotPrefetched}
+            onRefreshProjectSnapshot={refreshProjectSnapshot}
+            refreshingProjectSnapshot={viabilityRefreshing}
+        />
     );
 
     const workspaceNav = (
         <nav
-            className="hidden shrink-0 flex-wrap gap-1 border-b border-secondary bg-secondary_subtle/50 px-2 py-1.5 lg:flex"
+            className="hidden shrink-0 border-b border-slate-200 px-4 sm:px-6 lg:flex lg:px-8 dark:border-secondary"
             aria-label={tm("navWorkspaceAria")}
+            role="tablist"
         >
-            {(
-                [
-                    { id: "overview" as const, labelKey: "tabOverview" as const },
-                    { id: "team" as const, labelKey: "tabTeam" as const },
-                    { id: "tasks" as const, labelKey: "tabTasks" as const },
-                    { id: "risks" as const, labelKey: "tabRisks" as const },
-                    { id: "simulation" as const, labelKey: "tabSimulation" as const },
-                    { id: "decisions" as const, labelKey: "tabDecisions" as const },
-                ] as const
-            ).map((tab) => (
-                <button
-                    key={tab.id}
-                    type="button"
-                    onClick={() => setWorkspaceTab(tab.id)}
-                    className={cx(
-                        "rounded-lg px-3 py-2 text-xs font-semibold transition",
-                        workspaceTab === tab.id ? "bg-brand-solid text-white" : "text-fg-secondary hover:bg-secondary_subtle",
-                    )}
-                >
-                    {tm(tab.labelKey)}
-                </button>
-            ))}
+            <div className="flex w-full gap-1 overflow-x-auto">
+                {(
+                    [
+                        { id: "overview" as const, labelKey: "tabOverview" as const },
+                        { id: "team" as const, labelKey: "tabTeam" as const },
+                        { id: "tasks" as const, labelKey: "tabTasks" as const },
+                        { id: "risks" as const, labelKey: "tabRisks" as const },
+                        { id: "simulation" as const, labelKey: "tabSimulation" as const },
+                        { id: "decisions" as const, labelKey: "tabDecisions" as const },
+                    ] as const
+                ).map((tab) => (
+                    <button
+                        key={tab.id}
+                        type="button"
+                        role="tab"
+                        aria-selected={workspaceTab === tab.id}
+                        onClick={() => applyWorkspaceTab(tab.id)}
+                        className={cx(
+                            "shrink-0 border-b-2 px-4 py-3 text-sm font-medium transition-colors duration-200 ease-out focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500",
+                            workspaceTab === tab.id
+                                ? "border-blue-600 font-semibold text-blue-600"
+                                : "border-transparent text-slate-500 hover:text-slate-800",
+                        )}
+                    >
+                        {tm(tab.labelKey)}
+                    </button>
+                ))}
+            </div>
         </nav>
     );
 
     const overviewBody = (
-        <div className="space-y-4">
-            <div className="space-y-2 lg:hidden">
-                <MissionRadar viability={viabilityScore} health={health} loadPct={loadPct} alertCount={alertCount} />
-                <ProjectRiskMatrix
-                    alerts={detail.data?.active_alerts ?? []}
-                    loading={detail.isLoading}
-                    onAlertClick={() => {
-                        setWorkspaceTab("risks");
-                        setMobileMissionTab("risks");
-                    }}
-                />
-                <TeamHeatmap assignments={detail.data?.assignments ?? []} teamNameById={teamNameById} />
-            </div>
-            {detail.isLoading ? <p className="text-sm text-fg-secondary">{tm("loadingShort")}</p> : null}
-            {detail.isError ? (
-                <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-100">
+        <div className="space-y-6">
+            {detail.isError && !detail.data ? (
+                <p className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-100">
                     {tm("partialDetailNote")}
                 </p>
             ) : null}
-            <section className="rounded-xl border border-secondary bg-primary p-4">
-                <p className="text-xs font-semibold uppercase tracking-wide text-fg-tertiary">{tm("execSummary")}</p>
-                <p className="mt-2 text-sm leading-relaxed text-fg-secondary">{executiveSummary}</p>
+            <section className="rounded-xl border border-slate-100 border-l-4 border-l-blue-500 bg-slate-50 p-5 shadow-sm dark:border-secondary dark:bg-secondary_subtle/30">
+                <p className="mb-3 text-xs uppercase tracking-widest text-slate-400">{tm("execSummary")}</p>
+                <p className="text-sm leading-relaxed text-slate-700 dark:text-fg-secondary">{executiveSummary}</p>
             </section>
-            <section className="grid gap-2 sm:grid-cols-2">
-                <article className="rounded-xl border border-secondary p-3">
-                    <p className="text-xs text-fg-tertiary">{tm("healthKpi")}</p>
-                    <p className="text-lg font-semibold text-fg-primary">
-                        {health != null ? `${health.toFixed(1)}/10` : "—"}
-                    </p>
-                </article>
-                <article className="rounded-xl border border-secondary p-3">
-                    <p className="text-xs text-fg-tertiary">{tm("viabilityKpi")}</p>
-                    <p className="text-lg font-semibold text-fg-primary">{viabilityFormatted.display}</p>
-                </article>
-                <article className="rounded-xl border border-secondary p-3">
-                    <p className="text-xs text-fg-tertiary">{tm("alertsKpi")}</p>
-                    <p className="text-lg font-semibold text-fg-primary">{detail.data?.active_alerts?.length ?? 0}</p>
-                </article>
-                <article className="rounded-xl border border-secondary p-3">
-                    <p className="text-xs text-fg-tertiary">{tm("assignedTalentsKpi")}</p>
-                    <p className="text-lg font-semibold text-fg-primary">{detail.data?.assignments?.length ?? 0}</p>
-                </article>
-                <article className="rounded-xl border border-secondary p-3">
-                    <p className="text-xs text-fg-tertiary">{tm("progressKpi")}</p>
-                    <p className="text-lg font-semibold text-fg-primary">{progressLabel}</p>
-                </article>
+            <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
+                <MissionKpiCard
+                    label={tm("healthKpi")}
+                    value={health != null ? health.toFixed(1) : "—"}
+                    unit={health != null ? "/10" : undefined}
+                    scoreBarPct={health}
+                    kind="health"
+                />
+                <MissionKpiCard
+                    label={tm("viabilityKpi")}
+                    value={
+                        viabilityScore != null && Number.isFinite(viabilityScore)
+                            ? viabilityScore.toFixed(1)
+                            : "—"
+                    }
+                    unit={viabilityScore != null ? "/10" : undefined}
+                    scoreBarPct={viabilityScore}
+                    kind="viability"
+                />
+                <MissionKpiCard
+                    label={tm("alertsKpi")}
+                    value={String(detail.data?.active_alerts?.length ?? 0)}
+                    kind="alerts"
+                    alertsCount={detail.data?.active_alerts?.length ?? 0}
+                />
+                <MissionKpiCard
+                    label={tm("assignedTalentsKpi")}
+                    value={String(detail.data?.assignments?.length ?? 0)}
+                    kind="talents"
+                />
+                <MissionKpiCard
+                    label={tm("progressKpi")}
+                    value={progressPct != null ? String(Math.round(progressPct)) : "—"}
+                    unit={progressPct != null ? "%" : undefined}
+                    progressBarPct={progressPct}
+                    kind="progress"
+                />
             </section>
-            <section className="rounded-xl border border-brand-secondary/25 bg-brand-primary/5 p-4">
-                <p className="text-xs font-semibold uppercase tracking-wide text-brand-secondary">{tm("aiRecoTitle")}</p>
-                <p className="mt-2 text-sm leading-relaxed text-fg-secondary">{tm("aiRecoBody", { milestone: milestoneLabel })}</p>
+            <section className="relative overflow-hidden rounded-xl border border-purple-200 bg-gradient-to-br from-purple-50 via-purple-50/80 to-indigo-50 p-5 shadow-sm dark:border-purple-800/40 dark:from-purple-950/30 dark:to-indigo-950/20">
+                <span className="absolute right-4 top-4 rounded-full border border-purple-200/80 bg-white/90 px-2.5 py-1 text-[10px] font-bold uppercase tracking-widest text-purple-600 shadow-sm backdrop-blur-sm dark:border-purple-700 dark:bg-purple-950/80 dark:text-purple-200">
+                    IA
+                </span>
+                <div className="flex gap-4 pr-14">
+                    <div className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-purple-100 text-purple-600 dark:bg-purple-950/50">
+                        <Sparkles className="size-5" aria-hidden />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                        <span className="inline-flex items-center gap-1.5 rounded-full border border-purple-200 bg-white/80 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-widest text-purple-700 dark:border-purple-700 dark:bg-purple-950/60 dark:text-purple-200">
+                            <Sparkles className="size-3" aria-hidden />
+                            {tm("aiRecoTitle")}
+                        </span>
+                        <p className="mt-3 text-sm leading-relaxed text-slate-700 dark:text-fg-secondary">
+                            {tm("aiRecoBody", { milestone: milestoneLabel })}
+                        </p>
+                    </div>
+                </div>
             </section>
         </div>
     );
 
     const teamBody = (
-        <div className="space-y-4">
-            <section className="rounded-xl border border-secondary p-4">
-                <h4 className="mb-2 font-medium text-fg-primary">{tm("projectStatusTitle")}</h4>
+        <div className="space-y-6">
+            <section className="rounded-xl border border-slate-100 bg-white p-5 shadow-sm dark:border-secondary dark:bg-primary">
+                <h4 className="mb-3 text-xs font-medium uppercase tracking-widest text-slate-400">{tm("projectStatusTitle")}</h4>
                 <div className="grid gap-3 md:grid-cols-3">
                     <label className="flex flex-col gap-1">
                         <span className="text-xs font-medium text-fg-tertiary">{tm("labelProjectStatus")}</span>
@@ -884,8 +897,8 @@ export function ProjectMissionControlModal({
                 </div>
             </section>
 
-            <section className="rounded-xl border border-secondary p-4">
-                <h4 className="mb-3 font-medium text-fg-primary">{tm("teamDeployedTitle")}</h4>
+            <section className="rounded-xl border border-slate-100 bg-white p-5 shadow-sm dark:border-secondary dark:bg-primary">
+                <h4 className="mb-3 text-xs font-medium uppercase tracking-widest text-slate-400">{tm("teamDeployedTitle")}</h4>
                 {(detail.data?.assignments ?? []).length === 0 ? (
                     <p className="text-sm text-fg-tertiary">{tm("noAssignmentsOnProject")}</p>
                 ) : (
@@ -1060,9 +1073,7 @@ export function ProjectMissionControlModal({
         <ProjectTasksTab projectId={pid} enabled={enabled && tasksTabActive} taskAssignableTalents={taskAssignableTalents} />
     );
 
-    const risksBody = (
-        <ProjectMissionControlRisks risks={detail.data?.risks ?? []} loading={detail.isLoading} />
-    );
+    const risksBody = <ProjectMissionControlRisks risks={detail.data?.risks ?? []} />;
 
     const simulationBody = (
         <div className="space-y-4">
@@ -1164,7 +1175,6 @@ export function ProjectMissionControlModal({
             </section>
             <StrategistArbitrageOptions
                 options={strategistArbitrage.displayOptions}
-                loading={detail.isLoading}
                 proposeLoading={strategistArbitrage.proposeLoading}
                 onAccept={async (opt) => {
                     if (!user?.enterpriseId?.trim()) {
@@ -1181,8 +1191,7 @@ export function ProjectMissionControlModal({
                                 tm("arbitrageAcceptedToast", { label: opt.label || opt.id }),
                                 { pausedDescription: tm("arbitrageStopScopePausedDesc") },
                             );
-                            setWorkspaceTab("overview");
-                            setMobileMissionTab("overview");
+                            applyWorkspaceTab("overview");
                         } else {
                             pushToast(tm("arbitrageAcceptedToast", { label: opt.label || opt.id }), "success", 8000);
                         }
@@ -1221,46 +1230,41 @@ export function ProjectMissionControlModal({
     );
 
     const decisionsBody = (
-        <section className="rounded-xl border border-secondary p-4">
-            <h4 className="mb-2 font-medium text-fg-primary">{tm("decisionsTimelineTitle")}</h4>
-            {decisionsQuery.isLoading ? <p className="text-sm text-fg-tertiary">{tm("loadingShort")}</p> : null}
-            {!decisionsQuery.isLoading
-                ? projectDecisions.slice(0, 12).map((d) => (
-                      <div key={d.id} className="mb-2 rounded-lg border border-secondary px-3 py-2.5 text-sm">
-                          <div className="flex flex-wrap items-center gap-2">
-                              <span
-                                  className={cx(
-                                      "rounded-full border px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide",
-                                      decisionBadgeClass(d.decision),
-                                  )}
-                              >
-                                  {d.decision}
-                              </span>
-                              <span className="text-xs text-fg-tertiary">{d.scope}</span>
-                          </div>
-                          <div className="mt-2 flex flex-wrap gap-3 text-xs text-fg-secondary">
-                              <span>
-                                  <span className="text-fg-tertiary">{t("managerWorkspace.decisionLogPage.timelineScore")} · </span>
-                                  <span className="font-semibold tabular-nums text-fg-primary">{scoreDisplay(d.score)}</span>
-                              </span>
-                              <span>
-                                  <span className="text-fg-tertiary">{t("managerWorkspace.decisionLogPage.timelineConfidence")} · </span>
-                                  <span className="font-semibold tabular-nums text-fg-primary">{confidencePercent(d.confidence)}%</span>
-                              </span>
-                          </div>
-                          <p className="mt-2 text-fg-secondary">{decisionSummary(d)}</p>
-                          <p className="mt-1.5 text-xs text-fg-tertiary">{new Date(d.created_at).toLocaleString(dateLocale)}</p>
-                      </div>
-                  ))
-                : null}
-            {!decisionsQuery.isLoading && !projectDecisions.length ? (
-                <p className="text-sm text-fg-tertiary">{tm("noRecentDecisions")}</p>
-            ) : null}
+        <section className="rounded-xl border border-slate-100 bg-white p-5 shadow-sm dark:border-secondary dark:bg-primary">
+            <h4 className="mb-3 text-xs font-medium uppercase tracking-widest text-slate-400">{tm("decisionsTimelineTitle")}</h4>
+            {projectDecisions.slice(0, 12).map((d) => (
+                <div key={d.id} className="mb-2 rounded-lg border border-secondary px-3 py-2.5 text-sm">
+                    <div className="flex flex-wrap items-center gap-2">
+                        <span
+                            className={cx(
+                                "rounded-full border px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide",
+                                decisionBadgeClass(d.decision),
+                            )}
+                        >
+                            {d.decision}
+                        </span>
+                        <span className="text-xs text-fg-tertiary">{d.scope}</span>
+                    </div>
+                    <div className="mt-2 flex flex-wrap gap-3 text-xs text-fg-secondary">
+                        <span>
+                            <span className="text-fg-tertiary">{t("managerWorkspace.decisionLogPage.timelineScore")} · </span>
+                            <span className="font-semibold tabular-nums text-fg-primary">{scoreDisplay(d.score)}</span>
+                        </span>
+                        <span>
+                            <span className="text-fg-tertiary">{t("managerWorkspace.decisionLogPage.timelineConfidence")} · </span>
+                            <span className="font-semibold tabular-nums text-fg-primary">{confidencePercent(d.confidence)}%</span>
+                        </span>
+                    </div>
+                    <p className="mt-2 text-fg-secondary">{decisionSummary(d)}</p>
+                    <p className="mt-1.5 text-xs text-fg-tertiary">{new Date(d.created_at).toLocaleString(dateLocale)}</p>
+                </div>
+            ))}
+            {!projectDecisions.length ? <p className="text-sm text-fg-tertiary">{tm("noRecentDecisions")}</p> : null}
         </section>
     );
 
     const workspaceScroll = (
-        <div className="min-h-0 flex-1 overflow-y-auto p-3">
+        <div className="min-h-0 flex-1 overflow-y-auto bg-slate-50 px-4 py-6 sm:px-6 lg:px-8 dark:bg-primary">
             {workspaceTab === "overview" ? overviewBody : null}
             {workspaceTab === "team" ? teamBody : null}
             {workspaceTab === "tasks" ? tasksBody : null}
@@ -1271,8 +1275,8 @@ export function ProjectMissionControlModal({
     );
 
     const lifecycleStepperBlock = lifecycleProject ? (
-        <div className="shrink-0 px-3 pt-2 lg:px-4">
-            <div className="mx-auto mb-4 w-full max-w-5xl">
+        <div className="shrink-0 px-4 pt-3 sm:px-6 lg:px-8 lg:pt-4">
+            <div className="mb-3 w-full lg:mb-4">
                 <ProjectLifecycleStepper
                     project={lifecycleProject}
                     tasks={lifecycleTasks}
@@ -1284,8 +1288,8 @@ export function ProjectMissionControlModal({
         </div>
     ) : null;
 
-    const centerColumn = (
-        <div className="flex min-h-0 min-w-0 flex-col overflow-hidden border-secondary/50 lg:border-r">
+    const missionWorkspace = (
+        <div className="flex min-h-0 w-full flex-1 flex-col overflow-hidden">
             {lifecycleStepperBlock}
             {workspaceNav}
             {workspaceScroll}
@@ -1293,57 +1297,69 @@ export function ProjectMissionControlModal({
     );
 
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-2 sm:p-3" onClick={onClose}>
-            <div
-                role="dialog"
-                aria-modal
-                aria-labelledby="mission-modal-title"
-                className="flex h-[92vh] max-h-[92vh] w-[96vw] max-w-[96vw] flex-col overflow-hidden rounded-2xl border border-secondary bg-primary text-fg-primary shadow-2xl ring-1 ring-secondary/80"
-                onClick={(e) => e.stopPropagation()}
-            >
-                <header className="sticky top-0 z-30 shrink-0 border-b border-secondary bg-primary/95 px-4 py-3 backdrop-blur-sm">
-                    <div className="flex flex-wrap items-start justify-between gap-3">
-                        <div className="min-w-0 flex-1">
-                            <p className="text-[10px] font-semibold uppercase tracking-wider text-fg-tertiary">{tm("headerEyebrow")}</p>
-                            <h2 id="mission-modal-title" className="truncate text-lg font-semibold text-fg-primary sm:text-xl">
-                                {projectName}
-                            </h2>
-                            <div className="mt-2 flex flex-wrap gap-1.5">
-                                <span className="rounded-full border border-secondary bg-secondary_subtle px-2.5 py-0.5 text-[11px] font-medium capitalize text-fg-primary">
-                                    {statusBadgeLabel}
-                                </span>
-                                <span className="rounded-full border border-brand-secondary/35 bg-brand-primary/10 px-2.5 py-0.5 text-[11px] font-semibold text-fg-primary">
+        <div className="flex h-full min-h-0 flex-1 flex-col overflow-hidden bg-slate-50 font-sans text-fg-primary antialiased dark:bg-primary">
+            <header className="sticky top-0 z-30 shrink-0 bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 shadow-md">
+                <div className="flex flex-wrap items-start justify-between gap-4 px-4 py-5 sm:px-6 lg:px-8">
+                    <div className="min-w-0 flex-1">
+                        <p className="text-xs font-medium uppercase tracking-widest text-slate-400">{tm("headerEyebrow")}</p>
+                        <h1
+                            id="mission-control-title"
+                            className="mt-1 text-3xl font-bold leading-tight tracking-tight text-white"
+                        >
+                            {projectName}
+                        </h1>
+                        <div className="mt-3 flex flex-wrap gap-2">
+                            <span
+                                className={cx(
+                                    "rounded-full px-3 py-1 text-xs font-semibold shadow-sm",
+                                    statusPillClass(projectStatusRaw),
+                                )}
+                            >
+                                {statusBadgeLabel}
+                            </span>
+                            {latestDecisionRaw ? (
+                                <span
+                                    className={cx(
+                                        "rounded-full px-3 py-1 text-xs font-semibold shadow-sm",
+                                        decisionPillClass(latestDecisionRaw),
+                                    )}
+                                >
                                     {String(decisionBadge)}
                                 </span>
-                                {viabilityScore != null ? (
-                                    <span className="rounded-full border border-secondary bg-primary px-2.5 py-0.5 text-[11px] text-fg-secondary">
-                                        {tm("badgeScore")}{" "}
-                                        <span className="font-semibold tabular-nums text-fg-primary">{viabilityFormatted.header}</span>
-                                    </span>
-                                ) : null}
-                                <span className="rounded-full border border-secondary bg-primary px-2.5 py-0.5 text-[11px] text-fg-secondary">
-                                    {tm("badgePriority")} <span className="font-semibold text-fg-primary">{String(priorityBadge)}</span>
+                            ) : null}
+                            {viabilityScore != null ? (
+                                <span className="rounded-full bg-blue-100 px-3 py-1 text-xs font-semibold text-blue-800 shadow-sm">
+                                    {tm("badgeScore")}{" "}
+                                    <span className="tabular-nums">{viabilityFormatted.header}</span>
                                 </span>
-                                <span className="rounded-full border border-dashed border-secondary px-2.5 py-0.5 text-[11px] text-fg-tertiary">
-                                    {tm("milestonePrefix")} {milestoneLabel}
-                                </span>
-                            </div>
+                            ) : null}
+                            <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700 shadow-sm">
+                                {tm("badgePriority")}{" "}
+                                <span className="tabular-nums">{String(priorityBadge)}</span>
+                            </span>
+                            <span className="rounded-full bg-purple-100 px-3 py-1 text-xs font-semibold text-purple-800 shadow-sm">
+                                {tm("milestonePrefix")} {milestoneLabel}
+                            </span>
                         </div>
-                        <button
-                            type="button"
-                            className="shrink-0 rounded-lg border border-secondary bg-primary_alt px-3 py-2 text-sm font-medium text-fg-secondary hover:bg-secondary_hover"
-                            onClick={onClose}
-                        >
-                            {tm("closeButton")}
-                        </button>
                     </div>
-                </header>
+                    <button
+                        type="button"
+                        aria-label={tm("closeButton")}
+                        className="shrink-0 rounded-lg border border-white/25 bg-transparent px-4 py-2 text-sm font-semibold text-white transition-colors duration-200 hover:border-white/40 hover:bg-white/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white/60"
+                        onClick={onClose}
+                    >
+                        {tm("closeButton")}
+                    </button>
+                </div>
+            </header>
 
-                <div className="flex min-h-0 flex-1 flex-col overflow-hidden lg:hidden">
+            <div className="flex min-h-0 flex-1 flex-col overflow-hidden lg:hidden">
+                <div className="flex min-h-0 w-full flex-1 flex-col overflow-hidden">
                     {lifecycleStepperBlock}
                     <nav
-                        className="flex shrink-0 gap-1 overflow-x-auto border-b border-secondary bg-secondary_subtle/40 px-2 py-2"
+                        className="flex shrink-0 gap-1 overflow-x-auto border-b border-slate-200 bg-white px-3 dark:border-secondary dark:bg-primary"
                         aria-label={tm("navMissionMobileAria")}
+                        role="tablist"
                     >
                         {mobileChip("overview", tm("tabOverview"))}
                         {mobileChip("team", tm("tabTeam"))}
@@ -1351,37 +1367,46 @@ export function ProjectMissionControlModal({
                         {mobileChip("risks", tm("tabRisks"))}
                         {mobileChip("simulation", tm("tabSimulation"))}
                         {mobileChip("decisions", tm("tabDecisions"))}
-                        {mobileChip("copilot", tm("tabCopilot"))}
                     </nav>
                     <div className="min-h-0 flex-1 overflow-hidden">
-                        {mobileMissionTab === "copilot" ? copilotColumn : null}
                         {mobileMissionTab === "overview" ? (
-                            <div className="flex h-full min-h-0 flex-col overflow-y-auto">{overviewBody}</div>
+                            <div className="flex h-full min-h-0 flex-col overflow-y-auto px-4 py-4 sm:px-6">{overviewBody}</div>
                         ) : null}
                         {mobileMissionTab === "team" ? (
-                            <div className="flex h-full min-h-0 flex-col overflow-y-auto p-1">{teamBody}</div>
+                            <div className="flex h-full min-h-0 flex-col overflow-y-auto px-4 py-4 sm:px-6">{teamBody}</div>
                         ) : null}
                         {mobileMissionTab === "tasks" ? (
-                            <div className="flex h-full min-h-0 flex-col overflow-y-auto p-1">{tasksBody}</div>
+                            <div className="flex h-full min-h-0 flex-col overflow-y-auto px-4 py-4 sm:px-6">{tasksBody}</div>
                         ) : null}
                         {mobileMissionTab === "risks" ? (
-                            <div className="flex h-full min-h-0 flex-col overflow-y-auto p-1">{risksBody}</div>
+                            <div className="flex h-full min-h-0 flex-col overflow-y-auto px-4 py-4 sm:px-6">{risksBody}</div>
                         ) : null}
                         {mobileMissionTab === "simulation" ? (
-                            <div className="flex h-full min-h-0 flex-col overflow-y-auto p-1">{simulationBody}</div>
+                            <div className="flex h-full min-h-0 flex-col overflow-y-auto px-4 py-4 sm:px-6">{simulationBody}</div>
                         ) : null}
                         {mobileMissionTab === "decisions" ? (
-                            <div className="flex h-full min-h-0 flex-col overflow-y-auto p-1">{decisionsBody}</div>
+                            <div className="flex h-full min-h-0 flex-col overflow-y-auto px-4 py-4 sm:px-6">{decisionsBody}</div>
                         ) : null}
                     </div>
                 </div>
-
-                <div className="hidden min-h-0 flex-1 overflow-hidden lg:grid lg:grid-cols-[22%_minmax(0,1fr)_28%]">
-                    <aside className="min-h-0 overflow-y-auto border-r border-secondary/50 bg-secondary_subtle/10 p-2">{leftPanel}</aside>
-                    {centerColumn}
-                    {copilotColumn}
-                </div>
             </div>
+
+            <div className="hidden min-h-0 flex-1 overflow-hidden lg:flex">{missionWorkspace}</div>
+
+            <CopilotFloatingButton
+                ref={copilotFabRef}
+                hidden={isCopilotOpen}
+                onClick={() => setIsCopilotOpen(true)}
+            />
+
+            <CopilotDrawer
+                open={isCopilotOpen}
+                onClose={() => setIsCopilotOpen(false)}
+                projectName={projectName}
+                returnFocusRef={copilotFabRef}
+            >
+                <div className="flex h-full min-h-0 flex-1 flex-col overflow-hidden">{copilotPanel}</div>
+            </CopilotDrawer>
         </div>
     );
 }

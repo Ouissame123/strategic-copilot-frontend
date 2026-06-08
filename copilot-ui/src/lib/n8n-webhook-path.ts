@@ -1,7 +1,11 @@
+import { readEnv, trimUrl } from "@/config/resolve-api-url";
 import { getHttpClientBaseUrl } from "./build-n8n-url";
 
 /** GET|PATCH WF_Manager_Conversations */
 export const MANAGER_CONVERSATIONS_PATH = "/manager/conversations";
+
+/** PATCH archivage logique — workflow n8n `wmc-archive-v1`. */
+export const MANAGER_CONVERSATIONS_ARCHIVE_WORKFLOW = "wmc-archive-v1";
 
 /** POST WF_Helper_Chat */
 export const HELPER_CHAT_PATH = "/api/helper/chat";
@@ -45,6 +49,21 @@ export function managerConversationDetailPath(conversationId: string): string {
 }
 
 export function managerConversationArchivePath(conversationId: string): string {
-    const id = encodeURIComponent(conversationId.trim());
-    return webhookPath(`${MANAGER_CONVERSATIONS_PATH}/${id}/archive`);
+    const rawId = conversationId.trim();
+    if (!rawId) throw new Error("Missing conversation id");
+    const id = encodeURIComponent(rawId);
+
+    const envOverride = readEnv("VITE_N8N_WEBHOOK_CONV_ARCHIVE");
+    if (envOverride) {
+        const resolved = envOverride.replace(/\{id\}/g, id).replace(/:id/g, id);
+        if (/^https?:\/\//i.test(resolved)) return resolved;
+        if (resolved.startsWith("/webhook/")) return resolved;
+        return webhookPath(resolved.startsWith("/") ? resolved.slice(1) : resolved);
+    }
+
+    const apiBase = trimUrl(import.meta.env.VITE_API_BASE_URL as string | undefined);
+    if (apiBase) {
+        return `${apiBase}/${MANAGER_CONVERSATIONS_ARCHIVE_WORKFLOW}/manager/conversations/${id}/archive`;
+    }
+    return `/webhook/${MANAGER_CONVERSATIONS_ARCHIVE_WORKFLOW}/manager/conversations/${id}/archive`;
 }

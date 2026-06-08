@@ -11,24 +11,19 @@ import { cx } from "@/utils/cx";
 
 export type ProjectMissionControlRisksProps = {
     risks: ProjectRiskItem[];
-    loading?: boolean;
 };
 
-export function ProjectMissionControlRisks({ risks, loading = false }: ProjectMissionControlRisksProps) {
+export function ProjectMissionControlRisks({ risks }: ProjectMissionControlRisksProps) {
     const { t } = useTranslation("common");
     const tm = (key: string) => t(`managerWorkspace.missionControl.${key}`);
 
     const sortedRisks = useMemo(() => sortProjectRisksBySeverity(risks), [risks]);
 
     return (
-        <section className="rounded-xl border border-secondary bg-primary p-4 shadow-sm">
-            <h4 className="mb-3 text-sm font-semibold text-fg-primary">{tm("risksTabTitle")}</h4>
+        <section className="rounded-xl border border-secondary bg-primary p-4 shadow-sm sm:p-5">
+            <h4 className="mb-3 text-base font-semibold text-fg-primary">{tm("risksTabTitle")}</h4>
 
-            {loading ? <p className="text-sm text-fg-tertiary">{tm("loadingShort")}</p> : null}
-
-            {!loading && sortedRisks.length === 0 ? (
-                <p className="text-sm text-fg-tertiary">{tm("risksEmpty")}</p>
-            ) : null}
+            {sortedRisks.length === 0 ? <p className="text-sm text-fg-tertiary">{tm("risksEmpty")}</p> : null}
 
             <div className="space-y-3">
                 {sortedRisks.map((risk) => {
@@ -39,7 +34,7 @@ export function ProjectMissionControlRisks({ risks, loading = false }: ProjectMi
                     return (
                         <article
                             key={risk.id}
-                            className="rounded-lg border border-secondary bg-primary px-3 py-2.5 shadow-xs"
+                            className="rounded-lg border border-secondary bg-primary px-3 py-2.5 shadow-xs sm:px-4 sm:py-3"
                         >
                             <div className="flex items-start justify-between gap-3">
                                 <div className="flex min-w-0 flex-1 items-start gap-2">
@@ -51,17 +46,17 @@ export function ProjectMissionControlRisks({ risks, loading = false }: ProjectMi
                                     >
                                         {severityLabel}
                                     </span>
-                                    <h5 className="text-sm font-semibold leading-snug text-fg-primary">
+                                    <h5 className="text-sm font-semibold leading-snug text-fg-primary sm:text-base">
                                         {projectRiskTitle(risk)}
                                     </h5>
                                 </div>
                                 {scoreLabel ? (
-                                    <span className="shrink-0 text-sm font-semibold tabular-nums text-fg-secondary">
+                                    <span className="shrink-0 text-sm font-semibold tabular-nums text-fg-secondary sm:text-base">
                                         {scoreLabel}
                                     </span>
                                 ) : null}
                             </div>
-                            <p className="mt-1.5 text-xs leading-relaxed text-fg-tertiary sm:text-sm">{description}</p>
+                            <p className="mt-1.5 text-sm leading-relaxed text-fg-tertiary">{description}</p>
                         </article>
                     );
                 })}

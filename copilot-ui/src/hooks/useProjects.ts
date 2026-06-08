@@ -1,4 +1,4 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { orchestratorApi } from "../api/orchestrator.api";
 import { managerProjectsApi } from "../api/manager-projects.api";
@@ -21,6 +21,7 @@ export const useProjects = (filters?: { status?: string; search?: string; limit?
     useQuery({
         queryKey: ["projects", filters],
         queryFn: () => managerProjectsApi.list(filters).then((r) => r.data),
+        staleTime: 300_000,
     });
 
 export const useProjectDetail = (id: string, options?: { enabled?: boolean }) =>
@@ -29,6 +30,8 @@ export const useProjectDetail = (id: string, options?: { enabled?: boolean }) =>
         queryFn: () => managerProjectsApi.detail(id).then((r) => r.data),
         enabled: Boolean(id) && (options?.enabled ?? true),
         retry: false,
+        staleTime: 120_000,
+        placeholderData: keepPreviousData,
     });
 
 export const useAssignTalent = () => {

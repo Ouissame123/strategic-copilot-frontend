@@ -95,6 +95,7 @@ export default function RHRequestsPage() {
             const raw = await getManagerWorkspaceProjects({ page: 1, limit: 50 });
             return parseManagerWorkspaceProjectsResponse(raw);
         },
+        staleTime: 300_000,
     });
 
     const projectOptions = useMemo(() => {

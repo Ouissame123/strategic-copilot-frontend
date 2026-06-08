@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import type { TFunction } from "i18next";
+import { Link } from "react-router";
 import { useTranslation } from "react-i18next";
 import { localeForDateFormatting } from "@/lib/ui-locale";
 import {
@@ -139,7 +140,7 @@ export function ManagerProjectsPortfolioTable({
     sortKey,
     sortDir,
     onSort,
-    onOpenProject,
+    projectDetailPath,
     t,
     statusLabel,
     projectDisplayName,
@@ -149,7 +150,7 @@ export function ManagerProjectsPortfolioTable({
     sortKey: PortfolioTableSortKey;
     sortDir: SortDir;
     onSort: (k: PortfolioTableSortKey) => void;
-    onOpenProject: (id: string) => void;
+    projectDetailPath: (id: string) => string;
     t: TFunction<"common", undefined>;
     statusLabel: (status: ProjectStatus) => string;
     projectDisplayName: (name: string) => string;
@@ -298,13 +299,12 @@ export function ManagerProjectsPortfolioTable({
                                     </p>
                                 </td>
                                 <td className="px-4 py-3.5 text-right align-top">
-                                    <button
-                                        type="button"
-                                        className="rounded-lg bg-brand-solid px-3 py-1.5 text-xs font-semibold text-white shadow-sm hover:bg-brand-solid_hover"
-                                        onClick={() => onOpenProject(row.id)}
+                                    <Link
+                                        to={projectDetailPath(row.id)}
+                                        className="inline-flex rounded-lg bg-brand-solid px-3 py-1.5 text-xs font-semibold text-white shadow-sm hover:bg-brand-solid_hover focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-solid"
                                     >
                                         {t("managerWorkspace.projects.viewDetails")}
-                                    </button>
+                                    </Link>
                                 </td>
                             </tr>
                         );

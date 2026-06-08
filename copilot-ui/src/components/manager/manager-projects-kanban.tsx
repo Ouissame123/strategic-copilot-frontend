@@ -1,4 +1,5 @@
 import type { TFunction } from "i18next";
+import { Link } from "react-router";
 import type { ProjectListItem } from "@/types/api.types";
 
 function normalizeDecisionRaw(project: ProjectListItem): string {
@@ -28,11 +29,11 @@ function activeAlertsCountStrict(project: ProjectListItem): number {
 
 function KanbanCard({
     project,
-    onOpen,
+    detailHref,
     t,
 }: {
     project: ProjectListItem;
-    onOpen: () => void;
+    detailHref: string;
     t: TFunction<"common", undefined>;
 }) {
     const milestone = project.milestone_at ? new Date(project.milestone_at) : null;
@@ -46,17 +47,9 @@ function KanbanCard({
     const alerts = activeAlertsCountStrict(project);
 
     return (
-        <article
-            role="button"
-            tabIndex={0}
-            onClick={onOpen}
-            onKeyDown={(e) => {
-                if (e.key === "Enter" || e.key === " ") {
-                    e.preventDefault();
-                    onOpen();
-                }
-            }}
-            className="cursor-pointer rounded-xl border border-slate-200 bg-white p-3 shadow-sm transition-all duration-200 hover:shadow-md"
+        <Link
+            to={detailHref}
+            className="block cursor-pointer rounded-xl border border-slate-200 bg-white p-3 shadow-sm transition-all duration-200 hover:shadow-md focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-solid"
         >
             <h4 className="mb-1 line-clamp-2 text-sm font-medium text-primary">{project.name}</h4>
             <div className="mb-1.5 flex items-center justify-between text-[11px] text-secondary">
@@ -93,17 +86,17 @@ function KanbanCard({
                     <span>👥 {team}</span>
                 </div>
             </div>
-        </article>
+        </Link>
     );
 }
 
 export function ManagerProjectsKanbanView({
     projects,
-    onOpenProject,
+    projectDetailPath,
     t,
 }: {
     projects: ProjectListItem[];
-    onOpenProject: (projectId: string) => void;
+    projectDetailPath: (projectId: string) => string;
     t: TFunction<"common", undefined>;
 }) {
     const columns: {
@@ -156,7 +149,7 @@ export function ManagerProjectsKanbanView({
                                 <p className="py-3 text-center text-xs italic text-tertiary">{t("managerWorkspace.projects.kanbanEmptyColumn")}</p>
                             ) : (
                                 items.map((p) => (
-                                    <KanbanCard key={p.id} project={p} onOpen={() => onOpenProject(p.id)} t={t} />
+                                    <KanbanCard key={p.id} project={p} detailHref={projectDetailPath(p.id)} t={t} />
                                 ))
                             )}
                         </div>

@@ -352,19 +352,6 @@ export function buildNineBoxFromTalents(
         }),
     );
 
-    const sumCases = grid.flat().reduce((s, c) => s + (c.count ?? 0), 0);
-    console.log(talents.map((t) => t.box_label));
-    console.log("total matrix", sumCases, "total talents", talents.length);
-
-    const known = new Set<string>(NINE_BOX_BACKEND_LABELS);
-    const unmapped = talents.filter((t) => !known.has(t.box_label));
-    if (unmapped.length > 0) {
-        console.warn(
-            "nine-box labels hors grille",
-            unmapped.map((t) => t.box_label),
-        );
-    }
-
     return grid;
 }
 

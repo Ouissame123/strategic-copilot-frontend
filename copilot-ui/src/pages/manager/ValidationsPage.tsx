@@ -31,7 +31,7 @@ function timeAgo(iso: string): string {
 function validationDetailHref(item: PendingValidation): string {
     if (item.type === "rh_action") return "/workspace/manager/rh-requests";
     if (item.type === "arbitrage" && item.project_id) {
-        return `/workspace/manager/projects?openProjectId=${encodeURIComponent(item.project_id)}`;
+        return `/workspace/manager/projects/${encodeURIComponent(item.project_id)}`;
     }
     return "/workspace/manager/decision-log";
 }

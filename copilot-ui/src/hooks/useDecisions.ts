@@ -1,4 +1,4 @@
-import { useQuery } from "@tanstack/react-query";
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { decisionsApi } from "@/services/decisions.api";
 
 /** Liste des décisions Copilot (GET `/webhook/manager/copilot-decisions`). */
@@ -11,5 +11,6 @@ export function useDecisions(params?: { project_id?: string; scope?: string; lim
         enabled,
         staleTime: 30_000,
         refetchOnWindowFocus: false,
+        placeholderData: keepPreviousData,
     });
 }

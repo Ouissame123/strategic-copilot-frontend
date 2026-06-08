@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { AlertCircle, CheckCircle2, Clock, Loader2, Octagon, Plus, Repeat, X } from "lucide-react";
+import { AlertCircle, CheckCircle2, Clock, Octagon, Plus, Repeat, X } from "lucide-react";
 import { dedupeArbitrageOptions, resolveArbitrageOptionType } from "@/lib/strategist-arbitrage";
 import type { ArbitrageImpactJson, ArbitrageOption, ArbitrageOptionType } from "@/types/api.types";
 import { cx } from "@/utils/cx";
@@ -66,7 +66,6 @@ function isTerminalArbitrageStatus(status: string | undefined): boolean {
 
 export type StrategistArbitrageOptionsProps = {
     options: ArbitrageOption[];
-    loading?: boolean;
     proposeLoading?: boolean;
     onAccept: (option: ArbitrageOption) => Promise<void>;
     onReject: (option: ArbitrageOption) => Promise<void>;
@@ -75,7 +74,6 @@ export type StrategistArbitrageOptionsProps = {
 
 export function StrategistArbitrageOptions({
     options,
-    loading = false,
     proposeLoading = false,
     onAccept,
     onReject,
@@ -111,22 +109,7 @@ export function StrategistArbitrageOptions({
         void onPropose();
     };
 
-    if (proposeLoading && displayOptions.length === 0) {
-        return (
-            <section className="rounded-xl border border-secondary bg-primary p-5 shadow-sm">
-                <header className="mb-3">
-                    <h3 className="text-sm font-semibold text-fg-primary">{tm("arbitrageOptionsTitle")}</h3>
-                    <p className="mt-1 text-xs text-fg-tertiary">{tm("arbitrageStrategistHint")}</p>
-                </header>
-                <div className="flex items-center justify-center gap-2 py-8 text-sm text-fg-tertiary">
-                    <Loader2 className="size-4 animate-spin" aria-hidden />
-                    {tm("arbitrageRecalculating")}
-                </div>
-            </section>
-        );
-    }
-
-    if (!loading && displayOptions.length === 0) {
+    if (displayOptions.length === 0) {
         return (
             <section className="rounded-xl border border-secondary bg-primary p-5 shadow-sm">
                 <header className="mb-3">
@@ -142,8 +125,8 @@ export function StrategistArbitrageOptions({
                         disabled={proposeLoading}
                         className="inline-flex items-center gap-2 rounded-lg bg-brand-solid px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:opacity-95 disabled:cursor-not-allowed disabled:opacity-50"
                     >
-                        {proposeLoading ? <Loader2 className="size-4 animate-spin" aria-hidden /> : <Repeat className="size-4" aria-hidden />}
-                        {tm("arbitrageRequestStrategist")}
+                        <Repeat className="size-4" aria-hidden />
+                        {proposeLoading ? tm("arbitrageRecalculating") : tm("arbitrageRequestStrategist")}
                     </button>
                 </div>
             </section>
@@ -168,13 +151,6 @@ export function StrategistArbitrageOptions({
                     {proposeLoading ? tm("arbitrageRecalculating") : tm("arbitrageRecalculate")}
                 </button>
             </header>
-
-            {loading || proposeLoading ? (
-                <p className="mb-2 flex items-center gap-2 text-sm text-fg-tertiary">
-                    {proposeLoading ? <Loader2 className="size-3.5 animate-spin" aria-hidden /> : null}
-                    {proposeLoading ? tm("arbitrageRecalculating") : tm("loadingShort")}
-                </p>
-            ) : null}
 
             <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
                 {displayOptions.map((opt) => {
@@ -289,11 +265,7 @@ export function StrategistArbitrageOptions({
                                     disabled={isActing || isTerminal}
                                     className="inline-flex flex-1 items-center justify-center gap-1 rounded-lg bg-brand-solid px-2 py-1.5 text-xs font-semibold text-white transition hover:opacity-95 disabled:cursor-not-allowed disabled:opacity-50"
                                 >
-                                    {isActing ? (
-                                        <Loader2 className="size-3 animate-spin" aria-hidden />
-                                    ) : (
-                                        <CheckCircle2 className="size-3" aria-hidden />
-                                    )}
+                                    <CheckCircle2 className="size-3" aria-hidden />
                                     {tm("arbitrageAccept")}
                                 </button>
                                 <button

@@ -1,4 +1,4 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { projectTasksApi } from "@/services/projectTasksApi";
 import { queryKeys } from "@/lib/query-keys";
 import type { CompleteTaskPayload, CreateTaskPayload, UpdateTaskPayload } from "@/types/project-tasks.types";
@@ -10,6 +10,7 @@ export function useProjectTasks(projectId: string | null, enabled = true) {
         queryFn: () => projectTasksApi.list(id!),
         enabled: Boolean(id) && enabled,
         staleTime: 30_000,
+        placeholderData: keepPreviousData,
     });
 }
 

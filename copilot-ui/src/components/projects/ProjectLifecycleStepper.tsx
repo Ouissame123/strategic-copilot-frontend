@@ -1,6 +1,7 @@
 import { Fragment, useMemo, useState } from "react";
 import {
     Activity,
+    Check,
     CheckCheck,
     CheckCircle2,
     ClipboardList,
@@ -78,16 +79,16 @@ function getPhaseState(phaseId: PhaseId, currentPhase: PhaseId | -1): PhaseState
 }
 
 const PHASE_CIRCLE: Record<PhaseState, string> = {
-    past: "border-emerald-600 bg-emerald-500 text-white",
-    current: "border-violet-600 bg-violet-600 text-white ring-2 ring-violet-400/40",
-    future: "border-slate-200 bg-slate-50 text-slate-400 dark:border-secondary dark:bg-secondary_subtle dark:text-fg-quaternary",
+    past: "border-emerald-500 bg-emerald-500 text-white shadow-sm ring-2 ring-emerald-100 dark:ring-emerald-900/30",
+    current: "border-blue-600 bg-blue-600 text-white shadow-md ring-4 ring-blue-200 animate-pulse dark:ring-blue-900/40",
+    future: "border-slate-300 bg-white text-slate-400 shadow-sm dark:border-secondary dark:bg-primary dark:text-fg-quaternary",
     cancelled: "border-slate-200 bg-slate-50 text-slate-400",
 };
 
 const PHASE_LABEL: Record<PhaseState, string> = {
-    past: "text-slate-600 dark:text-fg-secondary",
-    current: "font-semibold text-violet-700 dark:text-violet-300",
-    future: "text-slate-400 dark:text-fg-quaternary",
+    past: "font-medium text-slate-700 dark:text-fg-primary",
+    current: "font-semibold text-blue-700 dark:text-blue-300",
+    future: "font-medium text-slate-400 dark:text-fg-quaternary",
     cancelled: "text-slate-400",
 };
 
@@ -142,12 +143,12 @@ export function ProjectLifecycleStepper({ project, tasks, onComplete, onPause, r
     }
 
     return (
-        <div className="max-h-[260px] space-y-3 rounded-lg border border-slate-200 bg-white p-3 dark:border-secondary dark:bg-primary">
+        <div className="space-y-4 rounded-xl border border-slate-100 bg-white p-4 shadow-sm dark:border-secondary dark:bg-primary sm:p-5">
             <div className="flex flex-wrap items-start justify-between gap-2">
                 <div className="min-w-0 flex-1">
-                    <h4 className="text-sm font-semibold text-slate-700 dark:text-fg-primary">Cycle de vie projet</h4>
-                    <p className="text-xs text-slate-500 dark:text-fg-tertiary">
-                        <span className="font-medium text-slate-700 dark:text-fg-secondary">
+                    <h4 className="text-xs font-medium uppercase tracking-widest text-slate-400">Cycle de vie projet</h4>
+                    <p className="mt-1 text-sm text-slate-600 dark:text-fg-tertiary">
+                        <span className="font-semibold text-slate-800 dark:text-fg-secondary">
                             {currentPhase !== -1 ? PHASES[currentPhase - 1].label : "—"}
                         </span>
                         {totalTasks > 0 ? (
@@ -237,37 +238,42 @@ function CompactStepper({ currentPhase }: { currentPhase: PhaseId | -1 }) {
                     <Fragment key={phase.id}>
                         {index > 0 ? (
                             <div
-                                className={cx(
-                                    "mx-0.5 hidden h-1 min-w-[0.5rem] flex-1 self-center rounded-full sm:block",
-                                    connectorPast ? "bg-emerald-500" : "bg-slate-200 dark:bg-secondary",
-                                )}
+                                className="mx-1 hidden h-0.5 min-w-[0.75rem] flex-1 self-center overflow-hidden rounded-full bg-slate-200 sm:block dark:bg-secondary"
                                 aria-hidden
-                            />
+                            >
+                                <div
+                                    className={cx(
+                                        "h-full rounded-full transition-all duration-300 ease-out",
+                                        connectorPast
+                                            ? "w-full bg-gradient-to-r from-emerald-400 via-emerald-500 to-blue-500"
+                                            : currentPhase !== -1 && phase.id === currentPhase
+                                              ? "w-1/2 bg-gradient-to-r from-emerald-400 to-blue-400"
+                                              : "w-0 bg-transparent",
+                                    )}
+                                />
+                            </div>
                         ) : null}
                         <div
                             role="listitem"
-                            className="flex w-[4.75rem] flex-col items-center gap-1 sm:w-auto sm:min-w-0 sm:flex-1"
+                            className="flex w-[4.75rem] flex-col items-center gap-1.5 sm:w-auto sm:min-w-0 sm:flex-1"
                             title={phase.description}
                         >
                             <div
                                 className={cx(
-                                    "relative flex h-12 w-12 items-center justify-center rounded-full border-2 transition-colors",
+                                    "relative flex h-11 w-11 items-center justify-center rounded-full border-2 transition-all duration-200 ease-out sm:h-12 sm:w-12",
                                     PHASE_CIRCLE[state],
-                                    state === "current" && "animate-pulse",
                                 )}
                             >
-                                {state === "current" ? (
-                                    <span
-                                        className="absolute inset-0 rounded-full border-2 border-violet-400/50"
-                                        aria-hidden
-                                    />
-                                ) : null}
-                                <Icon className="relative h-5 w-5 shrink-0" aria-hidden />
+                                {state === "past" ? (
+                                    <Check className="relative h-5 w-5 shrink-0 stroke-[2.5]" aria-hidden />
+                                ) : (
+                                    <Icon className="relative h-5 w-5 shrink-0" aria-hidden />
+                                )}
                             </div>
-                            <span className={cx("max-w-[4.75rem] truncate text-center text-xs leading-tight sm:hidden", PHASE_LABEL[state])}>
+                            <span className={cx("max-w-[4.75rem] truncate text-center text-xs font-medium leading-tight sm:hidden", PHASE_LABEL[state])}>
                                 {phase.shortLabel}
                             </span>
-                            <span className={cx("hidden max-w-full truncate text-center text-sm leading-tight sm:block", PHASE_LABEL[state])}>
+                            <span className={cx("hidden max-w-full truncate text-center text-xs font-medium leading-tight sm:block", PHASE_LABEL[state])}>
                                 {phase.label}
                             </span>
                         </div>

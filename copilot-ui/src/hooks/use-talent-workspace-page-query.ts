@@ -17,6 +17,7 @@ export function useTalentWorkspacePageQuery(page: TalentWorkspacePageKey) {
     return useQuery({
         queryKey: ["talent", "workspace-page", page],
         queryFn: ({ signal }) => fetchTalentWorkspacePage(page, { signal }),
+        staleTime: 300_000,
         select: (raw) => {
             const root = unwrapDataPayload(raw) as Record<string, unknown>;
             return {

@@ -22,18 +22,41 @@ export function workspaceProjectsListPath(role: Role | null | undefined): string
     return `${WORKSPACE_PREFIX[assertRole(role)]}/projects`;
 }
 
-/**
- * Manager : détail projet = liste « Mes projets » + modal Strategic Mission Control (`?openProjectId=`).
- * Remplace l’ancien chemin `/workspace/manager/projects/:id`.
- */
-export function managerProjectsOpenModalPath(projectId: string): string {
+export const MISSION_CONTROL_WORKSPACE_TABS = [
+    "overview",
+    "team",
+    "tasks",
+    "risks",
+    "simulation",
+    "decisions",
+] as const;
+
+export type MissionControlWorkspaceTabId = (typeof MISSION_CONTROL_WORKSPACE_TABS)[number];
+
+export function parseMissionControlTabParam(raw: string | null | undefined): MissionControlWorkspaceTabId | undefined {
+    const tab = raw?.trim();
+    if (!tab) return undefined;
+    return MISSION_CONTROL_WORKSPACE_TABS.includes(tab as MissionControlWorkspaceTabId)
+        ? (tab as MissionControlWorkspaceTabId)
+        : undefined;
+}
+
+/** Page Pilotage Mission — `/workspace/manager/projects/:projectId` (+ `?tab=` optionnel). */
+export function managerProjectMissionControlPath(projectId: string, tab?: MissionControlWorkspaceTabId): string {
     const id = encodeURIComponent(projectId);
-    return `${WORKSPACE_PREFIX.manager}/projects?openProjectId=${id}`;
+    const base = `${WORKSPACE_PREFIX.manager}/projects/${id}`;
+    if (!tab || tab === "overview") return base;
+    return `${base}?tab=${encodeURIComponent(tab)}`;
+}
+
+/** Alias historique — pointe désormais vers la page Mission Control (plus de modal). */
+export function managerProjectsOpenModalPath(projectId: string, tab?: MissionControlWorkspaceTabId): string {
+    return managerProjectMissionControlPath(projectId, tab);
 }
 
 export function workspaceProjectDetailPath(role: Role | null | undefined, projectId: string): string {
     const r = assertRole(role);
-    if (r === "manager") return managerProjectsOpenModalPath(projectId);
+    if (r === "manager") return managerProjectMissionControlPath(projectId);
     return `${workspaceProjectsListPath(role)}/${encodeURIComponent(projectId)}`;
 }
 

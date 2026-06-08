@@ -1,14 +1,23 @@
 /**
- * WF Manager Matchmaker — POST /webhook/api/project/talents
- * Body : project_id, enterprise_id, manager_id, top_n, simulation_mode, use_ai
+ * WF Manager Matchmaker — POST /webhook/api/project/talents (projet isolé)
+ * WF Matchmaker Batch — POST /webhook/api/matchmaker/batch (dashboard multi-projets)
  */
+import { isAxiosError } from "axios";
 import { buildRhTalentsAuthHeaders } from "@/api/rh-talents.api";
 import {
+    MANAGER_MATCHMAKER_BATCH_LIMIT_PROJECTS,
+    MANAGER_MATCHMAKER_BATCH_PATH,
+    MANAGER_MATCHMAKER_BATCH_TIMEOUT_MS,
+    MANAGER_MATCHMAKER_BATCH_URL,
     MANAGER_MATCHMAKER_TOP_N,
     MANAGER_PROJECT_TALENTS_URL,
+    resolveMatchmakerUseAi,
 } from "@/api/manager-matchmaker.constants";
+import { httpClient } from "@/lib/http-client";
 import { normalizeProjectTalentMatchingResponse } from "@/lib/manager-matchmaker-normalize";
 import type {
+    ManagerMatchmakerBatchBody,
+    ManagerMatchmakerBatchResponse,
     ManagerProjectTalentMatchingBody,
     ManagerProjectTalentMatchingResult,
 } from "@/types/manager-matchmaker.types";
@@ -27,6 +36,92 @@ export class ManagerMatchmakerApiError extends Error {
         super(message);
         this.name = "ManagerMatchmakerApiError";
         this.httpStatus = httpStatus;
+    }
+}
+
+export type ManagerMatchmakerBatchOptions = {
+    signal?: AbortSignal;
+    timeout?: number;
+};
+
+function parseManagerMatchmakerBatchResponse(raw: unknown): ManagerMatchmakerBatchResponse {
+    const root = unwrapN8nRoot(raw);
+    const status = String(root.status ?? "").trim() || "unknown";
+    return {
+        status,
+        workflow: root.workflow != null ? String(root.workflow) : undefined,
+        batch_run_id: root.batch_run_id != null ? String(root.batch_run_id) : undefined,
+        stats: root.stats && typeof root.stats === "object" && !Array.isArray(root.stats)
+            ? (root.stats as ManagerMatchmakerBatchResponse["stats"])
+            : undefined,
+        top_recommendations: Array.isArray(root.top_recommendations)
+            ? (root.top_recommendations as ManagerMatchmakerBatchResponse["top_recommendations"])
+            : [],
+        top_talents_by_project: Array.isArray(root.top_talents_by_project)
+            ? (root.top_talents_by_project as ManagerMatchmakerBatchResponse["top_talents_by_project"])
+            : [],
+        top_skill_gaps: Array.isArray(root.top_skill_gaps)
+            ? (root.top_skill_gaps as ManagerMatchmakerBatchResponse["top_skill_gaps"])
+            : [],
+        errors: Array.isArray(root.errors) ? root.errors : [],
+        explanation: root.explanation != null ? String(root.explanation) : undefined,
+        llm_enriched_count:
+            typeof root.llm_enriched_count === "number" && Number.isFinite(root.llm_enriched_count)
+                ? root.llm_enriched_count
+                : undefined,
+        audit: root.audit && typeof root.audit === "object" ? (root.audit as Record<string, unknown>) : undefined,
+        meta: root.meta && typeof root.meta === "object" ? (root.meta as Record<string, unknown>) : undefined,
+    };
+}
+
+function throwFromAxiosError(err: unknown): never {
+    if (isAxiosError(err)) {
+        const status = err.response?.status ?? 0;
+        const data = err.response?.data;
+        const root = data != null ? unwrapN8nRoot(data) : {};
+        const message = String(root.message ?? root.error ?? err.message ?? `HTTP ${status || "error"}`);
+        throw new ManagerMatchmakerApiError(message, status);
+    }
+    if (err instanceof ManagerMatchmakerApiError) throw err;
+    throw new ManagerMatchmakerApiError(err instanceof Error ? err.message : "Impossible de charger les données Matchmaker.");
+}
+
+/** POST batch multi-projets — JWT Bearer via httpClient, sans enterprise_id / manager_id. */
+export async function runManagerMatchmakerBatch(
+    body?: ManagerMatchmakerBatchBody,
+    options?: ManagerMatchmakerBatchOptions,
+): Promise<ManagerMatchmakerBatchResponse> {
+    const url =
+        (import.meta.env.VITE_MANAGER_MATCHMAKER_BATCH_URL as string | undefined)?.trim() ||
+        MANAGER_MATCHMAKER_BATCH_URL;
+    const payload: ManagerMatchmakerBatchBody = {
+        top_n: body?.top_n ?? MANAGER_MATCHMAKER_TOP_N,
+        limit_projects: body?.limit_projects ?? MANAGER_MATCHMAKER_BATCH_LIMIT_PROJECTS,
+        use_ai: body?.use_ai ?? resolveMatchmakerUseAi(),
+        simulation_mode: body?.simulation_mode ?? false,
+        ...(body?.project_ids?.length ? { project_ids: body.project_ids } : {}),
+    };
+
+    const path = url.startsWith("http") ? url : MANAGER_MATCHMAKER_BATCH_PATH;
+
+    if (import.meta.env.DEV) console.log("[Manager Matchmaker] POST matchmaker/batch", path, payload);
+
+    try {
+        const { data } = await httpClient.post<unknown>(path, payload, {
+            signal: options?.signal,
+            timeout: options?.timeout ?? MANAGER_MATCHMAKER_BATCH_TIMEOUT_MS,
+            skipGlobalHttpErrorToast: true,
+        });
+        const parsed = parseManagerMatchmakerBatchResponse(data);
+        if (parsed.status !== "success") {
+            const errMsg =
+                parsed.explanation ||
+                (parsed.errors?.length ? String(parsed.errors[0]) : "Le batch Matchmaker a échoué.");
+            throw new ManagerMatchmakerApiError(errMsg);
+        }
+        return parsed;
+    } catch (err) {
+        throwFromAxiosError(err);
     }
 }
 

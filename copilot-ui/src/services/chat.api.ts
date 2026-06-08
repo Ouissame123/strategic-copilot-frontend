@@ -3,7 +3,6 @@ import {
     HELPER_CHAT_PATH,
     MANAGER_CONVERSATIONS_PATH,
     managerConversationArchivePath,
-    managerConversationDetailPath,
     webhookPath,
 } from "@/lib/n8n-webhook-path";
 import { httpClient, type HttpClientRequestConfig } from "@/lib/http-client";
@@ -150,10 +149,10 @@ export const chatApi = {
         return httpClient.get(url, { params, ...silentCfg });
     },
 
-    /** GET /manager/conversations/:id */
+    /** GET /webhook/manager/conversations/:id */
     getConversation: (conversationId: string) => {
         const cid = normalizeHelperConversationId(conversationId);
-        const url = managerConversationDetailPath(cid);
+        const url = `/webhook${MANAGER_CONVERSATIONS_PATH}/${encodeURIComponent(cid.trim())}`;
         logChatApi("DETAIL", url);
         return httpClient.get(url, silentCfg);
     },
@@ -165,7 +164,7 @@ export const chatApi = {
         return httpClient.post<HelperChatReply>(url, body);
     },
 
-    /** PATCH /manager/conversations/:id/archive */
+    /** PATCH /webhook/wmc-archive-v1/manager/conversations/:id/archive */
     archiveConversation: (conversationId: string, body: { restore: boolean }) => {
         const cid = normalizeHelperConversationId(conversationId);
         const url = managerConversationArchivePath(cid);
