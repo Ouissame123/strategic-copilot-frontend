@@ -193,7 +193,7 @@ export function buildDashboardAnalystView(
         stats: {
             team_size: ipi?.total_talents ?? nineBox?.total_talents ?? mobility?.total_talents,
             ipi_avg: ipi?.avg_ipi,
-            stable_count: mobility?.distribution.ready_to_move,
+            stable_count: mobility ? (mobility.distribution.anchored ?? 0) : undefined,
             at_risk_count: ipi?.distribution.at_risk ?? at_risk_talents.length,
             stars_count: stars,
             critical_box_count: under,

@@ -1,6 +1,7 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type MouseEvent } from "react";
 import { Link, useNavigate } from "react-router";
 import { useQueryClient } from "@tanstack/react-query";
+import { ChevronDown } from "lucide-react";
 import { RefreshCw01, Stars01, Trash01, XClose } from "@untitledui/icons";
 import {
     formatConversationTimeAgo,
@@ -10,6 +11,7 @@ import {
 } from "@/components/copilot/helper-chat-reply-cache";
 import {
     managerConversationDetailKey,
+    managerConversationsListKey,
     useArchiveConversation,
     useConversation,
     useConversations,
@@ -69,6 +71,8 @@ export type ManagerProjectCopilotPanelProps = {
     /** Re-scan complet via POST `/webhook/api/project/viability` (modal Mission Control). */
     onRefreshProjectSnapshot?: () => void;
     refreshingProjectSnapshot?: boolean;
+    /** Mode drawer Mission Control : masque le titre/sous-titre déjà affichés par `CopilotDrawer`. */
+    embeddedInDrawer?: boolean;
 };
 
 const QUICK_PROMPTS = [
@@ -92,6 +96,31 @@ const SUGGESTED_ACTIONS = [
     { label: "Nouvelle conversation", action: "new_thread" as const },
 ] as const;
 
+const SCROLL_BOTTOM_THRESHOLD_PX = 100;
+const SCROLL_NEAR_BOTTOM_FOCUS_PX = 200;
+
+function getDistanceFromBottom(el: HTMLElement): number {
+    return el.scrollHeight - (el.scrollTop + el.clientHeight);
+}
+
+function formatConversationTitle(c: Conversation, locale = "fr-FR"): string {
+    if (c.title?.trim()) return c.title.trim();
+    const dateSrc = c.last_message_at || c.created_at;
+    if (dateSrc) {
+        const parsed = Date.parse(dateSrc);
+        if (!Number.isNaN(parsed)) {
+            return `Conversation du ${new Date(parsed).toLocaleDateString(locale, {
+                day: "numeric",
+                month: "long",
+                year: "numeric",
+            })}`;
+        }
+    }
+    const id = c.id?.trim() ?? "";
+    if (id.length > 12) return `${id.slice(0, 8)}…`;
+    return id || "Sans titre";
+}
+
 export function ManagerProjectCopilotPanel({
     projectId,
     projectName,
@@ -102,6 +131,7 @@ export function ManagerProjectCopilotPanel({
     externalPrompt = null,
     onRefreshProjectSnapshot = undefined,
     refreshingProjectSnapshot = false,
+    embeddedInDrawer = false,
 }: ManagerProjectCopilotPanelProps) {
     const { push } = useToast();
     const { user } = useAuth();
@@ -117,6 +147,8 @@ export function ManagerProjectCopilotPanel({
     const [detailSyncWarning, setDetailSyncWarning] = useState(false);
     const [deletingConversationId, setDeletingConversationId] = useState<string | null>(null);
     const [historyOpen, setHistoryOpen] = useState(false);
+    const [convMenuOpen, setConvMenuOpen] = useState(false);
+    const convMenuRef = useRef<HTMLDivElement>(null);
 
     const badConversationIdsRef = useRef<Set<string>>(new Set());
     const handledErrorRef = useRef<string | null>(null);
@@ -148,7 +180,7 @@ export function ManagerProjectCopilotPanel({
     const projectConversationsQuery = useProjectConversations(stableProjectId || null, Boolean(stableProjectId));
     const { data: convList } = useConversations(
         stableProjectId ? { project_id: stableProjectId, status: "active" } : { status: "active" },
-        !compact,
+        Boolean(stableProjectId),
     );
 
     const conversationsForProject = useMemo(() => {
@@ -222,8 +254,6 @@ export function ManagerProjectCopilotPanel({
             setDetailFetchId((current) => current ?? cid);
             writeHelperConversationId(enterpriseId, stableProjectId, cid);
         } else if (list && list.count > 0) {
-            const skipped = list.conversations?.[0]?.id;
-            if (skipped) console.log("[Copilot] Skip bad conversation id", skipped);
             removeHelperConversationStorage(enterpriseId, stableProjectId);
         } else if (pendingMessagesCountRef.current === 0) {
             setActiveId((current) => (current ? null : current));
@@ -273,7 +303,6 @@ export function ManagerProjectCopilotPanel({
 
         handledErrorRef.current = detailFetchId;
         badConversationIdsRef.current.add(detailFetchId);
-        console.log("[Copilot] DETAIL 404 handled once", detailFetchId);
 
         removeHelperConversationStorage(enterpriseId, stableProjectId);
         void qc.removeQueries({ queryKey: managerConversationDetailKey(detailFetchId) });
@@ -290,23 +319,25 @@ export function ManagerProjectCopilotPanel({
     const removeConversationFromListCache = useCallback(
         (conversation: Conversation) => {
             const realId = conversation.id;
+            const listParams = stableProjectId
+                ? { project_id: stableProjectId, status: "active" as const }
+                : { status: "active" as const };
             qc.setQueryData<{ conversations: Conversation[]; count: number }>(
-                ["manager-conversations", "active", stableProjectId || null, null, null],
+                managerConversationsListKey(listParams),
                 (old) => {
-                if (!old?.conversations) return old;
-                const next = old.conversations.filter((c) => c.id !== realId);
-                return { ...old, conversations: next, count: next.length };
+                    if (!old?.conversations) return old;
+                    const next = old.conversations.filter((c) => c.id !== realId);
+                    return { ...old, conversations: next, count: next.length };
                 },
             );
         },
         [qc, stableProjectId],
     );
 
-    const confirmAndArchiveConversation = useCallback(
+    const archiveConversationItem = useCallback(
         async (conversation: Conversation, e?: MouseEvent) => {
             e?.stopPropagation();
             e?.preventDefault();
-            if (!window.confirm("Supprimer cette conversation ? Elle sera archivée.")) return;
             if (!isHelperChatUuid(conversation.id)) {
                 push("Cette conversation ne peut pas être archivée.", "error");
                 return;
@@ -319,7 +350,7 @@ export function ManagerProjectCopilotPanel({
                 void qc.removeQueries({
                     queryKey: managerConversationDetailKey(normalizeHelperConversationId(conversation.id)),
                 });
-                push("Conversation supprimée avec succès", "success");
+                push("Conversation archivée", "success");
                 if (activeId != null && activeId.toLowerCase() === conversation.id.toLowerCase()) {
                     if (enterpriseId && stableProjectId) removeHelperConversationStorage(enterpriseId, stableProjectId);
                     setActiveId(null);
@@ -340,6 +371,45 @@ export function ManagerProjectCopilotPanel({
 
     const scrollContainerRef = useRef<HTMLDivElement>(null);
     const messagesEndRef = useRef<HTMLDivElement>(null);
+    const isAtBottomRef = useRef(true);
+    const prevMessagesLengthRef = useRef(0);
+    const conversationScrollKeyRef = useRef<string | null>(null);
+    const pendingConversationMountRef = useRef(false);
+    const messagesSourceRef = useRef<"pending" | "backend" | "empty">("empty");
+    const [isAtBottom, setIsAtBottom] = useState(true);
+    const [newMessagesCount, setNewMessagesCount] = useState(0);
+
+    const scrollToSentinel = useCallback((behavior: ScrollBehavior) => {
+        messagesEndRef.current?.scrollIntoView({ behavior, block: "end" });
+    }, []);
+
+    const handleMessagesScroll = useCallback(() => {
+        const el = scrollContainerRef.current;
+        if (!el) return;
+        const atBottom = getDistanceFromBottom(el) < SCROLL_BOTTOM_THRESHOLD_PX;
+        if (atBottom === isAtBottomRef.current) return;
+        isAtBottomRef.current = atBottom;
+        setIsAtBottom(atBottom);
+        if (atBottom) setNewMessagesCount(0);
+    }, []);
+
+    const scrollToLatestMessage = useCallback(() => {
+        scrollToSentinel("smooth");
+        isAtBottomRef.current = true;
+        setIsAtBottom(true);
+        setNewMessagesCount(0);
+    }, [scrollToSentinel]);
+
+    const handleInputFocus = useCallback(() => {
+        const el = scrollContainerRef.current;
+        if (!el) return;
+        if (getDistanceFromBottom(el) < SCROLL_NEAR_BOTTOM_FOCUS_PX) {
+            scrollToSentinel("smooth");
+            isAtBottomRef.current = true;
+            setIsAtBottom(true);
+            setNewMessagesCount(0);
+        }
+    }, [scrollToSentinel]);
 
     const handleSend = useCallback(
         async (messageOverride?: string) => {
@@ -385,7 +455,6 @@ export function ManagerProjectCopilotPanel({
             }
 
             try {
-                console.log("[Copilot] POST only user action");
                 const reply = await send.mutateAsync(body);
                 const newCid = reply.conversation_id?.trim();
                 if (!newCid) return;
@@ -446,7 +515,33 @@ export function ManagerProjectCopilotPanel({
         setDetailSyncWarning(false);
         setInput("");
         setErrorMsg(null);
+        setConvMenuOpen(false);
     }, [enterpriseId, stableProjectId]);
+
+    const selectConversation = useCallback(
+        (c: Conversation) => {
+            const cid = c.id.trim();
+            if (isBadConversationId(cid)) return;
+            setPendingMessages([]);
+            setDetailSyncWarning(false);
+            setActiveId(cid);
+            setDetailFetchId(cid);
+            if (enterpriseId && stableProjectId) writeHelperConversationId(enterpriseId, stableProjectId, cid);
+            setConvMenuOpen(false);
+        },
+        [enterpriseId, isBadConversationId, stableProjectId],
+    );
+
+    useEffect(() => {
+        if (!convMenuOpen) return;
+        const onDocClick = (e: globalThis.MouseEvent) => {
+            if (convMenuRef.current && !convMenuRef.current.contains(e.target as Node)) {
+                setConvMenuOpen(false);
+            }
+        };
+        document.addEventListener("mousedown", onDocClick);
+        return () => document.removeEventListener("mousedown", onDocClick);
+    }, [convMenuOpen]);
 
     const fillInputFromPrompt = useCallback((label: string) => {
         setInput(label);
@@ -482,10 +577,73 @@ export function ManagerProjectCopilotPanel({
         }
     }, [backendMessages.length]);
 
-    const messagesLength = visibleMessages.length;
-    useEffect(() => {
-        messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-    }, [messagesLength]);
+    const conversationScrollKey = detailFetchId ?? activeId ?? "__none__";
+
+    useLayoutEffect(() => {
+        if (conversationScrollKeyRef.current === conversationScrollKey) return;
+        conversationScrollKeyRef.current = conversationScrollKey;
+        pendingConversationMountRef.current = true;
+        prevMessagesLengthRef.current = 0;
+        messagesSourceRef.current = "empty";
+        isAtBottomRef.current = true;
+        setIsAtBottom(true);
+        setNewMessagesCount(0);
+    }, [conversationScrollKey]);
+
+    useLayoutEffect(() => {
+        const source: "pending" | "backend" | "empty" =
+            backendMessages.length > 0 ? "backend" : pendingMessages.length > 0 ? "pending" : "empty";
+
+        if (pendingConversationMountRef.current) {
+            if (!loadingHistory) {
+                if (visibleMessages.length > 0) {
+                    scrollToSentinel("auto");
+                    prevMessagesLengthRef.current = visibleMessages.length;
+                } else {
+                    prevMessagesLengthRef.current = 0;
+                }
+                pendingConversationMountRef.current = false;
+                messagesSourceRef.current = source;
+            }
+            return;
+        }
+
+        if (loadingHistory) return;
+
+        if (messagesSourceRef.current === "pending" && source === "backend") {
+            messagesSourceRef.current = source;
+            prevMessagesLengthRef.current = visibleMessages.length;
+            if (isAtBottomRef.current) scrollToSentinel("auto");
+            return;
+        }
+        messagesSourceRef.current = source;
+
+        const len = visibleMessages.length;
+        const prevLen = prevMessagesLengthRef.current;
+        if (len <= prevLen) {
+            if (len < prevLen) prevMessagesLengthRef.current = len;
+            return;
+        }
+
+        const newMessages = visibleMessages.slice(prevLen);
+        prevMessagesLengthRef.current = len;
+
+        for (const msg of newMessages) {
+            if (msg.role === "user") {
+                scrollToSentinel("smooth");
+                isAtBottomRef.current = true;
+                setIsAtBottom(true);
+                setNewMessagesCount(0);
+            } else if (msg.role === "assistant") {
+                if (isAtBottomRef.current) {
+                    scrollToSentinel("smooth");
+                    setNewMessagesCount(0);
+                } else {
+                    setNewMessagesCount((c) => c + 1);
+                }
+            }
+        }
+    }, [backendMessages.length, pendingMessages.length, visibleMessages, loadingHistory, scrollToSentinel]);
 
     if (!projectId) {
         return (
@@ -528,16 +686,7 @@ export function ManagerProjectCopilotPanel({
                     >
                         <button
                             type="button"
-                            onClick={() => {
-                                const cid = c.id.trim();
-                                if (isBadConversationId(cid)) {
-                                    console.log("[Copilot] Skip bad conversation id", cid);
-                                    return;
-                                }
-                                setDetailSyncWarning(false);
-                                setActiveId(cid);
-                                setDetailFetchId(cid);
-                            }}
+                            onClick={() => selectConversation(c)}
                             className="min-w-0 flex-1 rounded-l-xl px-2.5 py-2 text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-solid"
                         >
                             <div className="truncate font-semibold text-primary">{c.title || "Sans titre"}</div>
@@ -550,11 +699,11 @@ export function ManagerProjectCopilotPanel({
                             disabled={deletingConversationId != null}
                             title="Archiver la conversation"
                             aria-label="Supprimer ou archiver la conversation"
-                            onClick={(e) => void confirmAndArchiveConversation(c, e)}
+                            onClick={(e) => void archiveConversationItem(c, e)}
                             className="flex shrink-0 flex-col items-center justify-center gap-0.5 rounded-r-xl border-l border-secondary/50 px-2 py-1.5 text-tertiary transition hover:bg-red-500/10 hover:text-red-600 disabled:opacity-40"
                         >
                             <Trash01 className="size-3.5 shrink-0" aria-hidden />
-                            <span className="max-w-[4.5rem] truncate text-[9px] font-semibold uppercase tracking-wide">Supprimer</span>
+                            <span className="max-w-[4.5rem] truncate text-[9px] font-semibold uppercase tracking-wide">Archiver</span>
                         </button>
                     </div>
                 ))}
@@ -584,16 +733,46 @@ export function ManagerProjectCopilotPanel({
         </div>
     ) : null;
 
+    const newMessagesPill =
+        newMessagesCount > 0 ? (
+            <button
+                type="button"
+                role="status"
+                aria-live="polite"
+                onClick={scrollToLatestMessage}
+                className="absolute bottom-4 left-1/2 z-10 flex -translate-x-1/2 animate-in fade-in slide-in-from-bottom-1 items-center gap-1.5 rounded-full bg-violet-600 px-4 py-1.5 text-xs font-medium text-white shadow-md transition-all duration-150 ease-out hover:bg-violet-700 hover:shadow-lg focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-violet-500"
+                style={{ animationDuration: "150ms" }}
+            >
+                <ChevronDown className="size-3.5 shrink-0" aria-hidden />
+                {newMessagesCount === 1 ? "Nouveau message" : `${newMessagesCount} nouveaux messages`}
+            </button>
+        ) : null;
+
     const messageArea = (
-        <div
-            ref={scrollContainerRef}
-            className={cx(
-                "min-h-0 flex-1 overflow-y-auto overscroll-contain",
-                compact ? "space-y-2.5 px-3 py-2.5" : "space-y-3 px-1 py-3 sm:min-h-[240px] sm:px-3",
-            )}
-        >
+        <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden">
+            <div
+                ref={scrollContainerRef}
+                onScroll={handleMessagesScroll}
+                aria-live="polite"
+                aria-relevant="additions"
+                className={cx(
+                    "min-h-0 flex-1 overflow-y-auto overscroll-contain",
+                    compact ? "space-y-2.5 px-3 py-2.5" : "space-y-3 px-1 py-3 sm:min-h-[240px] sm:px-3",
+                )}
+            >
             {loadingHistory ? (
-                <p className="py-3 text-center text-xs text-tertiary">{compact ? "Chargement de l’échange…" : "Chargement…"}</p>
+                <div
+                    className="space-y-3 px-2 py-3"
+                    aria-busy="true"
+                    aria-label={compact ? "Chargement de l’échange" : "Chargement des messages"}
+                >
+                    {[0, 1, 2].map((i) => (
+                        <div key={i} className="animate-pulse space-y-2">
+                            <div className="h-3 w-3/4 rounded bg-slate-200 dark:bg-secondary" />
+                            <div className="h-3 w-1/2 rounded bg-slate-200 dark:bg-secondary" />
+                        </div>
+                    ))}
+                </div>
             ) : null}
 
             {!detailLoading && showEmptyState ? (
@@ -637,6 +816,8 @@ export function ManagerProjectCopilotPanel({
 
             {typingIndicator}
             <div ref={messagesEndRef} className="h-px shrink-0" aria-hidden />
+            </div>
+            {newMessagesPill}
         </div>
     );
 
@@ -652,19 +833,20 @@ export function ManagerProjectCopilotPanel({
                 <textarea
                     value={input}
                     onChange={(e) => setInput(e.target.value)}
+                    onFocus={handleInputFocus}
                     onKeyDown={(e) => {
                         if (e.key === "Enter" && !e.shiftKey) {
                             e.preventDefault();
                             void handleSend();
                         }
                     }}
-                    placeholder={compact ? "Posez une question stratégique…" : "Pose ta question au conseiller…"}
+                    placeholder={compact ? "Pose une question sur ce projet…" : "Pose ta question au conseiller…"}
                     rows={compact ? 2 : 2}
                     className={cx(
-                        "min-h-0 flex-1 resize-none rounded-2xl border border-secondary bg-primary shadow-inner outline-none transition placeholder:text-tertiary focus:border-brand-secondary focus:ring-2 focus:ring-brand-solid/25",
+                        "min-h-0 flex-1 resize-none rounded-2xl border bg-primary shadow-inner outline-none transition-all duration-150 ease-out placeholder:text-slate-400",
                         compact
-                            ? "rounded-xl border-secondary/80 px-3 py-2 text-xs leading-relaxed shadow-xs"
-                            : "px-3 py-2.5 text-sm",
+                            ? "rounded-xl border-slate-200 px-3 py-2 text-xs leading-relaxed focus:border-violet-400 focus:ring-2 focus:ring-violet-100"
+                            : "border-secondary px-3 py-2.5 text-sm focus:border-brand-secondary focus:ring-2 focus:ring-brand-solid/25",
                     )}
                     disabled={send.isPending}
                 />
@@ -673,10 +855,10 @@ export function ManagerProjectCopilotPanel({
                     onClick={() => void handleSend()}
                     disabled={!input.trim() || send.isPending}
                     className={cx(
-                        "shrink-0 self-end rounded-2xl bg-brand-solid font-semibold text-white shadow-md shadow-brand-solid/30 transition hover:opacity-95 disabled:cursor-not-allowed disabled:opacity-45",
+                        "shrink-0 self-end rounded-2xl font-semibold text-white transition-all duration-150 ease-out disabled:cursor-not-allowed",
                         compact
-                            ? "rounded-xl px-3.5 py-2 text-xs shadow-sm hover:shadow-md"
-                            : "px-4 py-2.5 text-sm",
+                            ? "rounded-xl px-3.5 py-2 text-xs enabled:bg-gradient-to-r enabled:from-violet-600 enabled:to-violet-500 enabled:shadow-sm enabled:hover:from-violet-700 enabled:hover:to-violet-600 disabled:bg-slate-300 disabled:text-slate-500"
+                            : "bg-brand-solid px-4 py-2.5 text-sm shadow-md shadow-brand-solid/30 hover:opacity-95 disabled:opacity-45",
                     )}
                 >
                     {send.isPending ? "…" : "Envoyer"}
@@ -795,8 +977,6 @@ export function ManagerProjectCopilotPanel({
         </aside>
     );
 
-    const scoreLabel = typeof score === "number" && Number.isFinite(score) ? score.toFixed(1) : String(score ?? "—");
-
     const compactHistoryDrawer =
         historyOpen && compact ? (
             <div className="absolute inset-0 z-40 flex justify-end" role="dialog" aria-modal="true" aria-labelledby="mission-copilot-history-title">
@@ -849,15 +1029,7 @@ export function ManagerProjectCopilotPanel({
                                     <button
                                         type="button"
                                         onClick={() => {
-                                            const cid = c.id.trim();
-                                            if (isBadConversationId(cid)) {
-                                                console.log("[Copilot] Skip bad conversation id", cid);
-                                                return;
-                                            }
-                                            setPendingMessages([]);
-                                            setDetailSyncWarning(false);
-                                            setActiveId(cid);
-                                            setDetailFetchId(cid);
+                                            selectConversation(c);
                                             setHistoryOpen(false);
                                         }}
                                         className="min-w-0 flex-1 rounded-l-xl px-2.5 py-2 text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-solid"
@@ -873,7 +1045,7 @@ export function ManagerProjectCopilotPanel({
                                         disabled={deletingConversationId != null}
                                         title="Archiver"
                                         aria-label="Archiver la conversation"
-                                        onClick={(e) => void confirmAndArchiveConversation(c, e)}
+                                        onClick={(e) => void archiveConversationItem(c, e)}
                                         className="flex shrink-0 flex-col items-center justify-center gap-0.5 rounded-r-xl border-l border-secondary/50 px-2 py-1.5 text-tertiary transition hover:bg-red-500/10 hover:text-red-600 disabled:opacity-40"
                                     >
                                         <Trash01 className="size-3.5 shrink-0" aria-hidden />
@@ -887,16 +1059,16 @@ export function ManagerProjectCopilotPanel({
         ) : null;
 
     const compactQuickPromptChips = compact && showQuickReplies ? (
-        <div className="shrink-0 border-b border-secondary/60 bg-primary px-3 py-2.5">
-            <p className="mb-1.5 text-[9px] font-semibold uppercase tracking-wider text-tertiary">Questions rapides</p>
-            <div className="flex flex-wrap gap-1.5">
+        <div className="shrink-0 border-b border-slate-200 bg-white px-4 py-3 dark:border-secondary dark:bg-primary">
+            <p className="mb-2 text-xs font-medium uppercase tracking-wider text-slate-500">Questions rapides</p>
+            <div className="flex flex-wrap gap-2">
                 {prompts.map((label) => (
                     <button
                         key={label}
                         type="button"
                         disabled={send.isPending}
                         onClick={() => void handleSend(label)}
-                        className="rounded-full border border-secondary/80 bg-primary px-2.5 py-1 text-[10px] font-medium leading-snug text-secondary shadow-xs transition hover:-translate-y-px hover:border-brand-secondary/45 hover:bg-brand-primary/8 hover:text-primary hover:shadow-sm disabled:cursor-not-allowed disabled:opacity-45 disabled:hover:translate-y-0"
+                        className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 transition-all duration-150 ease-out hover:border-violet-400 hover:bg-violet-50 hover:text-violet-700 disabled:cursor-not-allowed disabled:opacity-45 dark:border-secondary dark:bg-primary"
                     >
                         {label}
                     </button>
@@ -905,39 +1077,155 @@ export function ManagerProjectCopilotPanel({
         </div>
     ) : null;
 
+    const activeConversation =
+        conversationsForProject.find((c) => activeId != null && c.id === activeId) ?? null;
+
+    const activeConversationLabel = activeConversation
+        ? formatConversationTitle(activeConversation)
+        : "Aucune conversation active";
+
+    const compactConversationSelector = (
+        <div ref={convMenuRef} className={cx("relative", embeddedInDrawer ? "mt-0" : "mt-3")}>
+            <button
+                type="button"
+                aria-haspopup="listbox"
+                aria-expanded={convMenuOpen}
+                aria-label="Sélectionner une conversation"
+                onClick={() => setConvMenuOpen((open) => !open)}
+                className="flex min-h-11 w-full items-center justify-between gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-left text-sm transition-all duration-150 ease-out hover:border-slate-300 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-violet-500 dark:border-secondary dark:bg-primary"
+            >
+                <span className="min-w-0 truncate font-medium text-slate-800 dark:text-fg-primary">
+                    {activeConversationLabel}
+                </span>
+                <ChevronDown
+                    className={cx("size-4 shrink-0 text-slate-400 transition-transform duration-150", convMenuOpen && "rotate-180")}
+                    aria-hidden
+                />
+            </button>
+            {convMenuOpen ? (
+                <div
+                    role="listbox"
+                    aria-label="Conversations du projet"
+                    className="absolute top-[calc(100%+0.375rem)] right-0 left-0 z-50 max-h-72 overflow-y-auto rounded-lg border border-slate-200 bg-white py-1 shadow-lg dark:border-secondary dark:bg-primary"
+                >
+                    <div className="border-b border-slate-100 px-2 py-2 dark:border-secondary">
+                        <button
+                            type="button"
+                            onClick={startNewConversation}
+                            className="flex min-h-11 w-full items-center justify-center rounded-md bg-violet-600 px-3 py-2 text-xs font-semibold text-white transition-all duration-150 ease-out hover:bg-violet-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-violet-500"
+                        >
+                            Nouvelle conversation
+                        </button>
+                    </div>
+                    {conversationsForProject.length === 0 ? (
+                        <div className="px-3 py-4 text-center">
+                            <p className="text-xs text-slate-500">Aucune conversation pour ce projet</p>
+                            <button
+                                type="button"
+                                onClick={startNewConversation}
+                                className="mt-3 min-h-11 rounded-md border border-slate-200 px-3 py-2 text-xs font-medium text-slate-700 transition-all duration-150 ease-out hover:border-violet-400 hover:bg-violet-50 hover:text-violet-700"
+                            >
+                                Démarrer une conversation
+                            </button>
+                        </div>
+                    ) : (
+                        conversationsForProject.map((c) => {
+                            const isActive = activeId != null && c.id === activeId;
+                            return (
+                                <div
+                                    key={c.id}
+                                    className="group flex items-stretch px-1 py-0.5"
+                                    role="option"
+                                    aria-selected={isActive}
+                                >
+                                    <button
+                                        type="button"
+                                        onClick={() => selectConversation(c)}
+                                        className={cx(
+                                            "flex min-h-11 min-w-0 flex-1 flex-col justify-center rounded-md px-2.5 py-2 text-left transition-all duration-150 ease-out focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-violet-500",
+                                            isActive ? "bg-violet-50" : "hover:bg-slate-50",
+                                        )}
+                                    >
+                                        <div className="flex items-center gap-2">
+                                            <span className="truncate text-xs font-semibold text-slate-800 dark:text-fg-primary">
+                                                {formatConversationTitle(c)}
+                                            </span>
+                                            {isActive ? (
+                                                <span className="shrink-0 rounded-full border border-emerald-200 bg-emerald-100 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-800">
+                                                    Active
+                                                </span>
+                                            ) : null}
+                                        </div>
+                                        <span className="truncate text-[10px] text-slate-500">
+                                            {formatConversationTimeAgo(c.last_message_at || c.created_at)}
+                                        </span>
+                                    </button>
+                                    <button
+                                        type="button"
+                                        disabled={deletingConversationId != null}
+                                        aria-label="Archiver la conversation"
+                                        title="Archiver"
+                                        onClick={(e) => void archiveConversationItem(c, e)}
+                                        className="flex min-h-11 w-10 shrink-0 items-center justify-center rounded-md text-slate-400 opacity-0 transition-all duration-150 ease-out group-hover:opacity-100 hover:bg-red-50 hover:text-red-600 focus-visible:opacity-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-violet-500 disabled:opacity-40"
+                                    >
+                                        <Trash01 className="size-3.5" aria-hidden />
+                                    </button>
+                                </div>
+                            );
+                        })
+                    )}
+                </div>
+            ) : null}
+        </div>
+    );
+
     if (compact) {
         return (
-            <div className="relative flex h-full min-h-0 w-full min-w-0 flex-col overflow-hidden rounded-xl border border-secondary/80 bg-primary shadow-sm ring-1 ring-black/[0.04] dark:ring-white/[0.06]">
-                <header className="shrink-0 border-b border-secondary/70 bg-gradient-to-br from-brand-primary_alt/15 via-primary to-transparent px-3 py-3">
-                    <div className="flex items-start justify-between gap-2">
-                        <h2 className="text-sm font-semibold tracking-tight text-primary">Copilot Projet</h2>
-                        <span className="inline-flex shrink-0 rounded-full border border-brand-secondary/35 bg-gradient-to-r from-brand-primary/15 to-violet-500/10 px-2 py-0.5 text-[9px] font-semibold uppercase tracking-wider text-brand-secondary">
-                            AI Powered
-                        </span>
-                    </div>
-                    <p className="mt-0.5 truncate text-xs font-medium text-secondary">{displayName}</p>
-                    <div className="mt-2 flex flex-wrap gap-1">
-                        <span className="inline-flex items-center rounded-full border border-secondary/80 bg-primary/90 px-2 py-0.5 text-[10px] text-secondary">
-                            Score <span className="ml-0.5 tabular-nums font-semibold text-primary">{scoreLabel}</span>
-                        </span>
-                        <span className="inline-flex items-center rounded-full border border-brand-secondary/35 bg-brand-primary/12 px-2 py-0.5 text-[10px] font-semibold text-primary">
+            <div
+                className={cx(
+                    "relative flex h-full min-h-0 w-full min-w-0 flex-col overflow-hidden bg-white dark:bg-primary",
+                    embeddedInDrawer ? "rounded-none border-0 shadow-none" : "rounded-xl border border-slate-200 shadow-sm dark:border-secondary",
+                )}
+            >
+                <header
+                    className={cx(
+                        "shrink-0 px-4 py-4 dark:border-secondary",
+                        embeddedInDrawer ? "border-b-0 pt-0" : "border-b border-slate-200",
+                    )}
+                >
+                    {embeddedInDrawer ? null : (
+                        <>
+                            <div className="flex items-start justify-between gap-2">
+                                <h2 className="text-base font-semibold text-slate-900 dark:text-fg-primary">Copilot Projet</h2>
+                                <span className="inline-flex shrink-0 rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wider text-slate-500">
+                                    AI Powered
+                                </span>
+                            </div>
+                            <p className="mt-0.5 text-sm text-slate-500">{displayName}</p>
+                        </>
+                    )}
+                    {compactConversationSelector}
+                    <div className="mt-3 flex flex-wrap gap-2">
+                        <span className="inline-flex items-center rounded-full border border-slate-200 bg-slate-100 px-3 py-1 text-xs font-medium text-slate-700">
                             {String(decision)}
                         </span>
                         <span
                             className={cx(
-                                "inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium",
+                                "inline-flex items-center rounded-full px-3 py-1 text-xs font-medium",
                                 alertsCount > 0
-                                    ? "border border-amber-300/80 bg-amber-50 text-amber-900 dark:border-amber-500/40 dark:bg-amber-950/50 dark:text-amber-100"
-                                    : "border border-secondary/70 bg-secondary_subtle text-secondary",
+                                    ? "border border-amber-200 bg-amber-100 text-amber-800"
+                                    : "border border-slate-200 bg-slate-100 text-slate-700",
                             )}
                         >
                             {alertsCount} alerte{alertsCount === 1 ? "" : "s"}
                         </span>
                     </div>
                     {prefetchedContext?.aiRecommendation ? (
-                        <div className="mt-2.5 rounded-xl border border-secondary/70 bg-secondary_subtle/45 p-2.5 shadow-xs">
-                            <p className="text-[9px] font-semibold uppercase tracking-wider text-tertiary">Insight principal</p>
-                            <p className="mt-1 text-[11px] leading-relaxed text-secondary">{prefetchedContext.aiRecommendation}</p>
+                        <div className="mt-3 rounded-lg bg-slate-50 p-3 dark:bg-secondary_subtle/50">
+                            <p className="text-xs font-medium uppercase tracking-wider text-slate-500">Insight principal</p>
+                            <p className="mt-1.5 text-sm leading-relaxed text-slate-700 dark:text-fg-secondary">
+                                {prefetchedContext.aiRecommendation}
+                            </p>
                         </div>
                     ) : null}
                 </header>
@@ -995,7 +1283,7 @@ function sourceLink(s: ChatSource): string {
     const t = s.type.toLowerCase();
     if (t === "talent_match" || t === "team_member") return `/workspace/manager/team/${encodeURIComponent(s.id)}`;
     if (t === "risk_alert") return `/workspace/manager/risks?alertId=${encodeURIComponent(s.id)}`;
-    if (t === "project") return `/workspace/manager/projects?openProjectId=${encodeURIComponent(s.id)}`;
+    if (t === "project") return `/workspace/manager/projects/${encodeURIComponent(s.id)}`;
     return "#";
 }
 

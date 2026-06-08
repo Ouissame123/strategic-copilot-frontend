@@ -97,5 +97,6 @@ export function useProjectsListQuery(page: number, perPage: number) {
     return useQuery({
         queryKey: queryKeys.projects.list(page, perPage),
         queryFn: ({ signal }) => fetchProjectsListEnriched(page, perPage, signal),
+        staleTime: 300_000,
     });
 }

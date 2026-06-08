@@ -1,10 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Sparkles } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { buildStrictAssignTalentPayload } from "@/api/manager-projects.api";
 import { ProjectMissionControlRisks } from "@/components/manager/project-mission-control-risks";
-import { RiskMatrix as ProjectRiskMatrix } from "@/components/projects/RiskMatrix";
 import { ProjectTasksTab } from "@/components/projects/tasks/ProjectTasksTab";
 import { StrategistArbitrageOptions } from "@/components/manager/strategist-arbitrage-options";
+import { CopilotDrawer } from "@/components/copilot/CopilotDrawer";
+import { CopilotFloatingButton } from "@/components/copilot/CopilotFloatingButton";
 import { ManagerProjectCopilotPanel, type CopilotPrefetchedProjectContext } from "@/components/copilot/ManagerProjectCopilotPanel";
 import { stripTechnicalScoringSegments } from "@/lib/business-explanation";
 import { readMissionControlHttpErrorMessage, readUserFacingApiErrorMessage } from "@/lib/user-facing-api-error";
@@ -34,6 +36,7 @@ import {
 import type { AssignTalentRequest, AssignmentItem, ProjectListItem, ProjectStatus, WmpAssignmentType } from "@/types/api.types";
 import { useToast } from "@/providers/toast-provider";
 import { cx } from "@/utils/cx";
+import type { MissionControlWorkspaceTabId } from "@/utils/workspace-routes";
 import {
     formatMissionExecutiveSummary,
     formatMissionViabilityExplanation,
@@ -46,17 +49,18 @@ import {
     readLatestViabilityScore,
 } from "@/utils/format";
 
-export type ProjectMissionControlModalProps = {
-    open: boolean;
-    projectId: string | null;
-    listProject: ProjectListItem | undefined;
+export type { MissionControlWorkspaceTabId } from "@/utils/workspace-routes";
+
+export type ProjectMissionControlWorkspaceProps = {
+    projectId: string;
+    listProject?: ProjectListItem;
     onClose: () => void;
-    initialWorkspaceTab?: MissionControlWorkspaceTabId;
+    workspaceTab?: MissionControlWorkspaceTabId;
+    onWorkspaceTabChange?: (tab: MissionControlWorkspaceTabId) => void;
 };
 
-export type MissionControlWorkspaceTabId = "overview" | "team" | "tasks" | "risks" | "simulation" | "decisions";
 type WorkspaceTabId = MissionControlWorkspaceTabId;
-type MobileMissionTabId = WorkspaceTabId | "copilot";
+type MobileMissionTabId = WorkspaceTabId;
 
 function clamp(n: number, lo: number, hi: number): number {
     return Math.min(hi, Math.max(lo, n));
@@ -114,6 +118,71 @@ function decisionBadgeClass(decision: string): string {
     return "border-violet-300 bg-violet-50 text-violet-900 dark:border-violet-600 dark:bg-violet-950/45 dark:text-violet-100";
 }
 
+function statusPillClass(status: string | null | undefined): string {
+    const v = String(status ?? "")
+        .trim()
+        .toLowerCase()
+        .replace(/\s+/g, "_");
+    if (v === "on_hold" || v === "onhold") return "border-amber-200 bg-amber-100 text-amber-800";
+    if (v === "completed") return "border-emerald-200 bg-emerald-100 text-emerald-800";
+    if (v === "active") return "border-blue-200 bg-blue-100 text-blue-800";
+    if (v === "planned") return "border-slate-200 bg-slate-100 text-slate-700";
+    if (v === "cancelled") return "border-red-200 bg-red-100 text-red-800";
+    return "border-slate-200 bg-slate-100 text-slate-700";
+}
+
+function decisionPillClass(decision: string | null | undefined): string {
+    const k = String(decision ?? "").trim().toLowerCase();
+    if (k === "continue" || k === "proceed") return "border-emerald-200 bg-emerald-100 text-emerald-800";
+    if (k === "adjust") return "border-blue-200 bg-blue-100 text-blue-800";
+    if (k === "stop" || k === "reject") return "border-red-200 bg-red-100 text-red-800";
+    return "border-violet-200 bg-violet-100 text-violet-800";
+}
+
+function scoreBarTone(score: number): string {
+    if (score < 4) return "bg-red-500";
+    if (score < 7) return "bg-orange-500";
+    return "bg-emerald-500";
+}
+
+type MissionKpiCardProps = {
+    label: string;
+    value: string;
+    unit?: string;
+    scoreBarPct?: number | null;
+    progressBarPct?: number | null;
+};
+
+function MissionKpiCard({ label, value, unit, scoreBarPct, progressBarPct }: MissionKpiCardProps) {
+    return (
+        <article className="animate-in fade-in rounded-lg border border-slate-200 bg-white p-4 shadow-sm transition-all duration-150 ease-out hover:shadow-md dark:border-secondary dark:bg-primary [animation-duration:200ms]">
+            <p className="text-xs font-medium uppercase tracking-wider text-slate-500">{label}</p>
+            <p className="mt-2 flex items-baseline gap-1 leading-none">
+                <span className="text-3xl font-bold text-slate-900 dark:text-fg-primary">{value}</span>
+                {unit ? <span className="text-base text-slate-500">{unit}</span> : null}
+            </p>
+            {scoreBarPct != null ? (
+                <div className="mt-3 h-0.5 w-full overflow-hidden rounded-full bg-slate-100">
+                    <div
+                        className={cx("h-full rounded-full transition-all duration-200 ease-out", scoreBarTone(scoreBarPct))}
+                        style={{ width: `${Math.min(100, Math.max(0, scoreBarPct * 10))}%` }}
+                        aria-hidden
+                    />
+                </div>
+            ) : null}
+            {progressBarPct != null ? (
+                <div className="mt-3 h-1.5 w-full overflow-hidden rounded-full bg-slate-100">
+                    <div
+                        className="h-full rounded-full bg-gradient-to-r from-violet-500 to-violet-600 transition-all duration-200 ease-out"
+                        style={{ width: `${Math.min(100, Math.max(0, progressBarPct))}%` }}
+                        aria-hidden
+                    />
+                </div>
+            ) : null}
+        </article>
+    );
+}
+
 function decisionSummary(d: CopilotDecision): string {
     const raw = stripTechnicalScoringSegments(d.reason ?? "").replace(/\s+/g, " ").trim();
     if (!raw) return "—";
@@ -168,138 +237,15 @@ function formatAllocation(value: number | string): string {
     return `${n}%`;
 }
 
-/** Radar synthétique (viabilité, santé, marge charge, calme alertes) — dérivé des KPI déjà chargés. */
-function MissionRadar({
-    viability,
-    health,
-    loadPct,
-    alertCount,
-}: {
-    viability: number | null;
-    health: number | null;
-    loadPct: number | null;
-    alertCount: number;
-}) {
-    const { t } = useTranslation("common");
-    const tm = (key: string) => t(`managerWorkspace.missionControl.${key}`);
-    const axes = useMemo(() => {
-        const vScore = viability != null && Number.isFinite(viability) ? clamp(viability, 0, 10) : null;
-        const v = vScore != null ? vScore / 10 : 0.5;
-        const hScore = health != null && Number.isFinite(health) ? clamp(health, 0, 10) : null;
-        const h = hScore != null ? hScore / 10 : 0.5;
-        const load = loadPct != null && Number.isFinite(loadPct) ? clamp(loadPct, 0, 100) : null;
-        const l = load != null ? clamp(1 - load / 100, 0, 1) : 0.5;
-        const calmPct = alertCount <= 0 ? 100 : Math.round(clamp(1 - Math.min(alertCount, 8) / 8, 0, 1) * 100);
-        const a = calmPct / 100;
-        return [
-            { label: tm("axisViability"), t: v, percentLabel: formatViabilityScore(vScore).pct },
-            { label: tm("axisHealth"), t: h, percentLabel: hScore != null ? `${Math.round(hScore * 10)}%` : "—" },
-            {
-                label: tm("axisLoadMargin"),
-                t: l,
-                percentLabel: load != null ? `${Math.round(100 - load)}%` : "—",
-            },
-            { label: tm("axisCalmAlerts"), t: a, percentLabel: `${calmPct}%` },
-        ];
-    }, [viability, health, loadPct, alertCount, t]);
-
-    const n = axes.length;
-    const cx0 = 50;
-    const cy0 = 50;
-    const r = 36;
-    const outerPts = axes
-        .map((_, i) => {
-            const ang = (-Math.PI / 2 + (2 * Math.PI * i) / n) as number;
-            return `${cx0 + r * Math.cos(ang)},${cy0 + r * Math.sin(ang)}`;
-        })
-        .join(" ");
-    const pts = axes.map((ax, i) => {
-        const ang = (-Math.PI / 2 + (2 * Math.PI * i) / n) as number;
-        const rr = r * (0.2 + 0.8 * ax.t);
-        return { x: cx0 + rr * Math.cos(ang), y: cy0 + rr * Math.sin(ang) };
-    });
-    const d = pts.map((p) => `${p.x},${p.y}`).join(" ");
-
-    return (
-        <section className="rounded-xl border border-secondary bg-primary p-3">
-            <h4 className="mb-2 text-xs font-semibold uppercase tracking-wide text-fg-tertiary">{tm("radarTitle")}</h4>
-            <div className="flex justify-center">
-                <svg viewBox="0 0 100 100" className="h-36 w-full max-w-[200px]" aria-hidden>
-                    <polygon points={outerPts} fill="currentColor" className="text-secondary_subtle/40" stroke="currentColor" strokeWidth={0.5} />
-                    <polygon points={d} fill="currentColor" className="text-brand-secondary/25" stroke="currentColor" strokeWidth={1} />
-                </svg>
-            </div>
-            <ul className="mt-2 grid grid-cols-2 gap-1 text-[10px] text-fg-tertiary">
-                {axes.map((ax) => (
-                    <li key={ax.label} className="flex justify-between gap-1 rounded bg-secondary_subtle/50 px-1.5 py-0.5">
-                        <span>{ax.label}</span>
-                        <span className="tabular-nums text-fg-secondary">{ax.percentLabel}</span>
-                    </li>
-                ))}
-            </ul>
-        </section>
-    );
-}
-
-function TeamHeatmap({
-    assignments,
-    teamNameById,
-}: {
-    assignments: AssignmentItem[];
-    teamNameById: Map<string, string | undefined>;
-}) {
-    const { t } = useTranslation("common");
-    const unknownTalent = t("managerWorkspace.missionControl.unknownTalent");
-    const tm = (key: string) => t(`managerWorkspace.missionControl.${key}`);
-    return (
-        <section className="rounded-xl border border-secondary bg-primary p-3">
-            <h4 className="mb-2 text-xs font-semibold uppercase tracking-wide text-fg-tertiary">{tm("heatmapTitle")}</h4>
-            <div className="space-y-2">
-                {assignments.length === 0 ? <p className="text-xs text-fg-tertiary">{tm("heatmapEmpty")}</p> : null}
-                {assignments.map((a, idx) => {
-                    const id = String(a.talent_id ?? "").trim();
-                    const key = normalizeId(a.talent_id);
-                    const rowKey = String(a.id ?? "").trim() || `${id || "talent"}-${idx}`;
-                    const pct = typeof a.allocation_pct === "number" ? a.allocation_pct : Number(a.allocation_pct);
-                    const w = Number.isFinite(pct) ? clamp(pct, 0, 100) : 0;
-                    const label = pickTalentDisplayName(
-                        {
-                            talentName: a.talent_name,
-                            mappedName: teamNameById.get(key),
-                            talentEmail: a.talent_email,
-                            talentId: id,
-                        },
-                        unknownTalent,
-                    );
-                    return (
-                        <div key={rowKey} className="space-y-0.5">
-                            <div className="flex justify-between gap-1 text-[11px] text-fg-secondary">
-                                <span className="truncate font-medium text-fg-primary">{label}</span>
-                                <span className="shrink-0 tabular-nums">{formatAllocation(a.allocation_pct)}</span>
-                            </div>
-                            <div className="h-2 overflow-hidden rounded-full bg-secondary_subtle">
-                                <div
-                                    className="h-full rounded-full bg-gradient-to-r from-brand-secondary to-brand-solid"
-                                    style={{ width: `${w}%` }}
-                                />
-                            </div>
-                        </div>
-                    );
-                })}
-            </div>
-        </section>
-    );
-}
-
-export function ProjectMissionControlModal({
-    open,
+export function ProjectMissionControlWorkspace({
     projectId,
     listProject,
     onClose,
-    initialWorkspaceTab,
-}: ProjectMissionControlModalProps) {
-    const enabled = open && Boolean(projectId);
-    const pid = projectId ?? "";
+    workspaceTab: workspaceTabProp = "overview",
+    onWorkspaceTabChange,
+}: ProjectMissionControlWorkspaceProps) {
+    const enabled = Boolean(projectId);
+    const pid = projectId;
     const { user } = useAuth();
 
     const detail = useProjectDetail(pid);
@@ -339,8 +285,19 @@ export function ProjectMissionControlModal({
         assignment_type: WmpAssignmentType;
     }>({ talent_id: "", allocation_pct: 50, assignment_type: "part_time" });
     const [whatIfAllocationPct, setWhatIfAllocationPct] = useState("");
-    const [workspaceTab, setWorkspaceTab] = useState<WorkspaceTabId>("overview");
-    const [mobileMissionTab, setMobileMissionTab] = useState<MobileMissionTabId>("overview");
+    const [workspaceTab, setWorkspaceTab] = useState<WorkspaceTabId>(workspaceTabProp);
+    const [mobileMissionTab, setMobileMissionTab] = useState<MobileMissionTabId>(workspaceTabProp);
+    const [isCopilotOpen, setIsCopilotOpen] = useState(false);
+    const copilotFabRef = useRef<HTMLButtonElement>(null);
+
+    const applyWorkspaceTab = useCallback(
+        (tab: WorkspaceTabId) => {
+            setWorkspaceTab(tab);
+            setMobileMissionTab(tab);
+            onWorkspaceTabChange?.(tab);
+        },
+        [onWorkspaceTabChange],
+    );
 
     const { t, i18n } = useTranslation("common");
     const tm = useCallback(
@@ -352,24 +309,12 @@ export function ProjectMissionControlModal({
     );
 
     useEffect(() => {
-        if (!open) return;
-        const onKey = (e: KeyboardEvent) => {
-            if (e.key === "Escape") onClose();
-        };
-        window.addEventListener("keydown", onKey);
-        return () => window.removeEventListener("keydown", onKey);
-    }, [open, onClose]);
+        setWorkspaceTab(workspaceTabProp);
+        setMobileMissionTab(workspaceTabProp);
+    }, [workspaceTabProp, projectId]);
 
     useEffect(() => {
-        if (open) {
-            const tab = initialWorkspaceTab ?? "overview";
-            setWorkspaceTab(tab);
-            setMobileMissionTab(tab);
-        }
-    }, [open, projectId, initialWorkspaceTab]);
-
-    useEffect(() => {
-        if (!open || !projectId) return;
+        if (!projectId) return;
         const project = detail.data?.project;
         const rowMatches =
             listProject &&
@@ -384,7 +329,6 @@ export function ProjectMissionControlModal({
             milestone_at: toDateInputValue(src.milestone_at != null ? String(src.milestone_at) : ""),
         });
     }, [
-        open,
         projectId,
         detail.data?.project?.status,
         detail.data?.project?.priority,
@@ -398,7 +342,7 @@ export function ProjectMissionControlModal({
     useEffect(() => {
         assignmentTypeTouched.current = false;
         setAssignPayload({ talent_id: "", allocation_pct: 50, assignment_type: "part_time" });
-    }, [open, projectId]);
+    }, [projectId]);
 
     const refreshProjectSnapshot = useCallback(() => {
         const enterpriseId = user?.enterpriseId?.trim();
@@ -417,10 +361,6 @@ export function ProjectMissionControlModal({
     }, [pid, pushToast, runViabilityRefresh, tm, user?.enterpriseId]);
 
     useEffect(() => {
-        if (!open) {
-            viabilityScanKeyRef.current = null;
-            return;
-        }
         if (!pid) return;
         const enterpriseId = user?.enterpriseId?.trim();
         if (!enterpriseId) return;
@@ -436,10 +376,10 @@ export function ProjectMissionControlModal({
                 },
             },
         );
-    }, [open, pid, runViabilityRefresh, user?.enterpriseId]);
+    }, [pid, runViabilityRefresh, user?.enterpriseId]);
 
     const editBaseline = useMemo(() => {
-        if (!open || !projectId) return null;
+        if (!projectId) return null;
         const project = detail.data?.project;
         const rowMatches =
             listProject &&
@@ -453,7 +393,6 @@ export function ProjectMissionControlModal({
             milestone_at: toDateInputValue(src.milestone_at != null ? String(src.milestone_at) : ""),
         };
     }, [
-        open,
         projectId,
         detail.data?.project?.status,
         detail.data?.project?.priority,
@@ -492,7 +431,7 @@ export function ProjectMissionControlModal({
         [detail.data?.assignments],
     );
     const strategistArbitrage = useProjectStrategistArbitrage({
-        open,
+        open: enabled,
         projectId: pid,
         enterpriseId: user?.enterpriseId,
         detail: detail.data,
@@ -518,10 +457,7 @@ export function ProjectMissionControlModal({
     }, [latestKpi, detail.data, listProject?.progress_pct]);
     const progressLabel = formatProgressPercent(progressPct);
     const health = readLatestKpiHealthScore(latestKpi);
-    const loadRaw = latestKpi?.capacity_load_pct;
-    const loadPct = loadRaw != null && Number.isFinite(Number(loadRaw)) ? Number(loadRaw) : null;
     const delayDays = readLatestKpiDelayDays(latestKpi);
-    const alertCount = detail.data?.active_alerts?.length ?? 0;
     const projectName = detail.data?.project.name ?? listProject?.name ?? tm("projectNameFallback");
     const latestDecisionRaw = detail.data?.latest_viability?.decision ?? listProject?.latest_decision ?? null;
     const decisionBadge = latestDecisionRaw ?? "—";
@@ -679,31 +615,20 @@ export function ProjectMissionControlModal({
         });
     }, [lifecyclePatchSource, pid, updateProject]);
 
-    if (!open || !projectId) return null;
-
-    const leftPanel = (
-        <div className="flex min-h-0 min-w-0 flex-col gap-3 overflow-y-auto p-2">
-            <MissionRadar viability={viabilityScore} health={health} loadPct={loadPct} alertCount={alertCount} />
-            <ProjectRiskMatrix
-                alerts={detail.data?.active_alerts ?? []}
-                loading={detail.isLoading}
-                onAlertClick={() => {
-                    setWorkspaceTab("risks");
-                    setMobileMissionTab("risks");
-                }}
-            />
-            <TeamHeatmap assignments={detail.data?.assignments ?? []} teamNameById={teamNameById} />
-        </div>
-    );
+    if (!projectId) return null;
 
     const mobileChip = (id: MobileMissionTabId, label: string) => (
         <button
             type="button"
             key={id}
-            onClick={() => setMobileMissionTab(id)}
+            role="tab"
+            aria-selected={mobileMissionTab === id}
+            onClick={() => applyWorkspaceTab(id)}
             className={cx(
-                "shrink-0 rounded-lg px-2.5 py-1.5 text-[11px] font-semibold transition sm:px-3 sm:text-xs",
-                mobileMissionTab === id ? "bg-brand-solid text-white" : "text-fg-secondary hover:bg-secondary_subtle",
+                "shrink-0 rounded-md px-2.5 py-1.5 text-[11px] font-medium transition-all duration-150 ease-out focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-violet-500 sm:px-3 sm:text-xs",
+                mobileMissionTab === id
+                    ? "bg-violet-100 font-medium text-violet-700"
+                    : "text-slate-600 hover:bg-slate-50",
             )}
         >
             {label}
@@ -720,102 +645,114 @@ export function ProjectMissionControlModal({
         : "—";
     const priorityBadge = detail.data?.project.priority ?? listProject?.priority ?? "—";
 
-    const copilotColumn = (
-        <div className="flex min-h-0 min-w-0 flex-col overflow-hidden border-secondary/50 lg:border-l">
-            <div className="min-h-0 flex-1 overflow-hidden p-2">
-                <ManagerProjectCopilotPanel
-                    projectId={pid}
-                    projectName={projectName}
-                    compact
-                    prefetchedContext={copilotPrefetched}
-                    onRefreshProjectSnapshot={refreshProjectSnapshot}
-                    refreshingProjectSnapshot={viabilityRefreshing}
-                />
-            </div>
-        </div>
+    const copilotPanel = (
+        <ManagerProjectCopilotPanel
+            projectId={pid}
+            projectName={projectName}
+            compact
+            embeddedInDrawer
+            prefetchedContext={copilotPrefetched}
+            onRefreshProjectSnapshot={refreshProjectSnapshot}
+            refreshingProjectSnapshot={viabilityRefreshing}
+        />
     );
 
     const workspaceNav = (
         <nav
-            className="hidden shrink-0 flex-wrap gap-1 border-b border-secondary bg-secondary_subtle/50 px-2 py-1.5 lg:flex"
+            className="hidden shrink-0 px-4 py-3 lg:flex"
             aria-label={tm("navWorkspaceAria")}
+            role="tablist"
         >
-            {(
-                [
-                    { id: "overview" as const, labelKey: "tabOverview" as const },
-                    { id: "team" as const, labelKey: "tabTeam" as const },
-                    { id: "tasks" as const, labelKey: "tabTasks" as const },
-                    { id: "risks" as const, labelKey: "tabRisks" as const },
-                    { id: "simulation" as const, labelKey: "tabSimulation" as const },
-                    { id: "decisions" as const, labelKey: "tabDecisions" as const },
-                ] as const
-            ).map((tab) => (
-                <button
-                    key={tab.id}
-                    type="button"
-                    onClick={() => setWorkspaceTab(tab.id)}
-                    className={cx(
-                        "rounded-lg px-3 py-2 text-xs font-semibold transition",
-                        workspaceTab === tab.id ? "bg-brand-solid text-white" : "text-fg-secondary hover:bg-secondary_subtle",
-                    )}
-                >
-                    {tm(tab.labelKey)}
-                </button>
-            ))}
+            <div className="flex w-full flex-wrap gap-1 rounded-lg bg-slate-50 p-1 dark:bg-secondary_subtle/50">
+                {(
+                    [
+                        { id: "overview" as const, labelKey: "tabOverview" as const },
+                        { id: "team" as const, labelKey: "tabTeam" as const },
+                        { id: "tasks" as const, labelKey: "tabTasks" as const },
+                        { id: "risks" as const, labelKey: "tabRisks" as const },
+                        { id: "simulation" as const, labelKey: "tabSimulation" as const },
+                        { id: "decisions" as const, labelKey: "tabDecisions" as const },
+                    ] as const
+                ).map((tab) => (
+                    <button
+                        key={tab.id}
+                        type="button"
+                        role="tab"
+                        aria-selected={workspaceTab === tab.id}
+                        onClick={() => applyWorkspaceTab(tab.id)}
+                        className={cx(
+                            "rounded-md px-3 py-2 text-xs font-medium transition-all duration-150 ease-out focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-violet-500",
+                            workspaceTab === tab.id
+                                ? "bg-violet-100 font-medium text-violet-700"
+                                : "text-slate-600 hover:bg-slate-50",
+                        )}
+                    >
+                        {tm(tab.labelKey)}
+                    </button>
+                ))}
+            </div>
         </nav>
     );
 
     const overviewBody = (
-        <div className="space-y-4">
-            <div className="space-y-2 lg:hidden">
-                <MissionRadar viability={viabilityScore} health={health} loadPct={loadPct} alertCount={alertCount} />
-                <ProjectRiskMatrix
-                    alerts={detail.data?.active_alerts ?? []}
-                    loading={detail.isLoading}
-                    onAlertClick={() => {
-                        setWorkspaceTab("risks");
-                        setMobileMissionTab("risks");
-                    }}
-                />
-                <TeamHeatmap assignments={detail.data?.assignments ?? []} teamNameById={teamNameById} />
-            </div>
+        <div className="space-y-6">
             {detail.isLoading ? <p className="text-sm text-fg-secondary">{tm("loadingShort")}</p> : null}
             {detail.isError ? (
                 <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-100">
                     {tm("partialDetailNote")}
                 </p>
             ) : null}
-            <section className="rounded-xl border border-secondary bg-primary p-4">
-                <p className="text-xs font-semibold uppercase tracking-wide text-fg-tertiary">{tm("execSummary")}</p>
-                <p className="mt-2 text-sm leading-relaxed text-fg-secondary">{executiveSummary}</p>
+            <section className="rounded-lg border border-slate-200 bg-white p-4 dark:border-secondary dark:bg-primary">
+                <p className="mb-2 text-xs font-medium uppercase tracking-widest text-slate-500">{tm("execSummary")}</p>
+                <p className="text-sm leading-relaxed text-slate-700 dark:text-fg-secondary">{executiveSummary}</p>
             </section>
-            <section className="grid gap-2 sm:grid-cols-2">
-                <article className="rounded-xl border border-secondary p-3">
-                    <p className="text-xs text-fg-tertiary">{tm("healthKpi")}</p>
-                    <p className="text-lg font-semibold text-fg-primary">
-                        {health != null ? `${health.toFixed(1)}/10` : "—"}
-                    </p>
-                </article>
-                <article className="rounded-xl border border-secondary p-3">
-                    <p className="text-xs text-fg-tertiary">{tm("viabilityKpi")}</p>
-                    <p className="text-lg font-semibold text-fg-primary">{viabilityFormatted.display}</p>
-                </article>
-                <article className="rounded-xl border border-secondary p-3">
-                    <p className="text-xs text-fg-tertiary">{tm("alertsKpi")}</p>
-                    <p className="text-lg font-semibold text-fg-primary">{detail.data?.active_alerts?.length ?? 0}</p>
-                </article>
-                <article className="rounded-xl border border-secondary p-3">
-                    <p className="text-xs text-fg-tertiary">{tm("assignedTalentsKpi")}</p>
-                    <p className="text-lg font-semibold text-fg-primary">{detail.data?.assignments?.length ?? 0}</p>
-                </article>
-                <article className="rounded-xl border border-secondary p-3">
-                    <p className="text-xs text-fg-tertiary">{tm("progressKpi")}</p>
-                    <p className="text-lg font-semibold text-fg-primary">{progressLabel}</p>
-                </article>
+            <section className="grid grid-cols-2 gap-4 md:grid-cols-3 xl:grid-cols-5">
+                <MissionKpiCard
+                    label={tm("healthKpi")}
+                    value={health != null ? health.toFixed(1) : "—"}
+                    unit={health != null ? "/10" : undefined}
+                    scoreBarPct={health}
+                />
+                <MissionKpiCard
+                    label={tm("viabilityKpi")}
+                    value={
+                        viabilityScore != null && Number.isFinite(viabilityScore)
+                            ? viabilityScore.toFixed(1)
+                            : "—"
+                    }
+                    unit={viabilityScore != null ? "/10" : undefined}
+                    scoreBarPct={viabilityScore}
+                />
+                <MissionKpiCard
+                    label={tm("alertsKpi")}
+                    value={String(detail.data?.active_alerts?.length ?? 0)}
+                />
+                <MissionKpiCard
+                    label={tm("assignedTalentsKpi")}
+                    value={String(detail.data?.assignments?.length ?? 0)}
+                />
+                <MissionKpiCard
+                    label={tm("progressKpi")}
+                    value={progressPct != null ? String(Math.round(progressPct)) : "—"}
+                    unit={progressPct != null ? "%" : undefined}
+                    progressBarPct={progressPct}
+                />
             </section>
-            <section className="rounded-xl border border-brand-secondary/25 bg-brand-primary/5 p-4">
-                <p className="text-xs font-semibold uppercase tracking-wide text-brand-secondary">{tm("aiRecoTitle")}</p>
-                <p className="mt-2 text-sm leading-relaxed text-fg-secondary">{tm("aiRecoBody", { milestone: milestoneLabel })}</p>
+            <section className="relative rounded-lg border border-violet-200 border-l-4 border-l-violet-500 bg-violet-50 p-4 dark:border-violet-800/50 dark:bg-violet-950/30">
+                <span className="absolute top-3 right-3 rounded-full border border-violet-300 bg-white px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-violet-700 dark:border-violet-700 dark:bg-violet-950 dark:text-violet-200">
+                    IA
+                </span>
+                <div className="flex gap-3">
+                    <Sparkles className="mt-0.5 size-4 shrink-0 text-violet-600" aria-hidden />
+                    <div className="min-w-0 flex-1 pr-10">
+                        <p className="text-xs font-medium uppercase tracking-widest text-violet-700 dark:text-violet-300">
+                            {tm("aiRecoTitle")}
+                        </p>
+                        <p className="mt-2 text-sm leading-relaxed text-slate-700 dark:text-fg-secondary">
+                            {tm("aiRecoBody", { milestone: milestoneLabel })}
+                        </p>
+                    </div>
+                </div>
             </section>
         </div>
     );
@@ -1181,8 +1118,7 @@ export function ProjectMissionControlModal({
                                 tm("arbitrageAcceptedToast", { label: opt.label || opt.id }),
                                 { pausedDescription: tm("arbitrageStopScopePausedDesc") },
                             );
-                            setWorkspaceTab("overview");
-                            setMobileMissionTab("overview");
+                            applyWorkspaceTab("overview");
                         } else {
                             pushToast(tm("arbitrageAcceptedToast", { label: opt.label || opt.id }), "success", 8000);
                         }
@@ -1260,7 +1196,7 @@ export function ProjectMissionControlModal({
     );
 
     const workspaceScroll = (
-        <div className="min-h-0 flex-1 overflow-y-auto p-3">
+        <div className="min-h-0 flex-1 overflow-y-auto p-6 lg:p-8">
             {workspaceTab === "overview" ? overviewBody : null}
             {workspaceTab === "team" ? teamBody : null}
             {workspaceTab === "tasks" ? tasksBody : null}
@@ -1271,8 +1207,8 @@ export function ProjectMissionControlModal({
     );
 
     const lifecycleStepperBlock = lifecycleProject ? (
-        <div className="shrink-0 px-3 pt-2 lg:px-4">
-            <div className="mx-auto mb-4 w-full max-w-5xl">
+        <div className="shrink-0 px-6 pt-4 lg:px-8">
+            <div className="mb-4 w-full">
                 <ProjectLifecycleStepper
                     project={lifecycleProject}
                     tasks={lifecycleTasks}
@@ -1284,8 +1220,8 @@ export function ProjectMissionControlModal({
         </div>
     ) : null;
 
-    const centerColumn = (
-        <div className="flex min-h-0 min-w-0 flex-col overflow-hidden border-secondary/50 lg:border-r">
+    const missionWorkspace = (
+        <div className="mx-auto flex min-h-0 w-full max-w-7xl flex-1 flex-col overflow-hidden">
             {lifecycleStepperBlock}
             {workspaceNav}
             {workspaceScroll}
@@ -1293,57 +1229,68 @@ export function ProjectMissionControlModal({
     );
 
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-2 sm:p-3" onClick={onClose}>
-            <div
-                role="dialog"
-                aria-modal
-                aria-labelledby="mission-modal-title"
-                className="flex h-[92vh] max-h-[92vh] w-[96vw] max-w-[96vw] flex-col overflow-hidden rounded-2xl border border-secondary bg-primary text-fg-primary shadow-2xl ring-1 ring-secondary/80"
-                onClick={(e) => e.stopPropagation()}
-            >
-                <header className="sticky top-0 z-30 shrink-0 border-b border-secondary bg-primary/95 px-4 py-3 backdrop-blur-sm">
-                    <div className="flex flex-wrap items-start justify-between gap-3">
-                        <div className="min-w-0 flex-1">
-                            <p className="text-[10px] font-semibold uppercase tracking-wider text-fg-tertiary">{tm("headerEyebrow")}</p>
-                            <h2 id="mission-modal-title" className="truncate text-lg font-semibold text-fg-primary sm:text-xl">
-                                {projectName}
-                            </h2>
-                            <div className="mt-2 flex flex-wrap gap-1.5">
-                                <span className="rounded-full border border-secondary bg-secondary_subtle px-2.5 py-0.5 text-[11px] font-medium capitalize text-fg-primary">
-                                    {statusBadgeLabel}
-                                </span>
-                                <span className="rounded-full border border-brand-secondary/35 bg-brand-primary/10 px-2.5 py-0.5 text-[11px] font-semibold text-fg-primary">
+        <div className="flex h-full min-h-0 flex-1 flex-col overflow-hidden bg-primary text-fg-primary">
+            <header className="sticky top-0 z-30 shrink-0 border-b border-slate-200 bg-primary/95 px-6 py-4 backdrop-blur-sm lg:px-8">
+                <div className="flex flex-wrap items-start justify-between gap-4">
+                    <div className="min-w-0 flex-1">
+                        <p className="text-xs font-medium uppercase tracking-widest text-slate-500">{tm("headerEyebrow")}</p>
+                        <h1
+                            id="mission-control-title"
+                            className="mt-1 text-2xl font-bold leading-tight text-slate-900 dark:text-fg-primary lg:text-3xl"
+                        >
+                            {projectName}
+                        </h1>
+                        <div className="mt-3 flex flex-wrap gap-2">
+                            <span
+                                className={cx(
+                                    "rounded-full border px-3 py-1 text-xs font-medium transition-all duration-150 ease-out",
+                                    statusPillClass(projectStatusRaw),
+                                )}
+                            >
+                                {statusBadgeLabel}
+                            </span>
+                            {latestDecisionRaw ? (
+                                <span
+                                    className={cx(
+                                        "rounded-full border px-3 py-1 text-xs font-medium transition-all duration-150 ease-out",
+                                        decisionPillClass(latestDecisionRaw),
+                                    )}
+                                >
                                     {String(decisionBadge)}
                                 </span>
-                                {viabilityScore != null ? (
-                                    <span className="rounded-full border border-secondary bg-primary px-2.5 py-0.5 text-[11px] text-fg-secondary">
-                                        {tm("badgeScore")}{" "}
-                                        <span className="font-semibold tabular-nums text-fg-primary">{viabilityFormatted.header}</span>
-                                    </span>
-                                ) : null}
-                                <span className="rounded-full border border-secondary bg-primary px-2.5 py-0.5 text-[11px] text-fg-secondary">
-                                    {tm("badgePriority")} <span className="font-semibold text-fg-primary">{String(priorityBadge)}</span>
+                            ) : null}
+                            {viabilityScore != null ? (
+                                <span className="rounded-full border border-slate-200 bg-slate-100 px-3 py-1 text-xs font-medium text-slate-700">
+                                    {tm("badgeScore")}{" "}
+                                    <span className="font-semibold tabular-nums">{viabilityFormatted.header}</span>
                                 </span>
-                                <span className="rounded-full border border-dashed border-secondary px-2.5 py-0.5 text-[11px] text-fg-tertiary">
-                                    {tm("milestonePrefix")} {milestoneLabel}
-                                </span>
-                            </div>
+                            ) : null}
+                            <span className="rounded-full border border-slate-200 bg-slate-100 px-3 py-1 text-xs font-medium text-slate-700">
+                                {tm("badgePriority")}{" "}
+                                <span className="font-semibold">{String(priorityBadge)}</span>
+                            </span>
+                            <span className="rounded-full border border-dashed border-slate-300 bg-white px-3 py-1 text-xs font-medium text-slate-500">
+                                {tm("milestonePrefix")} {milestoneLabel}
+                            </span>
                         </div>
-                        <button
-                            type="button"
-                            className="shrink-0 rounded-lg border border-secondary bg-primary_alt px-3 py-2 text-sm font-medium text-fg-secondary hover:bg-secondary_hover"
-                            onClick={onClose}
-                        >
-                            {tm("closeButton")}
-                        </button>
                     </div>
-                </header>
+                    <button
+                        type="button"
+                        className="shrink-0 rounded-lg px-3 py-2 text-sm font-medium text-slate-600 transition-all duration-150 ease-out hover:bg-slate-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-violet-500"
+                        onClick={onClose}
+                    >
+                        {tm("closeButton")}
+                    </button>
+                </div>
+            </header>
 
-                <div className="flex min-h-0 flex-1 flex-col overflow-hidden lg:hidden">
+            <div className="flex min-h-0 flex-1 flex-col overflow-hidden lg:hidden">
+                <div className="mx-auto flex min-h-0 w-full max-w-7xl flex-1 flex-col overflow-hidden">
                     {lifecycleStepperBlock}
                     <nav
-                        className="flex shrink-0 gap-1 overflow-x-auto border-b border-secondary bg-secondary_subtle/40 px-2 py-2"
+                        className="flex shrink-0 gap-1 overflow-x-auto border-b border-slate-200 bg-slate-50 px-3 py-2"
                         aria-label={tm("navMissionMobileAria")}
+                        role="tablist"
                     >
                         {mobileChip("overview", tm("tabOverview"))}
                         {mobileChip("team", tm("tabTeam"))}
@@ -1351,10 +1298,8 @@ export function ProjectMissionControlModal({
                         {mobileChip("risks", tm("tabRisks"))}
                         {mobileChip("simulation", tm("tabSimulation"))}
                         {mobileChip("decisions", tm("tabDecisions"))}
-                        {mobileChip("copilot", tm("tabCopilot"))}
                     </nav>
                     <div className="min-h-0 flex-1 overflow-hidden">
-                        {mobileMissionTab === "copilot" ? copilotColumn : null}
                         {mobileMissionTab === "overview" ? (
                             <div className="flex h-full min-h-0 flex-col overflow-y-auto">{overviewBody}</div>
                         ) : null}
@@ -1375,13 +1320,24 @@ export function ProjectMissionControlModal({
                         ) : null}
                     </div>
                 </div>
-
-                <div className="hidden min-h-0 flex-1 overflow-hidden lg:grid lg:grid-cols-[22%_minmax(0,1fr)_28%]">
-                    <aside className="min-h-0 overflow-y-auto border-r border-secondary/50 bg-secondary_subtle/10 p-2">{leftPanel}</aside>
-                    {centerColumn}
-                    {copilotColumn}
-                </div>
             </div>
+
+            <div className="hidden min-h-0 flex-1 overflow-hidden lg:flex">{missionWorkspace}</div>
+
+            <CopilotFloatingButton
+                ref={copilotFabRef}
+                hidden={isCopilotOpen}
+                onClick={() => setIsCopilotOpen(true)}
+            />
+
+            <CopilotDrawer
+                open={isCopilotOpen}
+                onClose={() => setIsCopilotOpen(false)}
+                projectName={projectName}
+                returnFocusRef={copilotFabRef}
+            >
+                <div className="flex h-full min-h-0 flex-1 flex-col overflow-hidden">{copilotPanel}</div>
+            </CopilotDrawer>
         </div>
     );
 }

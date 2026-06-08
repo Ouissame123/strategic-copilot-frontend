@@ -1,8 +1,45 @@
 import type { FC, HTMLAttributes, MouseEventHandler, ReactNode } from "react";
 import { ChevronDown, Share04 } from "@untitledui/icons";
 import { Link as AriaLink } from "react-aria-components";
+import { Link as RouterLink } from "react-router";
 import { Badge } from "@/components/base/badges/badges";
 import { cx, sortCx } from "@/utils/cx";
+
+function isExternalHref(href: string | undefined): boolean {
+    if (!href) return false;
+    return /^https?:\/\//i.test(href) || href.startsWith("//");
+}
+
+type NavItemLinkProps = {
+    href: string;
+    className: string;
+    current?: boolean;
+    onClick?: MouseEventHandler;
+    children: ReactNode;
+};
+
+function NavItemLink({ href, className, current, onClick, children }: NavItemLinkProps) {
+    if (isExternalHref(href)) {
+        return (
+            <AriaLink
+                href={href}
+                target="_blank"
+                rel="noopener noreferrer"
+                className={className}
+                onClick={onClick}
+                aria-current={current ? "page" : undefined}
+            >
+                {children}
+            </AriaLink>
+        );
+    }
+
+    return (
+        <RouterLink to={href} className={className} onClick={onClick} aria-current={current ? "page" : undefined}>
+            {children}
+        </RouterLink>
+    );
+}
 
 const styles = sortCx({
     root: "group relative flex w-full cursor-pointer items-center rounded-md border border-transparent bg-primary outline-focus-ring transition duration-100 ease-linear select-none hover:bg-primary_hover focus-visible:z-10 focus-visible:outline-2 focus-visible:outline-offset-2",
@@ -56,7 +93,7 @@ export const NavItemBase = ({ current, type, badge, href, icon: Icon, children, 
         </span>
     );
 
-    const isExternal = href && href.startsWith("http");
+    const isExternal = isExternalHref(href);
     const externalIcon = isExternal && <Share04 className="size-4 stroke-[2.5px] text-fg-quaternary" />;
 
     if (type === "collapsible") {
@@ -75,34 +112,30 @@ export const NavItemBase = ({ current, type, badge, href, icon: Icon, children, 
 
     if (type === "collapsible-child") {
         return (
-            <AriaLink
+            <NavItemLink
                 href={href!}
-                target={isExternal ? "_blank" : "_self"}
-                rel="noopener noreferrer"
                 className={cx("py-2 pr-3 pl-10", styles.root, current && styles.rootSelected)}
+                current={current}
                 onClick={onClick}
-                aria-current={current ? "page" : undefined}
             >
                 {labelElement}
                 {externalIcon}
                 {badgeElement}
-            </AriaLink>
+            </NavItemLink>
         );
     }
 
     return (
-        <AriaLink
+        <NavItemLink
             href={href!}
-            target={isExternal ? "_blank" : "_self"}
-            rel="noopener noreferrer"
             className={cx("px-3 py-2", styles.root, current && styles.rootSelected)}
+            current={current}
             onClick={onClick}
-            aria-current={current ? "page" : undefined}
         >
             {iconElement}
             {labelElement}
             {externalIcon}
             {badgeElement}
-        </AriaLink>
+        </NavItemLink>
     );
 };

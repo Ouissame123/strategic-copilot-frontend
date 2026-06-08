@@ -1,5 +1,4 @@
 import { useMemo, useState } from "react";
-import type { CSSProperties } from "react";
 import { useTranslation } from "react-i18next";
 import type { DashboardAnalyst, DashboardAnalystAtRiskTalent, DashboardAnalystIpiTopPerformer } from "@/types/api.types";
 import { NineBoxInteractive } from "@/components/manager/dashboard/NineBoxInteractive";
@@ -11,105 +10,11 @@ import {
 import { useManagerAnalystDashboard } from "@/hooks/use-manager-analyst";
 import { useAuth } from "@/providers/auth-provider";
 
-type NineBoxTone = "red" | "blue" | "purple" | "orange" | "green" | "neutral";
-
-type NineBoxBoxKey = "future_star" | "key_contributor" | "star" | "dependable" | "underperformer";
-
-interface NineBoxGridCell {
-    /** `null` = case structurelle ou catégorie absente des données (affichage « — » pour l’effectif). */
-    count: number | null;
-    label: string;
-    tone: NineBoxTone;
-    /** Cases vides de la grille 3×3 (non cliquables). */
-    isStructuralSlot?: boolean;
-    /** Catégorie métier cliquable ; absent pour la matrice API brute. */
-    boxKey?: NineBoxBoxKey | null;
-}
-
 function readAnalystNumber(v: unknown): number | null {
     if (typeof v === "number" && Number.isFinite(v)) return v;
     if (typeof v === "string" && v.trim() !== "") {
         const n = Number(v);
         return Number.isFinite(n) ? n : null;
-    }
-    return null;
-}
-
-function extractCountValue(v: unknown): number {
-    const direct = readAnalystNumber(v);
-    if (direct !== null) return direct;
-    if (v && typeof v === "object") {
-        const o = v as Record<string, unknown>;
-        return readAnalystNumber(o.count ?? o.total ?? o.value ?? o.headcount ?? o.n) ?? 0;
-    }
-    return 0;
-}
-
-/** Synonymes normalisés (sans séparateur, minuscules) pour faire correspondre les clés API. */
-const NINE_BOX_CATEGORY_SYNONYMS: Record<string, readonly string[]> = {
-    future_star: ["futurestar", "future_star", "risingstar", "rising_star", "highpotential"],
-    key_contributor: ["keycontributor", "key_contributor", "keycontributer", "pillar", "corecontributor"],
-    star: ["star", "stars", "topstar", "top_star"],
-    dependable: ["dependable", "solid", "coreprofessional"],
-    underperformer: ["underperformer", "underperformers", "under_performer", "lowperformer", "low_performer"],
-} as const;
-
-function fingerprintKey(k: string): string {
-    return k.replace(/[_\s-]/g, "").toLowerCase();
-}
-
-/**
- * Aplatit `nine_box_distribution` : JSON string, tableau { category, count }, ou objet imbriqué
- * (`distribution`, `boxes`, `categories`, `data`, `breakdown`).
- */
-function normalizeNineBoxDistribution(raw: unknown): Record<string, unknown> {
-    if (raw == null || raw === "") return {};
-    if (typeof raw === "string") {
-        try {
-            return normalizeNineBoxDistribution(JSON.parse(raw) as unknown);
-        } catch {
-            return {};
-        }
-    }
-    if (Array.isArray(raw)) {
-        const out: Record<string, unknown> = {};
-        for (const item of raw) {
-            if (!item || typeof item !== "object") continue;
-            const o = item as Record<string, unknown>;
-            const key =
-                (typeof o.box_label === "string" && o.box_label.trim()) ||
-                (typeof o.boxLabel === "string" && o.boxLabel.trim()) ||
-                (typeof o.key === "string" && o.key.trim()) ||
-                (typeof o.category === "string" && o.category.trim()) ||
-                (typeof o.box === "string" && o.box.trim()) ||
-                (typeof o.id === "string" && o.id.trim()) ||
-                (typeof o.label === "string" && o.label.trim());
-            if (!key) continue;
-            out[key] = o.count ?? o.value ?? o.total ?? o;
-        }
-        return out;
-    }
-    if (typeof raw === "object") {
-        const o = raw as Record<string, unknown>;
-        const nestedKeys = ["distribution", "boxes", "categories", "data", "breakdown"] as const;
-        for (const nk of nestedKeys) {
-            const inner = o[nk];
-            if (inner && typeof inner === "object" && !Array.isArray(inner)) {
-                const normalized = normalizeNineBoxDistribution(inner);
-                if (Object.keys(normalized).length > 0) return normalized;
-            }
-        }
-        return { ...o };
-    }
-    return {};
-}
-
-function distGetCountNullable(dist: Record<string, unknown>, canonical: keyof typeof NINE_BOX_CATEGORY_SYNONYMS): number | null {
-    const targets = new Set(NINE_BOX_CATEGORY_SYNONYMS[canonical].map((s) => fingerprintKey(s)));
-    for (const [k, v] of Object.entries(dist)) {
-        if (targets.has(fingerprintKey(k))) {
-            return extractCountValue(v);
-        }
     }
     return null;
 }
@@ -129,130 +34,6 @@ function formatMobilityScore(n: number | null): string {
     return n.toFixed(1);
 }
 
-function inferToneFromKey(key: string): NineBoxTone {
-    const k = key.replace(/_/g, "").toLowerCase();
-    if (k.includes("underperform")) return "red";
-    if (k === "dependable") return "blue";
-    if (k.includes("keycontributor")) return "purple";
-    if (k.includes("futurestar")) return "orange";
-    if (k === "star" || k === "stars") return "green";
-    return "neutral";
-}
-
-const TONE_RGB: Record<NineBoxTone, [number, number, number]> = {
-    red: [220, 38, 38],
-    blue: [37, 99, 235],
-    purple: [124, 58, 237],
-    orange: [234, 88, 12],
-    green: [22, 163, 74],
-    neutral: [100, 116, 139],
-};
-
-function cellBackgroundStyle(tone: NineBoxTone, ratio: number): CSSProperties {
-    const [r, g, b] = TONE_RGB[tone];
-    const t = Math.min(1, Math.max(0, ratio));
-    const alpha = tone === "neutral" && t === 0 ? 0.06 : 0.1 + 0.42 * t;
-    return { backgroundColor: `rgba(${r}, ${g}, ${b}, ${alpha})` };
-}
-
-function parseMatrixCell(cell: unknown, r: number, c: number): NineBoxGridCell {
-    if (cell == null) {
-        return { count: 0, label: "—", tone: "neutral" };
-    }
-    if (typeof cell === "number" || typeof cell === "string") {
-        const count = readAnalystNumber(cell) ?? 0;
-        return { count, label: "", tone: "neutral" };
-    }
-    if (typeof cell === "object") {
-        const o = cell as Record<string, unknown>;
-        const count = extractCountValue(o.count ?? o.value ?? o.headcount ?? o.n ?? o);
-        const rawKey = typeof o.key === "string" ? o.key : typeof o.box_key === "string" ? o.box_key : "";
-        const labelRaw = typeof o.label === "string" ? o.label : typeof o.name === "string" ? o.name : "";
-        const label = labelRaw.trim() || (rawKey ? rawKey.replace(/_/g, " ") : "");
-        const tone = rawKey || labelRaw ? inferToneFromKey((rawKey || labelRaw).replace(/\s+/g, "_")) : "neutral";
-        return {
-            count,
-            label: label || `—`,
-            tone,
-        };
-    }
-    return { count: 0, label: "—", tone: "neutral" };
-}
-
-function matrixRowsFromUnknown(raw: unknown): unknown[][] | null {
-    if (raw == null) return null;
-    if (Array.isArray(raw) && raw.length === 9) {
-        return [raw.slice(0, 3), raw.slice(3, 6), raw.slice(6, 9)];
-    }
-    if (Array.isArray(raw) && raw.length === 3 && raw.every((row) => Array.isArray(row))) {
-        return raw as unknown[][];
-    }
-    if (typeof raw === "object" && raw !== null) {
-        const o = raw as Record<string, unknown>;
-        const flat = o.cells ?? o.items ?? o.values;
-        if (Array.isArray(flat) && flat.length === 9) {
-            return [flat.slice(0, 3), flat.slice(3, 6), flat.slice(6, 9)];
-        }
-        const rows = (o.rows ?? o.matrix ?? o.grid) as unknown;
-        if (Array.isArray(rows) && rows.length === 3 && rows.every((row) => Array.isArray(row) && (row as unknown[]).length === 3)) {
-            return rows as unknown[][];
-        }
-    }
-    return null;
-}
-
-function canParseNineBoxMatrix(raw: unknown): boolean {
-    const rows = matrixRowsFromUnknown(raw);
-    return !!rows && rows.length === 3 && rows.every((row) => Array.isArray(row) && row.length === 3);
-}
-
-function parseNineBoxMatrixFromApi(raw: unknown, tZone: (i: number) => string): NineBoxGridCell[][] | null {
-    const rows = matrixRowsFromUnknown(raw);
-    if (!rows || rows.length !== 3) return null;
-    for (const row of rows) {
-        if (!Array.isArray(row) || row.length !== 3) return null;
-    }
-    const grid: NineBoxGridCell[][] = rows.map((row, r) => row.map((cell, c) => parseMatrixCell(cell, r, c)));
-    for (let r = 0; r < 3; r++) {
-        for (let c = 0; c < 3; c++) {
-            const cell = grid[r][c];
-            if (!cell.label.trim()) {
-                cell.label = tZone(r * 3 + c + 1);
-            }
-        }
-    }
-    return grid;
-}
-
-function nineBoxMatrixSumCounts(grid: NineBoxGridCell[][]): number {
-    return grid.flat().reduce((sum, cell) => sum + (cell.count ?? 0), 0);
-}
-
-function buildNineBoxFromDistribution(dist: Record<string, unknown>, tCell: (k: NineBoxBoxKey) => string): NineBoxGridCell[][] {
-    const fs = distGetCountNullable(dist, "future_star");
-    const kc = distGetCountNullable(dist, "key_contributor");
-    const st = distGetCountNullable(dist, "star");
-    const dep = distGetCountNullable(dist, "dependable");
-    const up = distGetCountNullable(dist, "underperformer");
-    return [
-        [
-            { count: fs, label: tCell("future_star"), tone: "orange", boxKey: "future_star" },
-            { count: kc, label: tCell("key_contributor"), tone: "purple", boxKey: "key_contributor" },
-            { count: st, label: tCell("star"), tone: "green", boxKey: "star" },
-        ],
-        [
-            { count: null, label: "—", tone: "neutral", isStructuralSlot: true, boxKey: null },
-            { count: dep, label: tCell("dependable"), tone: "blue", boxKey: "dependable" },
-            { count: null, label: "—", tone: "neutral", isStructuralSlot: true, boxKey: null },
-        ],
-        [
-            { count: up, label: tCell("underperformer"), tone: "red", boxKey: "underperformer" },
-            { count: null, label: "—", tone: "neutral", isStructuralSlot: true, boxKey: null },
-            { count: null, label: "—", tone: "neutral", isStructuralSlot: true, boxKey: null },
-        ],
-    ];
-}
-
 function hasAnalystContent(analyst: DashboardAnalyst | undefined): boolean {
     if (!analyst) return false;
     const s = analyst.stats;
@@ -267,15 +48,14 @@ function hasAnalystContent(analyst: DashboardAnalyst | undefined): boolean {
         ];
         if (keys.some((k) => readAnalystNumber(s[k]) !== null)) return true;
     }
-    const performers = analyst.ipi_top_performers ?? [];
-    if (performers.length > 0) return true;
-    const risks = analyst.at_risk_talents ?? [];
-    if (risks.length > 0) return true;
-    if (canParseNineBoxMatrix(analyst.nine_box_matrix)) return true;
+    if ((analyst.ipi_top_performers ?? []).length > 0) return true;
+    if ((analyst.at_risk_talents ?? []).length > 0) return true;
     const rawDist = analyst.nine_box_distribution;
     if (Array.isArray(rawDist) && rawDist.length > 0) return true;
-    const distNorm = normalizeNineBoxDistribution(rawDist);
-    if (Object.keys(distNorm).length > 0) return true;
+    if (rawDist != null && typeof rawDist === "object" && !Array.isArray(rawDist) && Object.keys(rawDist).length > 0) {
+        return true;
+    }
+    if (analyst.nine_box_matrix != null && analyst.nine_box_matrix !== "") return true;
     return false;
 }
 
@@ -351,152 +131,6 @@ function EmptyBlock() {
     );
 }
 
-function boxLabelMatchesCanonical(boxLabel: string, canonical: keyof typeof NINE_BOX_CATEGORY_SYNONYMS): boolean {
-    const targets = new Set(NINE_BOX_CATEGORY_SYNONYMS[canonical].map((s) => fingerprintKey(s)));
-    return targets.has(fingerprintKey(boxLabel));
-}
-
-function talentNameFromRow(row: unknown): string | null {
-    if (!row || typeof row !== "object") return null;
-    const o = row as Record<string, unknown>;
-    const nested = o.talent;
-    const fromNested =
-        nested && typeof nested === "object"
-            ? (nested as Record<string, unknown>).name ?? (nested as Record<string, unknown>).full_name
-            : null;
-    const n = o.talent_name ?? o.full_name ?? o.name ?? fromNested;
-    if (typeof n === "string" && n.trim()) return n.trim();
-    return null;
-}
-
-/** Extrait les noms affichables pour une case 9-box depuis `nine_box_matrix` (formats tableau ou objet). */
-function extractTalentsForBox(matrix: unknown, canonical: NineBoxBoxKey): string[] {
-    const out: string[] = [];
-    const push = (s: string | null) => {
-        if (s) out.push(s);
-    };
-
-    if (!matrix) return [];
-
-    if (Array.isArray(matrix)) {
-        for (const item of matrix) {
-            if (!item || typeof item !== "object") continue;
-            const o = item as Record<string, unknown>;
-            const bl =
-                (typeof o.box_label === "string" && o.box_label) ||
-                (typeof o.boxLabel === "string" && o.boxLabel) ||
-                (typeof o.box === "string" && o.box) ||
-                "";
-            if (!bl || !boxLabelMatchesCanonical(bl, canonical)) continue;
-            push(talentNameFromRow(o));
-            const lists = [o.talents, o.members, o.items] as const;
-            for (const list of lists) {
-                if (!Array.isArray(list)) continue;
-                for (const el of list) {
-                    push(talentNameFromRow(el) ?? (typeof el === "string" ? el.trim() || null : null));
-                }
-            }
-        }
-        return [...new Set(out)];
-    }
-
-    if (typeof matrix === "object") {
-        const o = matrix as Record<string, unknown>;
-        const buckets = o.talents_by_box ?? o.by_box ?? o.boxes ?? o.data;
-        if (Array.isArray(buckets)) {
-            return extractTalentsForBox(buckets, canonical);
-        }
-        if (buckets && typeof buckets === "object" && !Array.isArray(buckets)) {
-            for (const [k, v] of Object.entries(buckets as Record<string, unknown>)) {
-                if (!boxLabelMatchesCanonical(k, canonical)) continue;
-                if (Array.isArray(v)) {
-                    for (const el of v) {
-                        push(talentNameFromRow(el) ?? (typeof el === "string" ? el.trim() || null : null));
-                    }
-                }
-            }
-            return [...new Set(out)];
-        }
-        if (Array.isArray(o.rows)) {
-            return extractTalentsForBox(o.rows, canonical);
-        }
-        for (const [k, v] of Object.entries(o)) {
-            if (!boxLabelMatchesCanonical(k, canonical)) continue;
-            if (Array.isArray(v)) {
-                for (const el of v) {
-                    push(talentNameFromRow(el) ?? (typeof el === "string" ? el.trim() || null : null));
-                }
-            }
-        }
-        return [...new Set(out)];
-    }
-
-    return [];
-}
-
-function NineBoxMatrixGrid({
-    grid,
-    onSelectBox,
-}: {
-    grid: NineBoxGridCell[][];
-    onSelectBox: (key: NineBoxBoxKey, title: string) => void;
-}) {
-    const flat = grid.flat();
-    const numeric = flat.map((c) => (c.count == null ? 0 : c.count));
-    const maxCount = Math.max(1, ...numeric);
-
-    return (
-        <div className="grid flex-1 grid-cols-3 gap-2 sm:gap-2.5">
-            {grid.map((row, ri) =>
-                row.map((cell, ci) => {
-                    const n = cell.count ?? 0;
-                    const ratio = maxCount > 0 ? n / maxCount : 0;
-                    const borderTone = cell.tone === "neutral" ? "border-secondary/60" : "border-secondary/40";
-                    const countDisplay = cell.count == null ? "—" : String(cell.count);
-                    const isStructural = cell.isStructuralSlot === true;
-                    const canOpenTalents = !isStructural && cell.boxKey != null;
-                    const inner = (
-                        <>
-                            {!isStructural ? (
-                                <span className="text-center text-[10px] font-medium uppercase leading-tight tracking-wide text-secondary">
-                                    {cell.label}
-                                </span>
-                            ) : null}
-                            <span className="flex flex-1 items-center justify-center text-2xl font-semibold tabular-nums tracking-tight text-primary">
-                                {isStructural ? "—" : countDisplay}
-                            </span>
-                        </>
-                    );
-                    return (
-                        <div
-                            key={`${ri}-${ci}`}
-                            className={`flex min-h-[88px] flex-col rounded-xl border ${borderTone} p-2 shadow-sm ring-1 ring-black/[0.03] dark:ring-white/[0.05] ${
-                                canOpenTalents ? "transition hover:ring-2 hover:ring-brand-secondary/30" : ""
-                            }`}
-                            style={cellBackgroundStyle(cell.tone, ratio)}
-                        >
-                            {canOpenTalents ? (
-                                <button
-                                    type="button"
-                                    className="flex h-full min-h-0 w-full flex-1 flex-col gap-1 text-left outline-none focus-visible:ring-2 focus-visible:ring-brand-secondary/50"
-                                    onClick={() => {
-                                        if (cell.boxKey) onSelectBox(cell.boxKey, cell.label);
-                                    }}
-                                    aria-label={cell.label}
-                                >
-                                    {inner}
-                                </button>
-                            ) : (
-                                <div className="flex flex-1 flex-col gap-1">{inner}</div>
-                            )}
-                        </div>
-                    );
-                }),
-            )}
-        </div>
-    );
-}
-
 function AnalystSectionSkeleton() {
     return (
         <div className="animate-pulse space-y-5" aria-busy="true" aria-label="Chargement Agent Analyst">
@@ -521,7 +155,7 @@ export function AnalystSection() {
     const managerId = user?.id;
     const [isRefreshing, setIsRefreshing] = useState(false);
 
-    const { analyst, isLoading, isError, isReady, refetchAll, hasContext } = useManagerAnalystDashboard(
+    const { analyst, isLoading, isError, isReady, errorMessage, refetchAll, hasContext } = useManagerAnalystDashboard(
         enterpriseId,
         managerId,
     );
@@ -586,7 +220,7 @@ export function AnalystSection() {
                     role="alert"
                     className="rounded-xl border border-error-secondary/40 bg-error-primary/10 px-4 py-6 text-center text-sm text-error-primary"
                 >
-                    Impossible de charger les données Analyst.
+                    {errorMessage?.trim() || "Impossible de charger les données Analyst."}
                 </div>
             ) : showEmpty ? (
                 <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-secondary/80 bg-primary_alt/80 px-4 py-16 text-center dark:bg-secondary_subtle/10">

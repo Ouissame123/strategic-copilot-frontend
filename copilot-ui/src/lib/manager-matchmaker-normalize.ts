@@ -131,7 +131,11 @@ function countActionsByType(actions: ManagerProjectTalentMatchingAction[], type:
     return actions.filter((a) => normalizeActionType(a.action_type) === type).length;
 }
 
-/** Agrège les réponses par projet en vue dashboard Matchmaker. */
+/**
+ * Agrège les réponses par projet en vue dashboard Matchmaker.
+ * @deprecated Le dashboard Manager consomme désormais POST /webhook/api/matchmaker/batch (données déjà agrégées).
+ * Conservé pour les usages legacy / tests ; ne pas appeler depuis useManagerMatchmaker.
+ */
 export function buildManagerMatchmakerDashboard(
     results: ManagerProjectTalentMatchingResult[],
     failedProjectIds: string[] = [],
