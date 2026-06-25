@@ -6,7 +6,7 @@ import type { NotificationItem } from "@/types/api.types";
 import { cx } from "@/utils/cx";
 
 /** Page liste notifications manager (voir `main.tsx`). Fallback métier : `/workspace/manager/risks`. */
-const NOTIFICATIONS_LIST_HREF = "/workspace/manager/notifications";
+const NOTIFICATIONS_LIST_HREF = "/workspace/manager/risks";
 
 function isUnreadStatus(status: string | undefined): boolean {
     const s = (status ?? "").toLowerCase();

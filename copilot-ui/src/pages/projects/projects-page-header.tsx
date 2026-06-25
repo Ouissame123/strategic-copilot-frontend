@@ -1,5 +1,5 @@
 import { useTranslation } from "react-i18next";
-import { Download02, Stars01 } from "@untitledui/icons";
+import { Download02 } from "@untitledui/icons";
 import { Button } from "@/components/base/buttons/button";
 import { cx } from "@/utils/cx";
 
@@ -31,7 +31,6 @@ type ProjectsPageHeaderProps = {
     decisionFilter: ProjectsDecisionFilter;
     onDecisionFilterChange: (value: ProjectsDecisionFilter) => void;
     onExport: () => void;
-    onWhatIfGlobal: () => void;
 };
 
 function formatKpiValue(value: string | number): string {
@@ -69,7 +68,6 @@ export function ProjectsPageHeader({
     decisionFilter,
     onDecisionFilterChange,
     onExport,
-    onWhatIfGlobal,
 }: ProjectsPageHeaderProps) {
     const { t } = useTranslation(["projects", "copilot", "dataCrud"]);
 
@@ -95,9 +93,6 @@ export function ProjectsPageHeader({
                     <div className="flex shrink-0 flex-wrap items-center gap-2 md:justify-end">
                         <Button color="secondary" size="md" iconLeading={Download02} onClick={onExport}>
                             Exporter
-                        </Button>
-                        <Button color="primary" size="md" iconLeading={Stars01} onClick={onWhatIfGlobal}>
-                            What-if global
                         </Button>
                     </div>
                 </div>

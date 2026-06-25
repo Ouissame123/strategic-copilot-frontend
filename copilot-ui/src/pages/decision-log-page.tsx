@@ -10,6 +10,7 @@ import { EmptyState } from "@/components/ui/EmptyState";
 import { useCopilotPage } from "@/hooks/use-copilot-page";
 import { useDecisionLog, type DecisionLogEntry, type DecisionType } from "@/hooks/use-decision-log";
 import { useWorkspacePaths } from "@/hooks/use-workspace-paths";
+import { managerProjectMissionControlPath } from "@/utils/workspace-routes";
 import { useAuth } from "@/providers/auth-provider";
 import { DECISION_LOG_PREVIEW_ENTRIES } from "@/constants/decision-log-preview-data";
 import { NativeSelect } from "@/components/base/select/select-native";
@@ -387,7 +388,9 @@ export function DecisionLogPage() {
                                         entry.project_name?.trim() ||
                                         (entry.project_id ? `${entry.project_id.slice(0, 8)}…` : "—");
                                     const href = entry.project_id?.trim() ? paths.project(entry.project_id.trim()) : null;
-                                    const whatIfHref = href ? `${href}#project-what-if` : null;
+                                    const whatIfHref = entry.project_id?.trim()
+                                        ? managerProjectMissionControlPath(entry.project_id.trim(), "simulation")
+                                        : null;
                                     const dotClass =
                                         entry.decision === "Continue"
                                             ? "bg-utility-success-500 ring-utility-success-200"

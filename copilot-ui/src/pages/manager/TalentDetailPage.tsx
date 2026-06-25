@@ -1,15 +1,15 @@
-import { useEffect, useMemo, useRef } from "react";
+import { useMemo } from "react";
 import {
     getTalentAlerts,
     mapTalentAlertForDisplay,
 } from "@/components/talent/talent-detail-shared";
 import { isAxiosError } from "axios";
 import { useQueryClient } from "@tanstack/react-query";
-import { useNavigate, useParams, useSearchParams } from "react-router";
+import { useNavigate, useParams } from "react-router";
 import { WorkspacePageShell } from "@/components/workspace/workspace-page-shell";
 import { useWorkspaceTopbarMeta } from "@/layouts/workspace-topbar-meta";
 import { useRiskAlertAction } from "@/hooks/useNotifications";
-import { useTalentDetail, useWatchdogScan } from "@/hooks/useTeam";
+import { useTalentDetail } from "@/hooks/useTeam";
 import { useToast } from "@/providers/toast-provider";
 import { normalizeManagerTeamRouteTalentId } from "@/api/manager-team.api";
 import {
@@ -56,11 +56,8 @@ export default function TalentDetailPage() {
     const { talentId: talentIdParam = "" } = useParams();
     const talentId = useMemo(() => normalizeManagerTeamRouteTalentId(talentIdParam), [talentIdParam]);
     const navigate = useNavigate();
-    const [searchParams, setSearchParams] = useSearchParams();
-    const watchdogTabHandled = useRef(false);
     const qc = useQueryClient();
     const detail = useTalentDetail(talentId);
-    const watchdogScan = useWatchdogScan();
     const { push } = useToast();
     const resolveAlert = useRiskAlertAction();
 
@@ -69,13 +66,6 @@ export default function TalentDetailPage() {
         () => getTalentAlerts(detail.data ?? detail).map((alert) => mapTalentAlertForDisplay(alert)).filter((a) => a.id),
         [detail],
     );
-
-    useEffect(() => {
-        if (import.meta.env.DEV) {
-            console.log("TALENT DETAIL RESPONSE", detail);
-            console.log("ACTIVE ALERTS RESTORED", activeAlerts);
-        }
-    }, [detail, activeAlerts]);
 
     const talentName = data?.talent.name ?? data?.talent.full_name ?? "Talent";
     const summary = (data?.summary ?? {}) as Record<string, unknown>;
@@ -97,31 +87,6 @@ export default function TalentDetailPage() {
     }, [data, employment.contract_type, employment.role]);
 
     useWorkspaceTopbarMeta(talentName, heroSubtitle);
-
-    const onScan = () => {
-        watchdogScan.mutate(
-            { talent_id: talentId, use_ai: true },
-            {
-                onSuccess: () => push(`Scan Watchdog lancé pour ${talentName}.`, "success"),
-                onError: () => push("Impossible de lancer le scan Watchdog.", "error"),
-            },
-        );
-    };
-
-    useEffect(() => {
-        if (searchParams.get("tab") !== "watchdog" || !talentId || watchdogTabHandled.current) return;
-        watchdogTabHandled.current = true;
-        watchdogScan.mutate(
-            { talent_id: talentId, use_ai: true },
-            {
-                onSuccess: () => push(`Scan Watchdog lancé pour ${talentName}.`, "success"),
-                onError: () => push("Impossible de lancer le scan Watchdog.", "error"),
-            },
-        );
-        const next = new URLSearchParams(searchParams);
-        next.delete("tab");
-        setSearchParams(next, { replace: true });
-    }, [searchParams, setSearchParams, talentId, talentName, push, watchdogScan]);
 
     const onResolveAlert = (alertId: string) => {
         resolveAlert.mutate(
@@ -170,8 +135,6 @@ export default function TalentDetailPage() {
                             contractEndDate={data.talent.contract_end_date}
                             contractEndingSoon={Boolean(data.talent.contract_ending_soon)}
                             onBack={() => navigate("/workspace/manager/team")}
-                            onWatchdog={onScan}
-                            watchdogPending={watchdogScan.isPending}
                         />
 
                         <main className="mx-auto max-w-7xl space-y-6 px-4 py-6 sm:px-6 lg:px-8">

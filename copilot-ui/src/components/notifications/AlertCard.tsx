@@ -1,5 +1,8 @@
 import { Clock, FolderKanban, User } from "lucide-react";
+import { useNavigate } from "react-router";
+import { RootCauseHint, type AlertRootCauseTargetTab } from "@/components/risks/root-cause-hint";
 import type { NotificationItem } from "@/types/api.types";
+import { managerProjectMissionControlPath } from "@/utils/workspace-routes";
 import { cx } from "@/utils/cx";
 import { SeverityBadge } from "./SeverityBadge";
 import {
@@ -50,7 +53,14 @@ export function AlertCard({
     canPatch,
     labels,
 }: AlertCardProps) {
+    const navigate = useNavigate();
     const severity = normalizeAlertSeverity(alert.severity);
+    const projectId = alert.project_id?.trim() || null;
+
+    const navigateToTab = (tab: AlertRootCauseTargetTab) => {
+        if (!projectId) return;
+        navigate(managerProjectMissionControlPath(projectId, tab));
+    };
     const talentName = inferTalentName(alert);
     const projectName = alert.project_name?.trim() || null;
     const title = alertDisplayTitle(alert, fallbackTitle);
@@ -105,6 +115,10 @@ export function AlertCard({
                     {formatDetectedLabel(alert, t)}
                 </li>
             </ul>
+
+            <div onClick={(e) => e.stopPropagation()}>
+                <RootCauseHint riskType={alert.risk_type} onNavigateTab={projectId ? navigateToTab : undefined} />
+            </div>
 
             <div className="mt-4 flex flex-wrap gap-2" onClick={(e) => e.stopPropagation()}>
                 {onOpenTalent ? (

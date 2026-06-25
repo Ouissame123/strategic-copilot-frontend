@@ -23,11 +23,7 @@ export function formatMatchmakerScoreCompact(n: number | null): string {
     return `${n.toFixed(1)}/10`;
 }
 
-export const MANAGER_DASHBOARD_SECTION_IDS = {
-    overview: "dashboard-section-overview",
-    fragile: "dashboard-section-fragile",
-    matchmaker: "dashboard-section-matchmaker",
-    analyst: "dashboard-section-analyst",
-} as const;
-
-export type ManagerDashboardTabId = keyof typeof MANAGER_DASHBOARD_SECTION_IDS;
+export {
+    MANAGER_DASHBOARD_SECTION_IDS,
+    type ManagerDashboardSectionId as ManagerDashboardTabId,
+} from "@/features/manager/lib/copilot-engines";

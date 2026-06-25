@@ -1,5 +1,7 @@
 /** Réexports du workspace Talent — routes sous `/workspace/talent/*`. */
-export { TalentDashboardPage } from "./talent/talent-dashboard-page";
+export { default as TalentDashboardPage } from "@/pages/talent/TalentDashboard";
+export { TalentOpportunitiesPage } from "./talent/talent-opportunities-page";
+export { TalentRequestsPage } from "./talent/talent-requests-page";
 export { TalentProjectsPage } from "./talent/talent-projects-page";
 export { TalentTasksPage } from "./talent/talent-tasks-page";
 export { TalentWorkloadPage } from "./talent/talent-workload-page";

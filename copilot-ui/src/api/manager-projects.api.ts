@@ -1,6 +1,11 @@
 import { isAxiosError } from "axios";
 import { httpClient } from "../lib/http-client";
-import { getManagerProjectDetailGetUrl, getManagerProjectsBaseUrl, getManagerProjectsPatchUrl } from "@/config/manager-projects-api.config";
+import {
+    getManagerProjectDetailGetUrl,
+    getManagerProjectsBaseUrl,
+    getManagerProjectsDeleteUrl,
+    getManagerProjectsPatchUrl,
+} from "@/config/manager-projects-api.config";
 import { getWmpAssignPostUrl, getWmpUnassignDeleteUrl } from "@/config/wmp-assignments-webhook.config";
 import { readEnv, trimUrl } from "@/config/resolve-api-url";
 import { normalizeProgressPctValue } from "@/utils/format";
@@ -17,14 +22,17 @@ import type {
     ManagerProjectDetailResponse,
     ManagerProjectsListResponse,
     ProjectCreatedResponse,
+    ProjectDeleteResponse,
     ProjectDetailResponse,
     ProjectKpiFull,
+    ProjectListItem,
     ProjectRiskItem,
     ProjectStatus,
     ProjectsListResponse,
     ProjectUpdatedResponse,
     UnassignmentResponse,
     WmpAssignmentType,
+    ManagerProjectPatchBody,
     WmpUpdateProjectPatchBody,
 } from "../types/api.types";
 
@@ -57,8 +65,22 @@ export function milestoneAtToYYYYMMDD(value: string | number | null | undefined)
 
 const WMP_UPDATE_STATUSES: readonly ProjectStatus[] = ["planned", "active", "on_hold", "completed", "cancelled"];
 
+export function isDescriptionOnlyProjectPatch(body: ManagerProjectPatchBody): body is { description: string } {
+    return "description" in body && !("status" in body);
+}
+
 /**
- * Corps JSON strict pour `PATCH …/wmp-update-v1/manager/projects/:id` :
+ * Corps PATCH envoyé au backend — description seule `{ description }` ou triplet statut modal.
+ */
+export function normalizeManagerProjectPatchBody(body: ManagerProjectPatchBody): WmpUpdateProjectPatchBody | { description: string } {
+    if (isDescriptionOnlyProjectPatch(body)) {
+        return { description: String(body.description) };
+    }
+    return buildStrictUpdateProjectPatchBody(body);
+}
+
+/**
+ * Corps JSON strict pour la modal « Modifier le projet » :
  * `{ status, priority, milestone_at }` uniquement (`milestone_at` : `YYYY-MM-DD` ou `null`).
  */
 export function buildStrictUpdateProjectPatchBody(input: WmpUpdateProjectPatchBody): WmpUpdateProjectPatchBody {
@@ -76,11 +98,10 @@ export function buildStrictUpdateProjectPatchBody(input: WmpUpdateProjectPatchBo
     return { status, priority, milestone_at };
 }
 
-function logPatchProjectDev(projectId: string, url: string, body: WmpUpdateProjectPatchBody): void {
+function logPatchProjectDev(projectId: string, url: string, body: WmpUpdateProjectPatchBody | { description: string }): void {
     if (!import.meta.env.DEV) return;
-    const base = trimUrl(import.meta.env.VITE_API_BASE_URL as string | undefined);
     const enc = encodeURIComponent(projectId);
-    const expectedDefault = base ? `${base}/wmp-update-v1/manager/projects/${enc}` : `/webhook/wmp-update-v1/manager/projects/${enc}`;
+    const expectedDefault = `/webhook/wmp-update-v1/manager/projects/${enc}`;
     const hasOverride = Boolean(readEnv("VITE_MANAGER_PROJECTS_UPDATE_URL") || readEnv("VITE_WMP_UPDATE_PROJECTS_PREFIX"));
     // eslint-disable-next-line no-console
     console.groupCollapsed(`[manager-projects] PATCH project ${projectId}`);
@@ -102,13 +123,49 @@ function logPatchProjectDev(projectId: string, url: string, body: WmpUpdateProje
     console.groupEnd();
 }
 
+function toOptionalFiniteNumber(value: unknown): number | null | undefined {
+    if (value == null || value === "") return value === null ? null : undefined;
+    const n = typeof value === "number" ? value : Number(value);
+    return Number.isFinite(n) ? n : undefined;
+}
+
+function normalizeProjectListItem(raw: ProjectListItem & Record<string, unknown>): ProjectListItem {
+    const fragility = toOptionalFiniteNumber(raw.fragility_score);
+    const days = toOptionalFiniteNumber(raw.days_to_milestone);
+    const topInsight =
+        raw.top_insight == null || String(raw.top_insight).trim() === ""
+            ? raw.top_insight === null
+                ? null
+                : undefined
+            : String(raw.top_insight).trim();
+    return {
+        ...raw,
+        ...(fragility !== undefined ? { fragility_score: fragility } : {}),
+        ...(days !== undefined ? { days_to_milestone: days } : {}),
+        ...(topInsight !== undefined ? { top_insight: topInsight } : {}),
+    };
+}
+
+function normalizeProjectsListCounts(raw: unknown): ProjectsListResponse["counts"] {
+    if (raw == null || typeof raw !== "object" || Array.isArray(raw)) return undefined;
+    return raw as ProjectsListResponse["counts"];
+}
+
 function normalizeProjectsList(data: ProjectsListResponse | ManagerProjectsListResponse): ProjectsListResponse {
     if ("items" in data && Array.isArray(data.items)) {
-        return data;
+        return {
+            items: data.items.map((item) => normalizeProjectListItem(item as ProjectListItem & Record<string, unknown>)),
+            total: data.total,
+            counts: normalizeProjectsListCounts(data.counts),
+        };
     }
+    const projects = (data.projects ?? []).map((item) =>
+        normalizeProjectListItem(item as ProjectListItem & Record<string, unknown>),
+    );
     return {
-        items: data.projects ?? [],
-        total: data.count ?? data.projects?.length ?? 0,
+        items: projects,
+        total: data.count ?? projects.length ?? 0,
+        counts: normalizeProjectsListCounts(data.counts),
     };
 }
 
@@ -373,6 +430,18 @@ function normalizeProjectDetail(data: ProjectDetailResponse | ManagerProjectDeta
 
     const active_alerts = root.active_alerts ?? [];
 
+    const riskScoresRaw = bag.risk_scores ?? bag.project_risk_scores ?? root.risk_scores ?? root.project_risk_scores;
+    const riskScoresSnapshot =
+        riskScoresRaw != null && typeof riskScoresRaw === "object" && !Array.isArray(riskScoresRaw)
+            ? (riskScoresRaw as ProjectDetailResponse["risk_scores"])
+            : undefined;
+
+    const riskKpiRaw = bag.risk_kpi ?? root.risk_kpi;
+    const riskKpi =
+        riskKpiRaw != null && typeof riskKpiRaw === "object" && !Array.isArray(riskKpiRaw)
+            ? (riskKpiRaw as ProjectDetailResponse["risk_kpi"])
+            : undefined;
+
     return {
         project: root.project,
         assignments: root.assignments ?? [],
@@ -382,6 +451,9 @@ function normalizeProjectDetail(data: ProjectDetailResponse | ManagerProjectDeta
         latest_kpi: normalizeLatestKpi(root.latest_kpi ?? projectKpi),
         arbitrage_options: normalizeArbitrageOptions(root.arbitrage_options),
         risks: normalizeProjectRisks(bag.risks ?? bag.project_risks, active_alerts),
+        risk_kpi: riskKpi ?? null,
+        risk_scores: riskScoresSnapshot ?? null,
+        project_risk_scores: riskScoresSnapshot ?? null,
     };
 }
 
@@ -402,12 +474,17 @@ export const managerProjectsApi = {
                 data: normalizeProjectDetail(r.data),
             })),
     create: (body: CreateProjectRequest) => httpClient.post<ProjectCreatedResponse>(managerProjectsRoot(), body),
+    /** DELETE `wmp-delete-v1` — WF_Manager_Project_Delete_v1. */
+    delete: (projectId: string) =>
+        httpClient.delete<ProjectDeleteResponse>(getManagerProjectsDeleteUrl(projectId), {
+            skipGlobalHttpErrorToast: true,
+        }),
     /**
-     * PATCH `wmp-update-v1` — URL via `getManagerProjectsPatchUrl` (défaut : `…/wmp-update-v1/manager/projects/{id}`).
-     * Corps strict `{ status, priority, milestone_at }`. En dev : logs console. Une seule requête à la fois par `projectId`.
+     * PATCH `…/manager/projects/{id}` — corps partiel (`{ description }` ou `{ status, priority, milestone_at }`).
+     * En dev : logs console. Une seule requête à la fois par `projectId`.
      */
-    update: (id: string, body: WmpUpdateProjectPatchBody) => {
-        const normalized = buildStrictUpdateProjectPatchBody(body);
+    update: (id: string, body: ManagerProjectPatchBody) => {
+        const normalized = normalizeManagerProjectPatchBody(body);
         const url = getManagerProjectsPatchUrl(id);
         return enqueueProjectPatch(id, async () => {
             logPatchProjectDev(id, url, normalized);
@@ -440,3 +517,15 @@ export const managerProjectsApi = {
             skipGlobalHttpErrorToast: true,
         }),
 };
+
+export function isManagerProjectNotDeletableError(err: unknown): boolean {
+    if (!isAxiosError(err)) return false;
+    if (err.response?.status === 409) return true;
+    const data = err.response?.data;
+    if (data && typeof data === "object") {
+        const record = data as Record<string, unknown>;
+        const code = String(record.code ?? record.error_code ?? record.status ?? "").toUpperCase();
+        return code === "NOT_DELETABLE";
+    }
+    return false;
+}

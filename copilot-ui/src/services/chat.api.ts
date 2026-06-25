@@ -144,15 +144,15 @@ function logChatApi(op: string, url: string) {
 export const chatApi = {
     /** GET /manager/conversations?project_id=…&status=active&limit=1 */
     listConversations: (params?: ConversationsListParams) => {
-        const url = webhookPath(MANAGER_CONVERSATIONS_PATH);
+        const url = API_ROUTES.conversationsList();
         logChatApi("LIST", url);
         return httpClient.get(url, { params, ...silentCfg });
     },
 
-    /** GET /webhook/manager/conversations/:id */
+    /** GET /webhook/wmc-detail-v1/manager/conversations/:id */
     getConversation: (conversationId: string) => {
         const cid = normalizeHelperConversationId(conversationId);
-        const url = `/webhook${MANAGER_CONVERSATIONS_PATH}/${encodeURIComponent(cid.trim())}`;
+        const url = managerConversationDetailPath(cid);
         logChatApi("DETAIL", url);
         return httpClient.get(url, silentCfg);
     },

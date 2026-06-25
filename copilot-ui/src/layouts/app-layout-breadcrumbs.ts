@@ -47,18 +47,6 @@ export function resolveBreadcrumbs(pathname: string, t: Translate, options?: Bre
         return [hub(), { label: t("common:layout.breadcrumbDashboard") }];
     }
 
-    const talentProjectDetailMatch = matchPath({ path: "/workspace/talent/projects/:projectId", end: true }, pathname);
-    if (talentProjectDetailMatch) {
-        const label =
-            options?.projectDetailLabel?.trim() ||
-            t("common:layout.breadcrumbProject");
-        return [
-            hub(),
-            { to: "/workspace/talent/projects", label: t("nav:talentNavProjects") },
-            { label },
-        ];
-    }
-
     const managerProjectDetailMatch = matchPath({ path: "/workspace/manager/projects/:projectId", end: true }, pathname);
     if (managerProjectDetailMatch) {
         const label =
@@ -90,17 +78,35 @@ export function resolveBreadcrumbs(pathname: string, t: Translate, options?: Bre
     if (matchPath({ path: "/workspace/rh/employees", end: true }, pathname)) {
         return [hub(), { label: t("nav:rhNavEmployees") }];
     }
+    if (matchPath({ path: "/workspace/rh/actions", end: false }, pathname)) {
+        return [hub(), { label: "Demandes & Actions RH" }];
+    }
     if (matchPath({ path: "/workspace/rh/manager-requests", end: true }, pathname)) {
-        return [hub(), { label: t("nav:rhNavManagerRequests") }];
+        return [hub(), { label: "Demandes & Actions RH" }];
+    }
+    if (matchPath({ path: "/workspace/rh/projects-budget", end: true }, pathname)) {
+        return [hub(), { label: t("nav:rhNavProjectsBudget") }];
+    }
+    if (matchPath({ path: "/workspace/rh/risks", end: true }, pathname)) {
+        return [hub(), { label: t("nav:rhNavRisks", "Risques RH") }];
+    }
+    if (matchPath({ path: "/admin/accounts/health", end: true }, pathname)) {
+        return [{ label: "Administration", href: "/admin/users" }, { label: "Santé des comptes" }];
+    }
+    if (matchPath({ path: "/workspace/rh/accounts/health", end: true }, pathname)) {
+        return [{ label: "Administration", href: "/admin/users" }, { label: "Santé des comptes" }];
     }
     if (matchPath({ path: "/workspace/rh/accounts", end: false }, pathname)) {
-        return [hub(), { label: t("nav:rhNavAccounts") }];
+        return [{ label: "Administration", href: "/admin/users" }, { label: "Comptes utilisateurs" }];
+    }
+    if (matchPath({ path: "/admin/users", end: true }, pathname)) {
+        return [{ label: "Administration", href: "/admin/users" }, { label: "Comptes utilisateurs" }];
     }
     if (matchPath({ path: "/workspace/rh/workforce-arbitration", end: true }, pathname)) {
-        return [hub(), { label: t("nav:rhNavWorkforceArbitration") }];
+        return [hub(), { label: "Demandes & Actions RH" }];
     }
     if (matchPath({ path: "/workspace/rh/mobility", end: true }, pathname)) {
-        return [hub(), { label: t("nav:rhNavMobility") }];
+        return [hub(), { label: "Demandes & Actions RH" }];
     }
     if (matchPath({ path: "/workspace/rh/chat", end: true }, pathname)) {
         return [hub(), { label: "Assistant RH IA" }];
@@ -190,37 +196,25 @@ export function resolveBreadcrumbs(pathname: string, t: Translate, options?: Bre
         return [hub(), { label: t("nav:decisionLog") }];
     }
 
-    if (matchPath({ path: "/workspace/talent", end: true }, pathname)) {
-        return [hub(), { label: t("nav:talentNavDashboard") }];
-    }
     if (matchPath({ path: "/workspace/talent/dashboard", end: true }, pathname)) {
         return [hub(), { label: t("nav:talentNavDashboard") }];
     }
     if (matchPath({ path: "/workspace/talent/projects", end: true }, pathname)) {
         return [hub(), { label: t("nav:talentNavProjects") }];
     }
-    if (matchPath({ path: "/workspace/talent/tasks", end: true }, pathname)) {
-        return [hub(), { label: t("nav:talentNavTasks") }];
-    }
-    if (matchPath({ path: "/workspace/talent/workload", end: true }, pathname)) {
-        return [hub(), { label: t("nav:talentNavWorkload") }];
-    }
     if (matchPath({ path: "/workspace/talent/skills", end: true }, pathname)) {
         return [hub(), { label: t("nav:talentNavSkills") }];
     }
-    if (matchPath({ path: "/workspace/talent/training", end: true }, pathname)) {
-        return [hub(), { label: t("nav:talentNavTraining") }];
+    if (matchPath({ path: "/workspace/talent/opportunities", end: true }, pathname)) {
+        return [hub(), { label: t("nav:talentNavOpportunities") }];
     }
-    if (matchPath({ path: "/workspace/talent/trainings", end: true }, pathname)) {
-        return [hub(), { label: t("nav:talentNavTraining") }];
-    }
-    if (matchPath({ path: "/workspace/talent/notifications", end: true }, pathname)) {
-        return [hub(), { label: t("nav:talentNavNotifications") }];
+    if (matchPath({ path: "/workspace/talent/requests", end: true }, pathname)) {
+        return [hub(), { label: t("nav:talentNavRequests") }];
     }
     if (matchPath({ path: "/workspace/talent/profile", end: true }, pathname)) {
         return [hub(), { label: t("nav:talentNavProfile") }];
     }
-    if (matchPath({ path: "/workspace/talent/decision-log", end: true }, pathname)) {
+    if (matchPath({ path: "/workspace/talent", end: false }, pathname)) {
         return [hub(), { label: t("nav:talentNavDashboard") }];
     }
 

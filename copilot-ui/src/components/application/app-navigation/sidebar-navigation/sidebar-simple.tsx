@@ -17,6 +17,7 @@ interface SidebarNavigationProps {
     items: NavItemType[];
     footerItems?: NavItemType[];
     featureCard?: ReactNode;
+    belowLogo?: ReactNode;
     showSidebarLogout?: boolean;
     hideBorder?: boolean;
     className?: string;
@@ -27,6 +28,7 @@ export const SidebarNavigationSimple = ({
     items,
     footerItems = [],
     featureCard,
+    belowLogo,
     showSidebarLogout = true,
     hideBorder = false,
     className,
@@ -54,6 +56,8 @@ export const SidebarNavigationSimple = ({
             <div className="shrink-0 px-4 lg:px-5">
                 <ProjectLogo className="h-8" />
             </div>
+
+            {belowLogo ? <div className="mt-4 shrink-0 px-4 lg:px-5">{belowLogo}</div> : null}
 
             <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
                 <NavList items={items} />

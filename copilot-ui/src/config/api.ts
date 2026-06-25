@@ -9,11 +9,4 @@ export { backendApi } from "./backend-api";
 export { crudApi } from "./crud-api";
 export { readEnv, resolveApiUrl, trimUrl } from "./resolve-api-url";
 export { getProjectsListBaseUrl } from "@/api/projects-list.api";
-export {
-    getProjectApiBase,
-    getDecisionLogUrl,
-    getProjectDetailsUrl,
-    getProjectByIdUrl,
-    getProjectTalentMatchingUrl,
-    getProjectTalentMatchingPath,
-} from "./project-api";
+export { getProjectApiBase, getDecisionLogUrl, getProjectDetailsUrl, getProjectByIdUrl } from "./project-api";

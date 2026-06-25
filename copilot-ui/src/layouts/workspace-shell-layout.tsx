@@ -1,11 +1,14 @@
 import type { ReactNode } from "react";
 import { Outlet, useLocation } from "react-router";
+import { RhAssistantFloating } from "@/components/rh/assistant/RhAssistantFloating";
 import { CopilotTriggerButton } from "@/components/copilot";
 import { AppGlobalShortcuts } from "@/components/app/app-global-shortcuts";
 import { AppLayoutHeaderActions } from "@/components/app/app-layout-header-actions";
 import { AppLayoutHeaderLeading } from "@/components/app/app-layout-header-leading";
 import { ManagerNotificationsTopbarDropdown } from "@/components/app/manager-notifications-topbar";
 import { RhNotificationsTopbarDropdown } from "@/components/rh/RhNotificationsTopbarDropdown";
+import { TalentNotificationsBell } from "@/components/talent/layout/TalentTopbar";
+import { ProfileMenu } from "@/components/talent/layout/ProfileMenu";
 import { SidebarNavigationSimple } from "@/components/app/navigation";
 import { ThemeToggle } from "@/components/app/theme";
 import { LanguageSwitcher } from "@/components/app/i18n";
@@ -22,12 +25,13 @@ import {
     RH_TEXT_PRIMARY,
     RH_TOPBAR,
 } from "@/utils/rh-workspace-theme";
-import { workspaceRoleHeaderStripeClass } from "@/utils/workspace-role-styles";
 import { cx } from "@/utils/cx";
 
 type WorkspaceShellLayoutProps = {
     workspaceRole: WorkspaceRole;
     navItems: NavItemType[];
+    navFooterItems?: NavItemType[];
+    sidebarBelowLogo?: ReactNode;
     children?: ReactNode;
 };
 
@@ -93,11 +97,22 @@ function isFullWidthWorkspaceMain(pathname: string): boolean {
     return FULL_WIDTH_MAIN_PATHS.some((segment) => pathname === segment || pathname.startsWith(`${segment}/`));
 }
 
-export function WorkspaceShellLayout({ workspaceRole, navItems, children }: WorkspaceShellLayoutProps) {
+function isRhChatFullscreenPage(pathname: string): boolean {
+    return pathname === "/workspace/rh/chat" || pathname.startsWith("/workspace/rh/chat/");
+}
+
+export function WorkspaceShellLayout({
+    workspaceRole,
+    navItems,
+    navFooterItems,
+    sidebarBelowLogo,
+    children,
+}: WorkspaceShellLayoutProps) {
     const { pathname } = useLocation();
     const fullWidthMain = isFullWidthWorkspaceMain(pathname);
     const missionControlPage = isManagerMissionControlPage(pathname);
     const isRh = workspaceRole === "rh";
+    const showRhAssistant = isRh && !isRhChatFullscreenPage(pathname);
 
     return (
         <WorkspaceTopbarMetaProvider>
@@ -105,6 +120,8 @@ export function WorkspaceShellLayout({ workspaceRole, navItems, children }: Work
                 <SidebarNavigationSimple
                     activeUrl={pathname}
                     items={navItems}
+                    footerItems={navFooterItems}
+                    belowLogo={sidebarBelowLogo}
                     className={isRh ? cx(RH_SIDEBAR, RH_SIDEBAR_NAV_ACTIVE) : undefined}
                 />
                 <div className={cx("flex min-h-screen flex-1 flex-col", isRh ? RH_SURFACE : "bg-secondary_subtle", missionControlPage && "min-h-0 overflow-hidden")}>
@@ -123,20 +140,26 @@ export function WorkspaceShellLayout({ workspaceRole, navItems, children }: Work
                                     <ManagerNotificationsTopbarDropdown />
                                 ) : workspaceRole === "rh" ? (
                                     <RhNotificationsTopbarDropdown />
+                                ) : workspaceRole === "talent" ? (
+                                    <TalentNotificationsBell />
                                 ) : (
                                     <CopilotTriggerButton />
                                 )}
-                                <LanguageSwitcher />
-                                <ThemeToggle />
-                                <NavAccountCard compact showProfileAction={false} />
+                                {workspaceRole !== "talent" ? (
+                                    <>
+                                        <LanguageSwitcher />
+                                        <ThemeToggle />
+                                        <NavAccountCard compact showProfileAction={false} />
+                                    </>
+                                ) : (
+                                    <>
+                                        <LanguageSwitcher />
+                                        <ThemeToggle />
+                                    </>
+                                )}
+                                {workspaceRole === "talent" ? <ProfileMenu /> : null}
                             </div>
                         </div>
-                        {!isRh ? (
-                            <div
-                                className={cx("h-0.5 w-full bg-gradient-to-r md:rounded-b-sm", workspaceRoleHeaderStripeClass(workspaceRole))}
-                                aria-hidden
-                            />
-                        ) : null}
                     </header>
                     <main
                         className={cx(
@@ -159,6 +182,7 @@ export function WorkspaceShellLayout({ workspaceRole, navItems, children }: Work
                             </div>
                         </div>
                     </main>
+                    {showRhAssistant ? <RhAssistantFloating /> : null}
                 </div>
             </div>
         </WorkspaceTopbarMetaProvider>

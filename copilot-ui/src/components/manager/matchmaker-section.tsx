@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import { X } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Tooltip } from "@/components/base/tooltip/tooltip";
@@ -12,12 +12,13 @@ import {
     formatMatchmakerScore10,
     formatMatchmakerScoreCompact,
     formatMatchmakerStatDisplay,
-    MANAGER_DASHBOARD_SECTION_IDS,
 } from "@/lib/manager-dashboard-display";
+import { MANAGER_DASHBOARD_SECTION_IDS } from "@/features/manager/lib/copilot-engines";
+import { SectionTitleWithCodename } from "@/features/manager/components/dashboard/SectionTitleWithCodename";
 import { useManagerMatchmaker } from "@/hooks/use-manager-matchmaker";
 import { useAuth } from "@/providers/auth-provider";
 
-const MATCHMAKER_COLUMN_SCROLL_CLASS = "max-h-[520px] overflow-y-auto";
+const MATCHMAKER_COLUMN_SCROLL_CLASS = "max-h-[360px] overflow-y-auto";
 const TALENTS_PREVIEW_PER_PROJECT = 3;
 
 const MATCHMAKER_EMPTY_RECOMMENDATIONS = "Aucune recommandation prioritaire pour ce manager.";
@@ -302,27 +303,25 @@ function MatchmakerColumnShell({
     title,
     showEmpty,
     emptyLabel,
+    emptyEnriched,
     children,
 }: {
     title: string;
     showEmpty: boolean;
     emptyLabel: string;
-    children: React.ReactNode;
+    emptyEnriched?: ReactNode;
+    children: ReactNode;
 }) {
     return (
-        <article className="flex max-h-[520px] min-h-0 flex-col overflow-hidden rounded-2xl border border-secondary/80 bg-primary shadow-sm ring-1 ring-black/[0.04] dark:ring-white/[0.06]">
+        <article className="flex max-h-[360px] min-h-0 flex-col overflow-hidden rounded-2xl border border-secondary/80 bg-primary shadow-sm ring-1 ring-black/[0.04] dark:ring-white/[0.06]">
             <div className="shrink-0 border-b border-secondary/60 bg-gradient-to-r from-secondary_subtle/40 to-transparent px-5 py-4 dark:from-secondary_subtle/15">
-                <div className="flex items-start justify-between gap-2">
-                    <h4 className="text-sm font-semibold tracking-tight text-primary">{title}</h4>
-                    <span className="shrink-0 rounded-full border border-brand-secondary/35 bg-brand-primary/12 px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-brand-secondary">
-                        Matchmaker
-                    </span>
-                </div>
+                <h4 className="text-sm font-semibold tracking-tight text-primary">{title}</h4>
             </div>
             <div className={`min-h-0 flex-1 p-4 ${MATCHMAKER_COLUMN_SCROLL_CLASS}`}>
                 {showEmpty ? (
                     <div className="flex min-h-[200px] flex-col items-center justify-center rounded-xl border border-dashed border-secondary/80 bg-primary_alt/80 px-4 py-12 text-center dark:bg-secondary_subtle/10">
                         <p className="max-w-xs text-sm leading-relaxed text-tertiary">{emptyLabel}</p>
+                        {emptyEnriched}
                     </div>
                 ) : (
                     children
@@ -352,10 +351,28 @@ function MatchmakerRecommendationsBlock({
     items: unknown[];
     emptyLabel: string;
 }) {
+    const { t } = useTranslation("common");
     const showEmpty = items.length === 0;
 
     return (
-        <MatchmakerColumnShell title={title} showEmpty={showEmpty} emptyLabel={emptyLabel}>
+        <MatchmakerColumnShell
+            title={title}
+            showEmpty={showEmpty}
+            emptyLabel={emptyLabel}
+            emptyEnriched={
+                <>
+                    <p className="mt-2 max-w-xs text-xs text-quaternary">
+                        {t("managerWorkspace.dashboard.matchmakerEmptyRecommendationsHint")}
+                    </p>
+                    <Link
+                        to="/workspace/manager/projects"
+                        className="mt-3 text-xs font-semibold text-brand-secondary hover:underline"
+                    >
+                        {t("managerWorkspace.dashboard.matchmakerEmptyRecommendationsCta")}
+                    </Link>
+                </>
+            }
+        >
             <ul className="space-y-3">
                 {items.slice(0, 5).map((item, index) => {
                     if (!item || typeof item !== "object") return null;
@@ -784,15 +801,15 @@ export function MatchmakerSection() {
     return (
         <section
             id={MANAGER_DASHBOARD_SECTION_IDS.matchmaker}
-            className="scroll-mt-24 space-y-5 rounded-2xl border border-secondary bg-primary p-5 shadow-sm"
+            className="scroll-mt-24 space-y-4 rounded-2xl border border-secondary bg-primary p-4 shadow-sm"
         >
             <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
                 <div className="flex flex-col gap-2">
                     <div className="flex flex-wrap items-center gap-2">
-                        <h3 className="text-base font-semibold text-primary">{t("managerWorkspace.dashboard.matchmakerTitle")}</h3>
-                        <span className="rounded-full border border-brand-secondary/40 bg-brand-primary/15 px-2.5 py-0.5 text-[10px] font-semibold uppercase text-brand-secondary">
-                            Matchmaker
-                        </span>
+                        <SectionTitleWithCodename
+                            title={t("managerWorkspace.dashboard.matchmakerTitle")}
+                            codename={t("managerWorkspace.dashboard.matchmakerCodename")}
+                        />
                         {llmEnrichedCount != null && llmEnrichedCount > 0 ? (
                             <span className="rounded-full border border-violet-200 bg-violet-50 px-2.5 py-0.5 text-[10px] font-semibold text-violet-800 dark:border-violet-800 dark:bg-violet-950/40 dark:text-violet-100">
                                 AI enrichi ({llmEnrichedCount} projet{llmEnrichedCount > 1 ? "s" : ""})

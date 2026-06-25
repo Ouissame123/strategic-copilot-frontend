@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type MouseEvent } from "react";
 import { Link, useNavigate } from "react-router";
 import { useQueryClient } from "@tanstack/react-query";
-import { ChevronDown } from "lucide-react";
-import { RefreshCw01, Stars01, Trash01, XClose } from "@untitledui/icons";
+import { ChevronDown, RefreshCw01, Stars01, Trash01, XClose } from "@untitledui/icons";
+import { CopilotChatPanel } from "@/components/copilot/CopilotChatPanel";
 import {
     formatConversationTimeAgo,
     friendlyArchiveConversationError,
@@ -73,6 +73,8 @@ export type ManagerProjectCopilotPanelProps = {
     refreshingProjectSnapshot?: boolean;
     /** Mode drawer Mission Control : masque le titre/sous-titre déjà affichés par `CopilotDrawer`. */
     embeddedInDrawer?: boolean;
+    /** Fermeture du drawer (panneau Copilot v3). */
+    onClose?: () => void;
 };
 
 const QUICK_PROMPTS = [

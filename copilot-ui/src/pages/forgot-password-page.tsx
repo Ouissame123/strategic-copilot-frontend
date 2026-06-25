@@ -3,40 +3,19 @@ import { Link } from "react-router";
 import { Button } from "@/components/base/buttons/button";
 import { Input } from "@/components/base/input/input";
 import { AuthCardLayout } from "@/components/auth/auth-card-layout";
+import { useForgotPassword } from "@/hooks/useForgotPassword";
 import { cx } from "@/utils/cx";
 
 export default function ForgotPasswordPage() {
     const [email, setEmail] = useState("");
-    const [sent, setSent] = useState(false);
-    const [error, setError] = useState<string | null>(null);
+    const mutation = useForgotPassword();
+    const data = mutation.data;
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
-        setError(null);
-        if (!email.trim()) {
-            setError("Veuillez renseigner votre adresse e-mail.");
-            return;
-        }
-        setSent(true);
+        if (!email.trim() || mutation.isPending) return;
+        mutation.mutate({ email: email.trim() });
     };
-
-    if (sent) {
-        return (
-            <AuthCardLayout
-                title="Demande enregistrée"
-                subtitle="Dans cette version de l'application (démo), aucun e-mail n'est réellement envoyé."
-            >
-                <div className="space-y-4">
-                    <p className="text-sm text-tertiary">
-                        La réinitialisation du mot de passe nécessite un serveur d'envoi d'e-mails, qui n'est pas configuré ici. Essayez de vous connecter avec votre mot de passe habituel, ou contactez le RH pour réinitialiser votre accès.
-                    </p>
-                    <Button color="primary" size="md" className="w-full" href="/login">
-                        Retour à la connexion
-                    </Button>
-                </div>
-            </AuthCardLayout>
-        );
-    }
 
     return (
         <AuthCardLayout
@@ -52,27 +31,53 @@ export default function ForgotPasswordPage() {
                     onChange={setEmail}
                     isRequired
                     autoComplete="email"
+                    isDisabled={mutation.isPending}
                 />
-                {error && (
-                    <p className="text-sm font-medium text-error-primary" role="alert">
-                        {error}
-                    </p>
-                )}
-                <Button type="submit" color="primary" size="md" className="w-full">
-                    Envoyer le lien de réinitialisation
+
+                <Button
+                    type="submit"
+                    color="primary"
+                    size="md"
+                    className="w-full"
+                    isLoading={mutation.isPending}
+                    isDisabled={mutation.isPending || !email.trim()}
+                >
+                    {mutation.isPending ? "Envoi…" : "Envoyer le lien de réinitialisation"}
                 </Button>
-                <p className="pt-2 text-center text-sm text-tertiary">
-                    <Link
-                        to="/login"
-                        className={cx(
-                            "font-semibold text-brand-secondary hover:text-brand-secondary_hover",
-                            "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring rounded",
-                        )}
-                    >
-                        Retour à la connexion
-                    </Link>
-                </p>
             </form>
+
+            {data?.success ? (
+                <div
+                    className="mt-4 rounded-xl border border-secondary bg-secondary_subtle/40 p-4 text-sm text-secondary"
+                    role="status"
+                >
+                    <p>{data.message}</p>
+                    {data.demo ? (
+                        <div className="mt-3 space-y-2 border-t border-secondary pt-3">
+                            <p className="text-xs text-tertiary">{data.demo.note}</p>
+                            <a
+                                href={data.demo.reset_url}
+                                className="block break-all text-sm font-medium text-brand-secondary hover:underline"
+                            >
+                                {data.demo.reset_url}
+                            </a>
+                            <p className="text-xs text-tertiary">Expire dans {data.demo.expires_in_minutes} minutes</p>
+                        </div>
+                    ) : null}
+                </div>
+            ) : null}
+
+            <p className="pt-4 text-center text-sm text-tertiary">
+                <Link
+                    to="/login"
+                    className={cx(
+                        "font-semibold text-brand-secondary hover:text-brand-secondary_hover",
+                        "rounded focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring",
+                    )}
+                >
+                    Retour à la connexion
+                </Link>
+            </p>
         </AuthCardLayout>
     );
 }

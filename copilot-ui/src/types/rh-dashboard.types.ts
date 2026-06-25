@@ -59,7 +59,7 @@ export type RhAnalyticsKpis = {
 };
 
 export type RhAnalytics = {
-    rh_score: number;
+    rh_score: number | null;
     kpis: RhAnalyticsKpis;
     alerts: RhAnalyticsAlert[];
 };

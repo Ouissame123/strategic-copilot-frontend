@@ -11,21 +11,18 @@ import {
     type ProjectTalentsResponse,
     type ProjectViabilityResponse,
 } from "@/api/project-by-id.api";
-import { postCopilotProjectWhatIf } from "@/api/copilot.api";
 import { Button } from "@/components/base/buttons/button";
 import { ManagerProjectDetailBody } from "@/components/project/manager-project-detail-body";
-import { ProjectWhatIfSimulator, type WhatIfResult } from "@/components/project/project-what-if-simulator";
 import { RequestRhActionModal } from "@/components/project/request-rh-action-modal";
 import { ErrorState } from "@/components/ui/ErrorState";
 import { LoadingState } from "@/components/ui/LoadingState";
 import { useCopilotPage } from "@/hooks/use-copilot-page";
 import { usePostRhActionMutation } from "@/hooks/use-rh-actions-query";
-import { useProjectDetail } from "@/hooks/use-project-detail";
+import { useProjectDetail } from "@/hooks/useProjects";
 import { useAuth } from "@/providers/auth-provider";
 import { useWorkspacePaths } from "@/hooks/use-workspace-paths";
 import { useToast } from "@/providers/toast-provider";
 import { formatTalentFitNarrative, formatUserFacingExplanation } from "@/lib/business-explanation";
-import { unwrapDataPayload } from "@/utils/unwrap-api-payload";
 
 type LoadState = "loading" | "success" | "error";
 
@@ -79,27 +76,6 @@ function getGlobalDecisionMessage(decision: unknown): { text: string; className:
     return { text: "Statut de decision indisponible", className: "text-tertiary bg-primary_alt border-secondary" };
 }
 
-function extractTalentOptions(talents: ProjectTalentsResponse | null): { id: string; label: string }[] {
-    const t = asRecord(talents);
-    const keys = ["members", "talents", "items", "rows"];
-    for (const k of keys) {
-        const arr = t[k];
-        if (!Array.isArray(arr) || arr.length === 0) continue;
-        const seen = new Set<string>();
-        const out: { id: string; label: string }[] = [];
-        for (let i = 0; i < arr.length; i++) {
-            const r = asRecord(arr[i]);
-            const id = String(r.talent_id ?? r.id ?? r.talentId ?? "").trim() || `row-${i}`;
-            if (seen.has(id)) continue;
-            seen.add(id);
-            const label = String(r.name ?? r.full_name ?? r.email ?? id).trim() || id;
-            out.push({ id, label });
-        }
-        return out;
-    }
-    return [];
-}
-
 export function ProjectDetailsPage() {
     const { user } = useAuth();
     const navigate = useNavigate();
@@ -119,7 +95,7 @@ export function ProjectDetailsPage() {
     const [risks, setRisks] = useState<ProjectRisksResponse | null>(null);
     const [viability, setViability] = useState<ProjectViabilityResponse | null>(null);
     const [rhActionOpen, setRhActionOpen] = useState(false);
-    const managerDetailQuery = useProjectDetail(projectId, isManager);
+    const managerDetailQuery = useProjectDetail(projectId, { enabled: isManager });
 
     useEffect(() => {
         if (!isManager || !managerDetailQuery.error) return;
@@ -167,35 +143,6 @@ export function ProjectDetailsPage() {
     useEffect(() => {
         void loadData();
     }, [loadData]);
-
-    const talentOptions = useMemo(() => extractTalentOptions(talents), [talents]);
-
-    const runWhatIf = useCallback(
-        async (modifications: Record<string, unknown>) => {
-            if (!projectId) throw new Error("Identifiant projet manquant.");
-            if (isManager) {
-                const scenario = {
-                    name: String(modifications.scenario_type ?? "what-if"),
-                    allocation_pct: modifications.allocation_pct,
-                    added_talent_id: modifications.added_talent_id ?? null,
-                    training_skill_id: modifications.training_skill_id ?? null,
-                };
-                const raw = await postCopilotProjectWhatIf(projectId, {
-                    scenarios: [scenario],
-                    modifications,
-                });
-                return unwrapDataPayload(raw) as WhatIfResult;
-            }
-            const response = await fetch("/api/project/what-if", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ project_id: projectId, modifications }),
-            });
-            if (!response.ok) throw new Error(`What-if API error: ${response.status}`);
-            return (await response.json()) as WhatIfResult;
-        },
-        [isManager, projectId],
-    );
 
     const projectTitle = useMemo(() => {
         const d = asRecord(details);
@@ -446,8 +393,6 @@ export function ProjectDetailsPage() {
                     </div>
                 </div>
             </section>
-
-            <ProjectWhatIfSimulator onSimulate={runWhatIf} talentOptions={talentOptions} />
 
             <RequestRhActionModal
                 open={rhActionOpen}

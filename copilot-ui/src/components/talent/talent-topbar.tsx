@@ -11,6 +11,8 @@ const TITLES: Record<string, string> = {
     "/workspace/talent/tasks": "Mes taches",
     "/workspace/talent/workload": "Ma charge",
     "/workspace/talent/skills": "Mes competences",
+    "/workspace/talent/opportunities": "Mes opportunites",
+    "/workspace/talent/requests": "Mes demandes",
     "/workspace/talent/trainings": "Mes formations",
     "/workspace/talent/notifications": "Notifications",
     "/workspace/talent/profile": "Mon profil",

@@ -22,4 +22,5 @@ export type {
     RhAssignmentsListResponse,
     RhManagerListItem,
     RhManagersListResponse,
+    UpdateRhAssignmentPayload,
 } from "@/types/rh-assignments.types";

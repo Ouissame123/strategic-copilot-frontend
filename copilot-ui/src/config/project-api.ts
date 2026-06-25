@@ -40,26 +40,5 @@ export function getProjectByIdUrl(projectId: string): string {
     return base ? `${base}${path}` : path;
 }
 
-/** WF_Talent_Matching — GET avec `project_id` (même schéma que les autres webhooks projet). */
-export function getProjectTalentMatchingUrl(projectId: string): string {
-    const explicit = (import.meta.env.VITE_PROJECT_TALENT_MATCHING_URL as string | undefined)?.trim();
-    if (explicit) {
-        if (explicit.includes(":id")) return explicit.replace(":id", encodeURIComponent(projectId));
-        return `${explicit.replace(/\/$/, "")}?project_id=${encodeURIComponent(projectId)}`;
-    }
-    return `${getProjectApiBase()}/talents?project_id=${encodeURIComponent(projectId)}`;
-}
-
-/**
- * Chemin pour POST `{ project_id }` — si `VITE_PROJECT_TALENT_MATCHING_USE_POST=true`
- * (webhooks n8n souvent en POST).
- */
-export function getProjectTalentMatchingPath(projectId: string): string {
-    const explicit = (import.meta.env.VITE_PROJECT_TALENT_MATCHING_URL as string | undefined)?.trim();
-    if (explicit) {
-        const base = explicit.split("?")[0] ?? explicit;
-        if (base.includes(":id")) return base.replace(":id", encodeURIComponent(projectId));
-        return base.replace(/\/$/, "");
-    }
-    return `${getProjectApiBase()}/talents`;
-}
+// REMOVED: legacy GET helpers (`GET …/talents?project_id=…`).
+// Matchmaker : `matchmakerApi.runForProject` → POST `/webhook/api/project/talents`.

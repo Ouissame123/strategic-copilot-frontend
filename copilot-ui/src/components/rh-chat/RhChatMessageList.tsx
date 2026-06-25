@@ -16,6 +16,7 @@ type RhChatMessageListProps = {
     sending?: boolean;
     showWelcome?: boolean;
     enterpriseId?: string;
+    compactWelcome?: boolean;
     onWelcomeQuestion?: (question: string) => void;
     onQuickReply?: (text: string) => void;
 };
@@ -102,6 +103,7 @@ export const RhChatMessageList = memo(function RhChatMessageList({
     sending,
     showWelcome,
     enterpriseId,
+    compactWelcome,
     onWelcomeQuestion,
     onQuickReply,
 }: RhChatMessageListProps) {
@@ -116,7 +118,11 @@ export const RhChatMessageList = memo(function RhChatMessageList({
     if (showWelcome && messages.length === 0 && !loading) {
         return (
             <div ref={scrollRef} className="min-h-0 flex-1 overflow-y-auto">
-                <RhChatWelcomeScreen enterpriseId={enterpriseId} onSelectQuestion={(q) => onWelcomeQuestion?.(q)} />
+                <RhChatWelcomeScreen
+                    enterpriseId={enterpriseId}
+                    compact={compactWelcome}
+                    onSelectQuestion={(q) => onWelcomeQuestion?.(q)}
+                />
             </div>
         );
     }

@@ -147,32 +147,22 @@ function nestedStringField(obj: unknown, key: string): string | null {
     return s || null;
 }
 
-/** Extrait `project_name` depuis la ligne API (plusieurs emplacements possibles). */
+/** Extrait `project_name` depuis la ligne API (champ aplati). */
 export function extractRhRequestProjectName(request: RhRequest): string | null {
-    const project =
-        request.project && typeof request.project === "object" && !Array.isArray(request.project)
-            ? (request.project as Record<string, unknown>)
-            : null;
     const payload =
         request.payload && typeof request.payload === "object" && !Array.isArray(request.payload)
-            ? (request.payload as Record<string, unknown>)
+            ? request.payload
             : null;
     const metadata =
         request.metadata && typeof request.metadata === "object" && !Array.isArray(request.metadata)
             ? (request.metadata as Record<string, unknown>)
             : null;
-    const context =
-        request.context && typeof request.context === "object" && !Array.isArray(request.context)
-            ? (request.context as Record<string, unknown>)
-            : null;
 
     return (
         nestedStringField(request, "project_name") ??
-        nestedStringField(project, "name") ??
         nestedStringField(request, "project_title") ??
         nestedStringField(metadata, "project_name") ??
-        nestedStringField(payload, "project_name") ??
-        nestedStringField(context, "project_name")
+        nestedStringField(payload, "project_name")
     );
 }
 

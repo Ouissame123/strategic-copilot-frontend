@@ -1,6 +1,7 @@
 @import "tailwindcss";
 @import "./theme.css";
 @import "./workspace-saas.css";
+@import "./inbox-tokens.css";
 @import "./typography.css";
 
 @plugin "@tailwindcss/typography";

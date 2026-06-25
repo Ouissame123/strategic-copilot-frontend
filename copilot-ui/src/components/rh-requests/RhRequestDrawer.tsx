@@ -94,6 +94,7 @@ export function RhRequestDrawer({
     }, [payload]);
 
     const projectId = item ? String(item.raw.project_id ?? "").trim() : "";
+    const projectName = item ? String(item.raw.project_name ?? "").trim() : "";
 
     if (!open || !item) return null;
 
@@ -135,15 +136,18 @@ export function RhRequestDrawer({
                 <div className="flex-1 overflow-x-hidden overflow-y-auto px-5 py-4 space-y-5">
                     <section className="rounded-xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-700 dark:bg-slate-950/50">
                         <p className="text-xs font-semibold uppercase text-slate-500">{labels.project}</p>
-                        <p className="mt-1 text-sm font-medium text-slate-900 dark:text-slate-100">{item.projectLabel}</p>
-                        {projectId ? (
+                        {projectName && projectId ? (
                             <Link
-                                to={`/workspace/manager/projects?project_id=${encodeURIComponent(projectId)}`}
+                                to={`/workspace/rh/projects/${encodeURIComponent(projectId)}`}
                                 className="mt-2 inline-block text-xs font-semibold text-brand-secondary hover:underline"
                             >
-                                {labels.openProject}
+                                {item.projectLabel}
                             </Link>
-                        ) : null}
+                        ) : item.projectLabel && item.projectLabel !== "Aucun projet" ? (
+                            <p className="mt-1 text-sm font-medium text-slate-900 dark:text-slate-100">{item.projectLabel}</p>
+                        ) : (
+                            <p className="mt-1 text-sm text-slate-400">Projet non renseigné</p>
+                        )}
                         <p className="mt-2 text-xs text-slate-500">
                             {labels.sentAt} : {item.createdLabel}
                         </p>

@@ -1,4 +1,4 @@
-import { buildN8nUrl, getN8nBaseUrl } from "@/lib/build-n8n-url";
+import { buildN8nUrl } from "@/lib/build-n8n-url";
 import { authStorage } from "@/lib/auth-storage";
 import { httpClient } from "@/lib/http-client";
 import { getApiAuthToken } from "@/utils/apiClient";
@@ -36,7 +36,6 @@ export type ScheduleReportPayload = {
 const silent = { skipGlobalHttpErrorToast: true as const };
 
 const REPORTS_HISTORY_PATH = "/webhook/reports/history";
-const N8N_PROD_ORIGIN = "https://n8nprod.aphelionxinnovations.com";
 
 export const REPORTS_HISTORY_EMPTY_ERROR =
     "Réponse vide depuis /reports/history — vérifier proxy Vite ou URL n8n.";
@@ -48,27 +47,24 @@ function historyQueryString(enterpriseId: string, limit: number): string {
     }).toString();
 }
 
-function n8nOriginForHistory(): string {
-    const base = getN8nBaseUrl();
-    return base || N8N_PROD_ORIGIN;
+function relativeWebhookUrl(pathWithQuery: string): string | null {
+    if (typeof window === "undefined" || !window.location?.origin) return null;
+    return new URL(pathWithQuery, window.location.origin).href;
 }
 
-/** Chemins candidats pour GET historique (ordre : proxy Vite relatif, puis n8n absolu). */
+/** Chemins candidats pour GET historique (ordre : proxy Vite relatif, puis n8n absolu si configuré). */
 export function buildReportsHistoryRequestUrls(enterpriseId: string, limit = 50): string[] {
     const qs = historyQueryString(enterpriseId, limit);
     const pathWithQuery = `${REPORTS_HISTORY_PATH}?${qs}`;
     const urls = new Set<string>();
 
+    const viaProxy = relativeWebhookUrl(pathWithQuery);
+    if (viaProxy) urls.add(viaProxy);
+
     const viaEnv = buildN8nUrl(pathWithQuery);
     if (viaEnv.startsWith("http://") || viaEnv.startsWith("https://")) {
         urls.add(viaEnv);
-    } else if (typeof window !== "undefined" && window.location?.origin) {
-        urls.add(new URL(viaEnv, window.location.origin).href);
-    } else {
-        urls.add(viaEnv);
     }
-
-    urls.add(`${n8nOriginForHistory()}${pathWithQuery}`);
 
     return [...urls];
 }
@@ -86,18 +82,17 @@ function reportsAuthHeaders(json = false): HeadersInit {
     return headers;
 }
 
-/** URL absolue pour POST/GET rapports (proxy Vite puis n8n prod). */
+/** URL absolue pour POST/GET rapports (proxy Vite puis n8n si base configurée). */
 function resolveReportsApiUrl(path: string): string[] {
     const urls = new Set<string>();
+    const viaProxy = relativeWebhookUrl(path);
+    if (viaProxy) urls.add(viaProxy);
+
     const viaEnv = buildN8nUrl(path);
     if (viaEnv.startsWith("http://") || viaEnv.startsWith("https://")) {
         urls.add(viaEnv);
-    } else if (typeof window !== "undefined" && window.location?.origin) {
-        urls.add(new URL(viaEnv, window.location.origin).href);
-    } else {
-        urls.add(viaEnv);
     }
-    urls.add(`${n8nOriginForHistory()}${path}`);
+
     return [...urls];
 }
 

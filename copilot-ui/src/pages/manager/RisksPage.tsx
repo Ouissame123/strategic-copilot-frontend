@@ -1,369 +1,411 @@
-import { useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { CheckCircle, ChevronDown, ChevronRight, Shield } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import { Shield } from "lucide-react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { Link, useSearchParams } from "react-router";
 import { AlertDetailDrawer } from "@/components/risks/AlertDetailDrawer";
-import { RiskFilterChips } from "@/components/risks/RiskFilterChips";
-import { RiskHeatmapInteractive } from "@/components/risks/RiskHeatmapInteractive";
-import { RiskKpiSection } from "@/components/risks/RiskKpiCardWithSparkline";
-import { RiskPriorityList } from "@/components/risks/RiskPriorityList";
-import { RiskProjectGrid } from "@/components/risks/RiskProjectCard";
-import { RiskTicketKanban } from "@/components/risks/RiskTicketKanban";
 import {
-    type DisplayAlert,
-    matchesQuickFilter,
     readAvgRiskScore,
-    RISK_PAGE_BG,
-    severityRank,
-    toDisplayFromRiskItem,
-    toDisplayFromTop,
-    type RiskLeaderboardRow,
-    displayAlertToHeatmapInput,
     resolveRiskAlertPatchId,
+    toDisplayFromProjectRiskItem,
+    type DisplayAlert,
     type RiskAlertPatchRequest,
-    type RiskQuickFilterId,
 } from "@/components/risks/risks-shared";
+import { ProjectsEmptyState } from "@/components/manager/projects/ProjectsEmptyState";
+import { RiskAlertCard } from "@/components/manager/risks/RiskAlertCard";
+import { RiskAlertDedupDrawer } from "@/components/manager/risks/RiskAlertDedupDrawer";
+import { RisksInsightBar } from "@/components/manager/risks/RisksInsightBar";
+import { RisksSegmentsBar } from "@/components/manager/risks/RisksSegmentsBar";
 import { WorkspacePageShell } from "@/components/workspace/workspace-page-shell";
-import { useWorkspaceTopbarMeta } from "@/layouts/workspace-topbar-meta";
-import { agentsApi } from "@/api/agents.api";
+import { PaginationFooter } from "@/components/common/PaginationFooter";
+import { Button } from "@/components/base/buttons/button";
+import { useCopilotPage } from "@/hooks/use-copilot-page";
 import { useDashboard } from "@/hooks/useDashboard";
-import { invalidateManagerRiskQueries, useManagerRiskData } from "@/hooks/use-manager-risk-data";
+import { useManagerRiskData } from "@/hooks/use-manager-risk-data";
 import { useRiskAlertAction } from "@/hooks/useNotifications";
 import { useProjects } from "@/hooks/useProjects";
 import { useWatchdogScan } from "@/hooks/useTeam";
 import {
-    buildHeatmapNestedBuckets,
-    logHeatmapBucketDebug,
-} from "@/lib/risk-alert-display";
+    alertMatchesSearch,
+    alertMatchesSegmentFilter,
+    alertMatchesStatusFilter,
+    buildManagerRisksCounts,
+    dedupeRiskAlerts,
+    groupRiskDedupEntriesByBucket,
+    RISKS_BUCKET_LABELS,
+    RISKS_BUCKET_ORDER,
+    sortRiskDedupEntries,
+    type RiskAlertDedupEntry,
+    type RisksDensity,
+    type RisksSegmentFilter,
+    type RisksStatusFilter,
+} from "@/lib/manager-risks-list-utils";
 import { useToast } from "@/providers/toast-provider";
+import { buildManagerListSearchParams, readUrlPagination } from "@/lib/manager-url-pagination";
+import { WORKSPACE_PREFIX } from "@/utils/workspace-routes";
 import { cx } from "@/utils/cx";
-const CATEGORY_PRESETS = ["skill_gap", "overload", "anxiety", "dependency", "fragility"];
 
-function syntheticSpark(value: number): number[] {
-    const v = Number.isFinite(value) ? value : 0;
-    return Array.from({ length: 7 }, (_, i) => Math.max(0, v + (i - 3) * 0.15));
+const DENSITY_STORAGE_KEY = "risks.density";
+const SEGMENT_STORAGE_KEY = "risks.segmentFilter";
+const STATUS_STORAGE_KEY = "risks.statusFilter";
+
+function readInitialDensity(): RisksDensity {
+    if (typeof window === "undefined") return "comfortable";
+    return window.localStorage.getItem(DENSITY_STORAGE_KEY) === "compact" ? "compact" : "comfortable";
+}
+
+function readInitialSegmentFilter(): RisksSegmentFilter {
+    if (typeof window === "undefined") return "all";
+    const stored = window.localStorage.getItem(SEGMENT_STORAGE_KEY);
+    if (stored === "all" || stored === "critical" || stored === "high" || stored === "today") return stored;
+    return "all";
+}
+
+function readInitialStatusFilter(): RisksStatusFilter {
+    if (typeof window === "undefined") return "open";
+    const stored = window.localStorage.getItem(STATUS_STORAGE_KEY);
+    if (stored === "open" || stored === "acknowledged" || stored === "resolved" || stored === "all") return stored;
+    return "open";
 }
 
 export default function RisksPage() {
     const { t } = useTranslation(["common", "nav"]);
     const { push } = useToast();
-    const qc = useQueryClient();
-    const [projectId, setProjectId] = useState("");
-    const aggregateView = !projectId.trim();
+    const [searchParams, setSearchParams] = useSearchParams();
+    const { page, limit } = readUrlPagination(searchParams);
+    const urlSeverity = searchParams.get("severity") ?? undefined;
+    const urlSearch = searchParams.get("search") ?? "";
 
-    const [severityFilter, setSeverityFilter] = useState("Toutes");
-    const [categoryFilter, setCategoryFilter] = useState("Toutes");
-    const [quickFilters, setQuickFilters] = useState<Set<RiskQuickFilterId>>(new Set());
+    const [projectFilter, setProjectFilter] = useState(searchParams.get("project_id") ?? "");
+    const [segmentFilter, setSegmentFilter] = useState<RisksSegmentFilter>(() => readInitialSegmentFilter());
+    const [statusFilter, setStatusFilter] = useState<RisksStatusFilter>(() => readInitialStatusFilter());
+    const [searchQuery, setSearchQuery] = useState(urlSearch);
+    const [density, setDensity] = useState<RisksDensity>(() => readInitialDensity());
+    const [collapsedBuckets, setCollapsedBuckets] = useState<Set<string>>(new Set());
     const [selectedAlert, setSelectedAlert] = useState<DisplayAlert | null>(null);
     const [drawerOpen, setDrawerOpen] = useState(false);
-    /** Retrait immédiat après resolve / ignore (avant refetch). */
+    const [dedupDrawerEntry, setDedupDrawerEntry] = useState<RiskAlertDedupEntry | null>(null);
     const [closedAlertIds, setClosedAlertIds] = useState<Set<string>>(() => new Set());
 
     const projects = useProjects({ limit: 100 });
-    const dashboard = useDashboard("mine", { enabled: aggregateView });
-    const riskDetail = useManagerRiskData(projectId.trim() || null);
-
+    const dashboard = useDashboard("mine");
+    const riskDetail = useManagerRiskData({
+        page,
+        limit,
+        severity: urlSeverity || (segmentFilter === "critical" || segmentFilter === "high" ? segmentFilter : undefined),
+        status: statusFilter === "all" ? "all" : statusFilter === "resolved" ? "resolved" : "open",
+        project_id: projectFilter.trim() || undefined,
+        search: searchQuery.trim() || undefined,
+        scope: "mine",
+    });
     const patchAlert = useRiskAlertAction();
     const watchdogScan = useWatchdogScan();
-    const analyzeProject = useMutation({
-        mutationFn: (pid: string) => agentsApi.projectAnalysis({ project_id: pid }).then((r) => r.data),
-    });
 
-    const managerProjectIds = useMemo(() => {
-        return new Set((projects.data?.items ?? []).map((p) => p.id).filter(Boolean));
-    }, [projects.data?.items]);
+    const displayAlerts = useMemo(
+        () => (riskDetail.data?.items ?? []).map(toDisplayFromProjectRiskItem),
+        [riskDetail.data?.items],
+    );
 
-    const displayAlerts: DisplayAlert[] = useMemo(() => {
-        if (aggregateView) {
-            const top = dashboard.data?.widgets.top_alerts ?? [];
-            return top.map(toDisplayFromTop);
+    const counts = useMemo(() => {
+        const summary = riskDetail.data?.summary;
+        if (summary) {
+            return buildManagerRisksCounts(dashboard.data, summary);
         }
-        return (riskDetail.data?.items ?? []).map(toDisplayFromRiskItem);
-    }, [aggregateView, dashboard.data?.widgets.top_alerts, riskDetail.data]);
+        return buildManagerRisksCounts(dashboard.data, undefined);
+    }, [dashboard.data, riskDetail.data?.summary]);
 
-    const categoriesAvailable = useMemo(() => {
-        const set = new Set<string>(CATEGORY_PRESETS);
-        displayAlerts.forEach((a) => {
-            if (a.category && a.category !== "—") set.add(a.category);
-        });
-        return ["Toutes", ...Array.from(set)];
-    }, [displayAlerts]);
+    const riskGlobalScore = useMemo(() => {
+        const fromSummary = readAvgRiskScore(riskDetail.data?.summary);
+        if (fromSummary != null) return fromSummary;
+        const raw = dashboard.data?.health?.avg_viability;
+        const n = Number(raw);
+        return Number.isFinite(n) ? n : null;
+    }, [riskDetail.data?.summary, dashboard.data?.health?.avg_viability]);
+
+    useEffect(() => {
+        window.localStorage.setItem(DENSITY_STORAGE_KEY, density);
+    }, [density]);
+
+    useEffect(() => {
+        window.localStorage.setItem(SEGMENT_STORAGE_KEY, segmentFilter);
+    }, [segmentFilter]);
+
+    useEffect(() => {
+        window.localStorage.setItem(STATUS_STORAGE_KEY, statusFilter);
+    }, [statusFilter]);
+
+    useCopilotPage();
+
+    const updateListParams = useCallback(
+        (next: Partial<{ page: number; limit: number; severity?: string; status?: string; search?: string; project_id?: string }>) => {
+            const merged = {
+                page: next.page ?? page,
+                limit: next.limit ?? limit,
+                severity: next.severity !== undefined ? next.severity : urlSeverity,
+                status: next.status !== undefined ? next.status : statusFilter !== "open" ? statusFilter : undefined,
+                search: next.search !== undefined ? next.search : searchQuery.trim() || undefined,
+                project_id: next.project_id !== undefined ? next.project_id : projectFilter.trim() || undefined,
+            };
+            const resetPage =
+                next.severity !== undefined ||
+                next.status !== undefined ||
+                next.search !== undefined ||
+                next.project_id !== undefined ||
+                next.limit !== undefined;
+            setSearchParams(
+                buildManagerListSearchParams(
+                    {
+                        severity: merged.severity,
+                        status: merged.status && merged.status !== "open" ? merged.status : undefined,
+                        search: merged.search,
+                        project_id: merged.project_id,
+                    },
+                    { page: resetPage && next.page === undefined ? 1 : merged.page, limit: merged.limit },
+                ),
+            );
+        },
+        [limit, page, projectFilter, searchQuery, setSearchParams, statusFilter, urlSeverity],
+    );
 
     const filteredAlerts = useMemo(() => {
-        return displayAlerts.filter((a) => {
-            const patchKey = resolveRiskAlertPatchId(a);
+        return displayAlerts.filter((alert) => {
+            const patchKey = resolveRiskAlertPatchId(alert);
             if (patchKey && closedAlertIds.has(patchKey)) return false;
-            const sev = (a.severity ?? "").toLowerCase();
-            if (severityFilter !== "Toutes" && sev !== severityFilter.toLowerCase()) return false;
-            if (categoryFilter !== "Toutes" && a.category !== categoryFilter) return false;
-            for (const f of quickFilters) {
-                if (!matchesQuickFilter(a, f, managerProjectIds)) return false;
+            return (
+                alertMatchesSegmentFilter(alert, segmentFilter) &&
+                alertMatchesStatusFilter(alert, statusFilter) &&
+                alertMatchesSearch(alert, searchQuery)
+            );
+        });
+    }, [displayAlerts, closedAlertIds, segmentFilter, statusFilter, searchQuery]);
+
+    const dedupedSorted = useMemo(() => {
+        const deduped = dedupeRiskAlerts(filteredAlerts);
+        return sortRiskDedupEntries(deduped);
+    }, [filteredAlerts]);
+
+    const groupedEntries = useMemo(() => groupRiskDedupEntriesByBucket(dedupedSorted), [dedupedSorted]);
+
+    const onPatch = useCallback(
+        ({ alert, action, note }: RiskAlertPatchRequest) => {
+            const alertId = resolveRiskAlertPatchId(alert);
+            if (!alertId) {
+                push("ID alerte introuvable", "error");
+                return;
             }
-            return true;
-        });
-    }, [displayAlerts, closedAlertIds, severityFilter, categoryFilter, quickFilters, managerProjectIds]);
-
-    const priorityQueue = useMemo(() => {
-        return [...filteredAlerts].sort((a, b) => {
-            const rs = severityRank(b.severity) - severityRank(a.severity);
-            if (rs !== 0) return rs;
-            return (b.riskScore ?? -1) - (a.riskScore ?? -1);
-        });
-    }, [filteredAlerts]);
-
-    const heatmapBuckets = useMemo(() => {
-        const inputs = filteredAlerts.map(displayAlertToHeatmapInput);
-        if (import.meta.env.DEV) logHeatmapBucketDebug(inputs);
-        return buildHeatmapNestedBuckets(filteredAlerts);
-    }, [filteredAlerts]);
-
-    const leaderboardRows: RiskLeaderboardRow[] = useMemo(() => {
-        if (aggregateView) {
-            return (dashboard.data?.widgets.fragile_projects ?? []).slice(0, 6).map((p) => ({
-                project_id: p.id,
-                project_name: p.name,
-                risk_score: p.viability_score ?? undefined,
-                risk_level: p.decision ?? "—",
-                drivers: {} as Record<string, number>,
-            }));
-        }
-        return (riskDetail.data?.projects ?? []).slice(0, 6).map((r) => ({
-            ...r,
-            risk_level: r.risk_level ?? "medium",
-        }));
-    }, [aggregateView, dashboard.data?.widgets.fragile_projects, riskDetail.data?.projects]);
-
-    const globalRiskScore = useMemo(() => readAvgRiskScore(riskDetail.data?.summary), [riskDetail.data?.summary]);
-
-    const projectsImpacted = useMemo(() => {
-        return new Set(filteredAlerts.map((a) => a.projectId).filter(Boolean)).size;
-    }, [filteredAlerts]);
-
-    const kpiSection = useMemo(() => {
-        if (aggregateView) {
-            const cards = dashboard.data?.kpi_cards;
-            const open = cards?.alerts.total_open ?? filteredAlerts.length;
-            const crit = cards?.alerts.critical_or_high ?? 0;
-            const overloaded = cards?.team.overloaded ?? 0;
-            const rh = cards?.pending_rh_actions ?? 0;
-            const score = globalRiskScore ?? dashboard.data?.health.avg_viability ?? null;
-            return {
-                heroScore: score,
-                heroSub: t("managerWorkspace.risksPage.hintConsolidated"),
-                kpis: [
-                    { label: t("managerWorkspace.risksPage.kpiOpenAlerts"), value: open, sub: t("managerWorkspace.risksPage.hintPortfolio"), tone: "neutral" as const, sparkPoints: syntheticSpark(open) },
-                    { label: t("managerWorkspace.risksPage.kpiCriticalHigh"), value: crit, sub: t("managerWorkspace.risksPage.hintHighPriority"), tone: "danger" as const, sparkPoints: syntheticSpark(crit), positiveGood: false },
-                    { label: t("managerWorkspace.risksPage.kpiOverloadedTalents"), value: overloaded, sub: t("managerWorkspace.risksPage.hintCapacity"), tone: "warning" as const, sparkPoints: syntheticSpark(overloaded), positiveGood: false },
-                    { label: t("managerWorkspace.risksPage.kpiPendingRh"), value: rh, sub: t("managerWorkspace.risksPage.hintRhQueue"), tone: "info" as const, sparkPoints: syntheticSpark(rh), positiveGood: false },
-                    { label: "Projets impactés", value: projectsImpacted, sub: "Portefeuille filtré", tone: "brand" as const, sparkPoints: syntheticSpark(projectsImpacted) },
-                ],
-            };
-        }
-        const summary = riskDetail.data?.summary;
-        const score = globalRiskScore;
-        const open = summary?.total_alerts ?? filteredAlerts.length;
-        return {
-            heroScore: score,
-            heroSub: t("managerWorkspace.risksPage.hintAvgIndicators"),
-            kpis: [
-                { label: t("managerWorkspace.risksPage.kpiOpened"), value: open, sub: t("managerWorkspace.risksPage.hintSelectedProject"), tone: "neutral" as const, sparkPoints: syntheticSpark(open) },
-                { label: t("managerWorkspace.risksPage.kpiCritical"), value: summary?.critical ?? 0, sub: t("managerWorkspace.risksPage.hintSeverity"), tone: "danger" as const, sparkPoints: syntheticSpark(summary?.critical ?? 0) },
-                { label: t("managerWorkspace.risksPage.kpiHigh"), value: summary?.high ?? 0, sub: t("managerWorkspace.risksPage.hintSeverity"), tone: "warning" as const, sparkPoints: syntheticSpark(summary?.high ?? 0) },
-                { label: t("managerWorkspace.risksPage.kpiAtRiskProjects"), value: summary?.at_risk_projects ?? 0, sub: t("managerWorkspace.risksPage.hintScope"), tone: "info" as const, sparkPoints: syntheticSpark(summary?.at_risk_projects ?? 0) },
-                { label: "Projets impactés", value: projectsImpacted, sub: "Vue projet", tone: "brand" as const, sparkPoints: syntheticSpark(projectsImpacted) },
-            ],
-        };
-    }, [aggregateView, dashboard.data, filteredAlerts.length, globalRiskScore, projectsImpacted, riskDetail.data?.summary, t]);
-
-    const onPatch = ({ alert, action, note }: RiskAlertPatchRequest) => {
-        const alertId = resolveRiskAlertPatchId(alert);
-        if (import.meta.env.DEV) {
-            console.log("PATCH alert", alertId, action);
-            console.log("PATCH ALERT", { alertId, action, alert });
-        }
-        if (!alertId) {
-            push("ID alerte introuvable", "error");
-            return;
-        }
-        patchAlert.mutate(
-            { id: alertId, body: { action, note } },
-            {
-                onSuccess: async () => {
-                    if (action === "resolve" || action === "ignore") {
-                        setClosedAlertIds((prev) => new Set(prev).add(alertId));
-                    } else if (action === "reopen") {
-                        setClosedAlertIds((prev) => {
-                            const next = new Set(prev);
-                            next.delete(alertId);
-                            return next;
-                        });
-                    }
-                    await invalidateManagerRiskQueries(qc);
-                    push(
-                        action === "resolve" ? "Alerte résolue" : action === "reopen" ? "Alerte réouverte" : "Alerte ignorée",
-                        "success",
-                    );
-                    setDrawerOpen(false);
-                    setSelectedAlert(null);
+            patchAlert.mutate(
+                { id: alertId, body: { action, note }, projectId: alert.projectId },
+                {
+                    onSuccess: () => {
+                        if (action === "resolve" || action === "ignore") {
+                            setClosedAlertIds((prev) => new Set(prev).add(alertId));
+                        }
+                        setDrawerOpen(false);
+                        setSelectedAlert(null);
+                    },
+                    onError: () => {
+                        push(action === "resolve" ? "Erreur lors de la résolution" : "Erreur lors de l'ignorance", "error");
+                    },
                 },
-                onError: (err) => {
-                    console.error(action === "resolve" ? "Resolve error" : "Ignore error", err);
-                    push(action === "resolve" ? "Erreur lors de la résolution" : "Erreur lors de l'ignorance", "error");
-                },
-            },
-        );
-    };
+            );
+        },
+        [patchAlert, push],
+    );
 
-    const onScan = (pid?: string) => {
-        watchdogScan.mutate(
-            { project_id: pid, use_ai: true },
-            {
-                onSuccess: async () => {
-                    await invalidateManagerRiskQueries(qc);
-                    push("Scan Watchdog terminé, données actualisées", "success");
-                },
-                onError: () => push("Échec du scan Watchdog.", "error"),
-            },
-        );
-    };
-
-    const openDrawer = (a: DisplayAlert) => {
-        setSelectedAlert(a);
+    const openDrawer = useCallback((alert: DisplayAlert) => {
+        setSelectedAlert(alert);
         setDrawerOpen(true);
-    };
+    }, []);
 
-    const toggleQuickFilter = (id: RiskQuickFilterId) => {
-        setQuickFilters((prev) => {
+    const runScan = useCallback(() => {
+        const pid = projectFilter.trim() || undefined;
+        watchdogScan.mutate({ project_id: pid, use_ai: true });
+    }, [projectFilter, watchdogScan]);
+
+    const toggleBucket = (bucket: string) => {
+        setCollapsedBuckets((prev) => {
             const next = new Set(prev);
-            if (next.has(id)) next.delete(id);
-            else next.add(id);
+            if (next.has(bucket)) next.delete(bucket);
+            else next.add(bucket);
             return next;
         });
     };
 
-    const isLoading = aggregateView ? dashboard.isLoading || riskDetail.isLoading : riskDetail.isLoading;
-    const isError = aggregateView ? dashboard.isError || riskDetail.isError : riskDetail.isError;
-
-    const risksHeaderBadge = useMemo(
-        () => (
-            <span className="inline-flex shrink-0 rounded-full border border-violet-400/40 bg-gradient-to-r from-violet-500/15 to-indigo-500/10 px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-violet-700 dark:text-violet-300">
-                AI Powered
-            </span>
-        ),
-        [],
-    );
-
-    useWorkspaceTopbarMeta(t("nav:managerNavRisks"), t("managerWorkspace.risksPage.heroSubtitle"), risksHeaderBadge);
+    const isLoading = dashboard.isLoading || riskDetail.isLoading;
+    const isError = dashboard.isError || riskDetail.isError;
+    const showEmptyCritical = !isLoading && dedupedSorted.length === 0 && segmentFilter === "critical";
+    const showEmptySearch = !isLoading && dedupedSorted.length === 0 && Boolean(searchQuery.trim());
 
     return (
-        <WorkspacePageShell role="manager" eyebrow={t("workspaceRoles.manager")} title={t("managerWorkspace.risksPage.shellTitle")} description={false} omitHeader>
-            <div className={cx(RISK_PAGE_BG, "-mx-4 -mt-2 px-4 py-6 sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8")}>
-                {isLoading ? <p className="text-sm text-slate-500">{t("managerWorkspace.risksPage.loadData")}</p> : null}
+        <WorkspacePageShell role="manager" eyebrow="" title="" omitHeader>
+            <div className="mx-auto max-w-5xl space-y-3 px-4 py-4 sm:px-6 lg:px-8">
+                <header className="space-y-2 border-b border-slate-100 pb-3 dark:border-slate-800">
+                    <div className="flex flex-wrap items-center justify-end gap-2">
+                        {riskGlobalScore != null ? (
+                            <p className="mr-auto text-xs text-slate-500 dark:text-slate-400">
+                                Score risque enterprise : {riskGlobalScore.toFixed(2)}/10
+                            </p>
+                        ) : null}
+                        <Button
+                            type="button"
+                            color="tertiary"
+                            size="sm"
+                            onClick={runScan}
+                            isDisabled={watchdogScan.isPending}
+                            isLoading={watchdogScan.isPending}
+                            iconLeading={watchdogScan.isPending ? undefined : Shield}
+                        >
+                            {watchdogScan.isPending ? "Analyse…" : "Lancer Watchdog"}
+                        </Button>
+                    </div>
+
+                    <RisksInsightBar counts={counts} onFilterClick={setSegmentFilter} />
+
+                    <RisksSegmentsBar
+                        segmentFilter={segmentFilter}
+                        onSegmentChange={(seg) => {
+                            setSegmentFilter(seg);
+                            updateListParams({
+                                severity: seg === "critical" || seg === "high" ? seg : "",
+                                page: 1,
+                            });
+                        }}
+                        statusFilter={statusFilter}
+                        onStatusChange={(st) => {
+                            setStatusFilter(st);
+                            updateListParams({ status: st, page: 1 });
+                        }}
+                        counts={counts}
+                        searchQuery={searchQuery}
+                        onSearchChange={(q) => {
+                            setSearchQuery(q);
+                            updateListParams({ search: q.trim(), page: 1 });
+                        }}
+                        projectFilter={projectFilter}
+                        onProjectChange={(pid) => {
+                            setProjectFilter(pid);
+                            updateListParams({ project_id: pid.trim(), page: 1 });
+                        }}
+                        projects={projects.data?.items ?? []}
+                    />
+                </header>
+
+                {isLoading && !riskDetail.data ? (
+                    <p className="py-6 text-center text-sm text-slate-500">{t("managerWorkspace.risksPage.loadData")}</p>
+                ) : null}
+
                 {isError ? (
-                    <div className="mb-4 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-900 dark:border-rose-900 dark:bg-rose-950/40 dark:text-rose-100">
-                        {t("managerWorkspace.risksPage.loadError")}
+                    <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-900 dark:border-rose-900 dark:bg-rose-950/40 dark:text-rose-100">
+                        {t("managerWorkspace.risksPage.loadError")}{" "}
+                        <button type="button" onClick={() => void riskDetail.refetch()} className="underline">
+                            Réessayer
+                        </button>
                     </div>
                 ) : null}
 
-                {!isLoading && !isError ? (
-                    <div className="mx-auto max-w-7xl space-y-6 lg:space-y-8">
-                        <RiskKpiSection heroScore={kpiSection.heroScore} heroSub={kpiSection.heroSub} kpis={kpiSection.kpis} />
+                {showEmptyCritical ? (
+                    <ProjectsEmptyState
+                        icon={CheckCircle}
+                        title="Aucune alerte critique active"
+                        description="Le Watchdog continue de surveiller en arrière-plan."
+                    />
+                ) : null}
 
-                        <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900">
-                            <RiskFilterChips active={quickFilters} onToggle={toggleQuickFilter} className="mb-4" />
-                            <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-4">
-                                <select
-                                    value={projectId}
-                                    onChange={(e) => setProjectId(e.target.value)}
-                                    className="min-w-0 rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm dark:border-slate-600 dark:bg-slate-800"
-                                >
-                                    <option value="">Tous les projets</option>
-                                    {(projects.data?.items ?? []).map((p) => (
-                                        <option key={p.id} value={p.id}>
-                                            {p.name}
-                                        </option>
-                                    ))}
-                                </select>
-                                <select
-                                    value={severityFilter}
-                                    onChange={(e) => setSeverityFilter(e.target.value)}
-                                    className="min-w-0 rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm dark:border-slate-600 dark:bg-slate-800"
-                                >
-                                    <option value="Toutes">Toutes sévérités</option>
-                                    <option value="critical">critical</option>
-                                    <option value="high">high</option>
-                                    <option value="medium">medium</option>
-                                    <option value="low">low</option>
-                                </select>
-                                <select
-                                    value={categoryFilter}
-                                    onChange={(e) => setCategoryFilter(e.target.value)}
-                                    className="min-w-0 rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm dark:border-slate-600 dark:bg-slate-800"
-                                >
-                                    {categoriesAvailable.map((c) => (
-                                        <option key={c} value={c}>
-                                            {c === "Toutes" ? "Tous types" : c}
-                                        </option>
-                                    ))}
-                                </select>
-                                <button
-                                    type="button"
-                                    disabled={watchdogScan.isPending}
-                                    onClick={() => onScan(projectId.trim() || leaderboardRows[0]?.project_id)}
-                                    className="inline-flex items-center justify-center gap-2 rounded-xl bg-violet-600 px-4 py-2.5 text-sm font-semibold text-white shadow-md transition hover:bg-violet-700 disabled:opacity-50"
-                                >
-                                    <Shield className="size-4" aria-hidden />
-                                    {watchdogScan.isPending ? "Scan…" : "Lancer scan Watchdog"}
-                                </button>
-                            </div>
-                        </section>
+                {showEmptySearch ? (
+                    <ProjectsEmptyState
+                        title={`Aucune alerte ne correspond à « ${searchQuery.trim()} »`}
+                        actionLabel="Réinitialiser"
+                        onAction={() => setSearchQuery("")}
+                    />
+                ) : null}
 
-                        <div className="grid gap-6 lg:grid-cols-12">
-                            <div className="space-y-6 lg:col-span-7">
-                                <RiskPriorityList items={priorityQueue} onTreat={openDrawer} />
-                            </div>
-                            <div className="lg:col-span-5">
-                                <RiskHeatmapInteractive
-                                    buckets={heatmapBuckets}
-                                    onCellPick={(cellAlerts) => {
-                                        if (cellAlerts[0]) openDrawer(cellAlerts[0]);
-                                    }}
-                                />
-                            </div>
-                        </div>
-
-                        <RiskProjectGrid rows={leaderboardRows} scanPending={watchdogScan.isPending} onScan={onScan} />
-
-                        <RiskTicketKanban
-                            alerts={filteredAlerts}
-                            loading={patchAlert.isPending}
-                            analyzePending={analyzeProject.isPending}
-                            onOpen={openDrawer}
-                            onPatch={onPatch}
-                            onAnalyze={(pid) =>
-                                analyzeProject.mutate(pid, {
-                                    onSuccess: () => push("Analyse IA lancée sur le projet.", "success"),
-                                    onError: () => push("Analyse IA indisponible pour ce projet.", "error"),
-                                })
-                            }
-                        />
+                {!isLoading && !showEmptyCritical && !showEmptySearch && dedupedSorted.length > 0 ? (
+                    <div className={cx(density === "compact" ? "space-y-4" : "space-y-5")}>
+                        {RISKS_BUCKET_ORDER.map((bucket) => {
+                            const list = groupedEntries[bucket];
+                            if (list.length === 0) return null;
+                            const collapsed = collapsedBuckets.has(bucket);
+                            return (
+                                <section key={bucket}>
+                                    <button
+                                        type="button"
+                                        onClick={() => toggleBucket(bucket)}
+                                        className="mb-2 flex w-full items-center gap-1.5 text-left text-xs uppercase tracking-widest text-slate-500 hover:text-slate-700 dark:hover:text-slate-300"
+                                    >
+                                        {collapsed ? (
+                                            <ChevronRight className="size-3.5 shrink-0" aria-hidden />
+                                        ) : (
+                                            <ChevronDown className="size-3.5 shrink-0" aria-hidden />
+                                        )}
+                                        {RISKS_BUCKET_LABELS[bucket]}
+                                        <span className="text-slate-400 tabular-nums">({list.length})</span>
+                                    </button>
+                                    {!collapsed ? (
+                                        <div className={cx(density === "compact" ? "space-y-1" : "space-y-1.5")}>
+                                            {list.map((entry) => (
+                                                <RiskAlertCard
+                                                    key={entry.ids.join("-")}
+                                                    entry={entry}
+                                                    density={density}
+                                                    patchPending={patchAlert.isPending}
+                                                    onOpenDrawer={openDrawer}
+                                                    onPatch={onPatch}
+                                                    onShowDuplicates={entry.count > 1 ? setDedupDrawerEntry : undefined}
+                                                />
+                                            ))}
+                                        </div>
+                                    ) : null}
+                                </section>
+                            );
+                        })}
                     </div>
                 ) : null}
+
+                {!isLoading && dedupedSorted.length === 0 && !showEmptyCritical && !showEmptySearch ? (
+                    <ProjectsEmptyState
+                        title="Aucune alerte pour ce filtre"
+                        description="Élargis la période ou change le statut."
+                        actionLabel="Voir toutes les alertes"
+                        onAction={() => {
+                            setSegmentFilter("all");
+                            setStatusFilter("all");
+                        }}
+                    />
+                ) : null}
+
+                {!isLoading && dedupedSorted.length > 0 ? (
+                    <PaginationFooter
+                        pagination={riskDetail.pagination}
+                        onPageChange={(p) => updateListParams({ page: p })}
+                        onPageSizeChange={(size) => updateListParams({ limit: size, page: 1 })}
+                        itemLabel="alertes"
+                        loading={riskDetail.isFetching}
+                    />
+                ) : null}
+
+                <p className="text-center text-xs text-slate-500 dark:text-slate-400">
+                    <Link to={`${WORKSPACE_PREFIX.manager}/projects`} className="text-violet-600 hover:underline dark:text-violet-400">
+                        Voir le top des projets à risque →
+                    </Link>
+                </p>
             </div>
+
+            <RiskAlertDedupDrawer
+                entry={dedupDrawerEntry}
+                onClose={() => setDedupDrawerEntry(null)}
+                onOpenAlert={(alert) => {
+                    setDedupDrawerEntry(null);
+                    openDrawer(alert);
+                }}
+            />
 
             <AlertDetailDrawer
                 open={drawerOpen}
                 alert={selectedAlert}
                 onClose={() => setDrawerOpen(false)}
                 loading={patchAlert.isPending}
-                analyzePending={analyzeProject.isPending}
+                analyzePending={false}
                 onPatch={onPatch}
-                onAnalyze={(pid) =>
-                    analyzeProject.mutate(pid, {
-                        onSuccess: () => push("Analyse IA lancée sur le projet.", "success"),
-                        onError: () => push("Analyse IA indisponible pour ce projet.", "error"),
-                    })
-                }
+                onAnalyze={() => push("Analyse IA — ouvrir le projet depuis le menu.", "info")}
                 onTransfer={() => push("Transfert RH — fonctionnalité à venir.", "info")}
             />
         </WorkspacePageShell>

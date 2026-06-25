@@ -75,7 +75,8 @@ export function normalizeProjectTalentMatchingResponse(
     fallbackProjectName: string,
 ): ManagerProjectTalentMatchingResult | null {
     const root = unwrapN8nRoot(raw);
-    if (root.status === "error") return null;
+    const statusRaw = str(root.status).toLowerCase();
+    if (statusRaw === "error") return null;
 
     const matching = asRecord(root.matching ?? asRecord(root.data).matching);
     const ai = asRecord(root.ai ?? asRecord(root.data).ai);
@@ -112,14 +113,23 @@ export function normalizeProjectTalentMatchingResponse(
         root.recommended_actions ?? asRecord(root.data).recommended_actions,
     );
 
+    const matching_narrative = str(ai.matching_narrative) || null;
+
     return {
         project_id: str(root.project_id ?? project.id ?? projectId) || projectId,
         project_name,
+        status:
+            statusRaw === "no_matching_results"
+                ? "no_matching_results"
+                : statusRaw === "success" || !statusRaw
+                  ? "success"
+                  : undefined,
         adequacy_score,
         gap_count,
         recommended_actions,
         top_talents,
         critical_gaps,
+        matching_narrative,
     };
 }
 

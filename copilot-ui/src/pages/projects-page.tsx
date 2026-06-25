@@ -4,7 +4,6 @@ import { useSearchParams } from "react-router";
 import { AnalysisRefreshPanel } from "@/features/crud-common/analysis-refresh-panel";
 import { useCopilotPage } from "@/hooks/use-copilot-page";
 import { useProjectsPage } from "@/hooks/use-projects-page";
-import { useWhatIf } from "@/providers/what-if-provider";
 import { ProjectDetailDrawer } from "@/pages/projects/project-detail-drawer";
 import { ProjectsPageHeader } from "@/pages/projects/projects-page-header";
 import { DeleteProjectModal, ProjectFormModal } from "@/pages/projects/projects-page-modals";
@@ -15,7 +14,6 @@ export const ProjectsPage = () => {
     useCopilotPage("projects_list", t("projects:title"));
 
     const p = useProjectsPage();
-    const { open: openWhatIf } = useWhatIf();
     const [searchParams, setSearchParams] = useSearchParams();
 
     useEffect(() => {
@@ -43,10 +41,6 @@ export const ProjectsPage = () => {
                 onExport={() => {
                     /* Export CSV à brancher via API dédiée */
                     window.print();
-                }}
-                onWhatIfGlobal={() => {
-                    // Ouvre le simulateur What-if en modal avec sélection de projet libre.
-                    openWhatIf();
                 }}
             />
 

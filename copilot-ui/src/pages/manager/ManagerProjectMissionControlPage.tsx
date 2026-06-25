@@ -1,33 +1,43 @@
 import { useCallback, useMemo } from "react";
 import { isAxiosError } from "axios";
-import { useNavigate, useParams, useSearchParams } from "react-router";
+import { useLocation, useNavigate, useParams, useSearchParams } from "react-router";
 import { useTranslation } from "react-i18next";
 import {
     ProjectMissionControlWorkspace,
     type MissionControlWorkspaceTabId,
 } from "@/components/manager/project-mission-control-modal";
-import { useProjects, useProjectDetail } from "@/hooks/useProjects";
+import { useProjectDetail } from "@/hooks/useProjects";
+import { readManagerProjectNavState } from "@/utils/manager-project-navigation";
 import { parseMissionControlTabParam, workspaceProjectsListPath } from "@/utils/workspace-routes";
+import type { ProjectListItem } from "@/types/api.types";
 
 export default function ManagerProjectMissionControlPage() {
     const { projectId: projectIdParam = "" } = useParams();
     const projectId = projectIdParam.trim();
     const navigate = useNavigate();
+    const location = useLocation();
     const [searchParams, setSearchParams] = useSearchParams();
     const { t } = useTranslation("common");
     const tm = (key: string) => t(`managerWorkspace.missionControl.${key}`);
+
+    const navState = useMemo(() => readManagerProjectNavState(location.state), [location.state]);
 
     const workspaceTab = useMemo(
         () => parseMissionControlTabParam(searchParams.get("tab")) ?? "overview",
         [searchParams],
     );
 
-    const projectsQuery = useProjects({ limit: 500 });
     const detailQuery = useProjectDetail(projectId, { enabled: Boolean(projectId) });
-    const listProject = useMemo(
-        () => projectsQuery.data?.items.find((p) => String(p.id).trim() === projectId),
-        [projectsQuery.data?.items, projectId],
-    );
+
+    const listProject = useMemo((): ProjectListItem | undefined => {
+        if (!projectId || !navState?.projectName?.trim()) return undefined;
+        return {
+            id: projectId,
+            name: navState.projectName.trim(),
+            status: (navState.projectStatus as ProjectListItem["status"]) ?? "active",
+            priority: navState.projectPriority ?? 5,
+        } as ProjectListItem;
+    }, [navState, projectId]);
 
     const handleClose = useCallback(() => {
         const historyIdx = (window.history.state as { idx?: number } | null)?.idx;
@@ -52,7 +62,6 @@ export default function ManagerProjectMissionControlPage() {
         Boolean(projectId) &&
         detailQuery.isError &&
         !detailQuery.isFetching &&
-        !listProject &&
         !detailQuery.data;
 
     if (!projectId) {

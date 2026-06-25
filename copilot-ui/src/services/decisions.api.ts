@@ -1,4 +1,5 @@
 import { httpClient, type HttpClientRequestConfig } from "@/lib/http-client";
+import { API_ROUTES } from "@/lib/api-routes";
 
 const silent: HttpClientRequestConfig = { skipGlobalHttpErrorToast: true };
 
@@ -91,7 +92,7 @@ export const decisionsApi = {
             count: number;
             decisions: CopilotDecision[];
             by_decision: Record<string, number>;
-        }>("/webhook/manager/copilot-decisions", { params }),
+        }>(API_ROUTES.copilotDecisions(), { params }),
 
     /** GET /webhook/manager/decisions/log (proxy Vite `/webhook` ou base n8n + chemin webhook). */
     getManagerLog: (enterpriseId: string, params?: { limit?: number }) =>

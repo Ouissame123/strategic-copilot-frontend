@@ -1,26 +1,26 @@
 import type { TFunction } from "i18next";
 import {
-    Activity,
-    AlertCircle,
-    BarChart01,
     FileCheck02,
     Folder,
     LayersTwo02,
+    Stars01,
     User01,
     ZapFast,
 } from "@untitledui/icons";
 import type { NavItemType } from "@/components/application/app-navigation/config";
 
-/** Navigation latérale talent uniquement — `/workspace/talent/*`. */
+/** Navigation principale talent — 5 entrées PDF multi-agent. */
 export function getTalentWorkspaceNavItems(t: TFunction<"nav", undefined>): NavItemType[] {
     return [
-        { label: t("talentNavDashboard"), href: "/workspace/talent", icon: LayersTwo02 },
+        { label: t("talentNavDashboard"), href: "/workspace/talent/dashboard", icon: LayersTwo02 },
         { label: t("talentNavProjects"), href: "/workspace/talent/projects", icon: Folder },
-        { label: t("talentNavTasks"), href: "/workspace/talent/tasks", icon: FileCheck02 },
-        { label: t("talentNavWorkload"), href: "/workspace/talent/workload", icon: Activity },
         { label: t("talentNavSkills"), href: "/workspace/talent/skills", icon: ZapFast },
-        { label: t("talentNavTraining"), href: "/workspace/talent/trainings", icon: BarChart01 },
-        { label: t("talentNavNotifications"), href: "/workspace/talent/notifications", icon: AlertCircle },
-        { label: t("talentNavProfile"), href: "/workspace/talent/profile", icon: User01 },
+        { label: t("talentNavOpportunities"), href: "/workspace/talent/opportunities", icon: Stars01 },
+        { label: t("talentNavRequests"), href: "/workspace/talent/requests", icon: FileCheck02 },
     ];
+}
+
+/** Pied de sidebar talent — profil. */
+export function getTalentWorkspaceFooterNavItems(t: TFunction<"nav", undefined>): NavItemType[] {
+    return [{ label: t("talentNavProfile"), href: "/workspace/talent/profile", icon: User01 }];
 }

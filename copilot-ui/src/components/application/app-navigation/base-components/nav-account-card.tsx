@@ -1,7 +1,8 @@
-import type { FC, HTMLAttributes, KeyboardEvent } from "react";
+import type { FC, HTMLAttributes, KeyboardEvent, ReactNode } from "react";
 import { useCallback, useRef, useState } from "react";
 import type { Placement } from "@react-types/overlays";
 import { ChevronSelectorVertical, LogOut01, User01 } from "@untitledui/icons";
+import { ShieldCheck } from "lucide-react";
 import { useNavigate } from "react-router";
 import { useAuth } from "@/providers/auth-provider";
 import { useWorkspacePaths } from "@/hooks/use-workspace-paths";
@@ -43,11 +44,12 @@ export const NavAccountMenu = ({
     ...dialogProps
 }: NavAccountMenuProps) => {
     const navigate = useNavigate();
-    const { logout } = useAuth();
+    const { logout, user } = useAuth();
     const [isLoggingOut, setIsLoggingOut] = useState(false);
     const { profile: profileHref } = useWorkspacePaths();
     const focusManager = useFocusManager();
     const dialogRef = useRef<HTMLDivElement>(null);
+    const canAccessAdmin = user?.role === "rh";
 
     const handleKeyDown = useCallback(
         (e: KeyboardEvent<HTMLDivElement>) => {
@@ -80,6 +82,18 @@ export const NavAccountMenu = ({
                     <div className="rounded-xl bg-primary ring-1 ring-secondary">
                         <div className="flex flex-col gap-0.5 py-1.5">
                             <NavAccountCardMenuItem label="Voir le profil" icon={User01} shortcut="⌘K->P" href={profileHref} />
+                        </div>
+                    </div>
+                ) : null}
+
+                {canAccessAdmin ? (
+                    <div className={cx("rounded-xl bg-primary ring-1 ring-secondary", showProfileAction && "mt-1")}>
+                        <div className="flex flex-col gap-0.5 py-1.5">
+                            <NavAccountCardMenuItem
+                                label="Administration"
+                                icon={ShieldCheck}
+                                onClick={() => navigate("/admin/users")}
+                            />
                         </div>
                     </div>
                 ) : null}
@@ -189,17 +203,46 @@ export const NavAccountCard = ({
 
     if (!user?.email) return null;
 
+    const menuPopover = (trigger: ReactNode) => (
+        <AriaDialogTrigger>
+            {trigger}
+            <AriaPopover
+                placement={popoverPlacement ?? (isDesktop ? "right bottom" : "top right")}
+                triggerRef={triggerRef}
+                offset={8}
+                className={({ isEntering, isExiting }) =>
+                    cx(
+                        "origin-(--trigger-anchor-point) will-change-transform",
+                        isEntering &&
+                            "duration-150 ease-out animate-in fade-in placement-right:slide-in-from-left-0.5 placement-top:slide-in-from-bottom-0.5 placement-bottom:slide-in-from-top-0.5",
+                        isExiting &&
+                            "duration-100 ease-in animate-out fade-out placement-right:slide-out-to-left-0.5 placement-top:slide-out-to-bottom-0.5 placement-bottom:slide-out-to-top-0.5",
+                    )
+                }
+            >
+                <NavAccountMenu showProfileAction={showProfileAction} />
+            </AriaPopover>
+        </AriaDialogTrigger>
+    );
+
     if (compact) {
         return (
-            <div ref={triggerRef} className="relative">
-                <Avatar
-                    key={avatarSrc ?? "no-avatar"}
-                    size="sm"
-                    src={avatarSrc}
-                    initials={initials || undefined}
-                    alt={displayName || user.email}
-                    status="online"
-                />
+            <div ref={triggerRef} className="relative flex items-center">
+                {menuPopover(
+                    <AriaButton
+                        aria-label="Menu compte"
+                        className="cursor-pointer rounded-full outline-focus-ring transition duration-100 ease-linear focus-visible:outline-2 focus-visible:outline-offset-2"
+                    >
+                        <Avatar
+                            key={avatarSrc ?? "no-avatar"}
+                            size="sm"
+                            src={avatarSrc}
+                            initials={initials || undefined}
+                            alt={displayName || user.email}
+                            status="online"
+                        />
+                    </AriaButton>,
+                )}
             </div>
         );
     }
@@ -216,27 +259,11 @@ export const NavAccountCard = ({
             />
 
             <div className="absolute top-1.5 right-1.5">
-                <AriaDialogTrigger>
+                {menuPopover(
                     <AriaButton className="flex cursor-pointer items-center justify-center rounded-md p-1.5 text-fg-quaternary outline-focus-ring transition duration-100 ease-linear hover:bg-primary_hover hover:text-fg-quaternary_hover focus-visible:outline-2 focus-visible:outline-offset-2 pressed:bg-primary_hover pressed:text-fg-quaternary_hover">
                         <ChevronSelectorVertical className="size-4 shrink-0" />
-                    </AriaButton>
-                    <AriaPopover
-                        placement={popoverPlacement ?? (isDesktop ? "right bottom" : "top right")}
-                        triggerRef={triggerRef}
-                        offset={8}
-                        className={({ isEntering, isExiting }) =>
-                            cx(
-                                "origin-(--trigger-anchor-point) will-change-transform",
-                                isEntering &&
-                                    "duration-150 ease-out animate-in fade-in placement-right:slide-in-from-left-0.5 placement-top:slide-in-from-bottom-0.5 placement-bottom:slide-in-from-top-0.5",
-                                isExiting &&
-                                    "duration-100 ease-in animate-out fade-out placement-right:slide-out-to-left-0.5 placement-top:slide-out-to-bottom-0.5 placement-bottom:slide-out-to-top-0.5",
-                            )
-                        }
-                    >
-                        <NavAccountMenu showProfileAction={showProfileAction} />
-                    </AriaPopover>
-                </AriaDialogTrigger>
+                    </AriaButton>,
+                )}
             </div>
         </div>
     );

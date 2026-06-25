@@ -4,11 +4,12 @@
  */
 
 import { authStorage } from "@/lib/auth-storage";
+import { API_BASE } from "@/lib/api-config";
 import { ApiError } from "@/api/errors";
 
 export { ApiError };
 
-const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL as string | undefined)?.trim().replace(/\/$/, "") ?? "";
+const LEGACY_API_BASE_URL = (import.meta.env.VITE_API_BASE_URL as string | undefined)?.trim().replace(/\/$/, "") ?? "";
 
 /** Timeout par défaut (ms). Surcharge : `VITE_HTTP_TIMEOUT_MS` (≥ 1000). */
 export function getHttpTimeoutMs(): number {
@@ -25,9 +26,14 @@ function isAbsoluteUrl(path: string): boolean {
 
 function buildUrl(path: string): string {
     if (isAbsoluteUrl(path)) return path;
-    if (!API_BASE_URL) return path;
-    const normalizedPath = path.startsWith("/") ? path : `/${path}`;
-    return `${API_BASE_URL}${normalizedPath}`;
+    if (path.startsWith("/webhook/") || path.startsWith("/rh/")) {
+        return `${API_BASE}${path.startsWith("/webhook/") ? path : `/webhook${path}`}`;
+    }
+    if (LEGACY_API_BASE_URL) {
+        const normalizedPath = path.startsWith("/") ? path : `/${path}`;
+        return `${LEGACY_API_BASE_URL}${normalizedPath}`;
+    }
+    return path;
 }
 
 /** Résolution d’URL identique à `fetch` (logs diagnostic). */
@@ -147,7 +153,7 @@ async function apiGetOnce<T = unknown>(path: string, options: ApiClientOptions =
             method: "GET",
             headers: { Accept: "application/json", ...getAuthHeaders() },
             signal: fetchSignal,
-            credentials: "include",
+            credentials: "omit",
         });
 
         clearTimeout(timeoutId);
@@ -192,7 +198,7 @@ export async function apiPost<T = unknown>(path: string, body: unknown, options:
             headers: { "Content-Type": "application/json", Accept: "application/json", ...getAuthHeaders() },
             body: JSON.stringify(body),
             signal: fetchSignal,
-            credentials: "include",
+            credentials: "omit",
         });
 
         clearTimeout(timeoutId);
@@ -239,7 +245,7 @@ async function apiRequestWithBody<T>(
                     : { "Content-Type": "application/json", Accept: "application/json", ...getAuthHeaders() },
             body: method === "DELETE" && (body === undefined || body === null) ? undefined : JSON.stringify(body ?? {}),
             signal: fetchSignal,
-            credentials: "include",
+            credentials: "omit",
         });
 
         clearTimeout(timeoutId);

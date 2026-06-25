@@ -81,8 +81,12 @@ export function buildN8nUrl(path: string): string {
  */
 export function getHttpClientBaseUrl(): string {
     const axiosOnly = trimBase(import.meta.env.VITE_HTTP_CLIENT_N8N_BASE as string | undefined);
-    if (import.meta.env.DEV && axiosOnly) {
-        return stripTrailingWebhookSegment(axiosOnly);
+    if (import.meta.env.DEV) {
+        if (axiosOnly) {
+            return stripTrailingWebhookSegment(axiosOnly);
+        }
+        /** Proxy Vite (`/webhook` → n8n) : pas d’appel cross-origin en dev. */
+        return "";
     }
     return getN8nBaseUrl();
 }

@@ -1,3 +1,4 @@
+export { RhChatPanel } from "@/components/rh-chat/RhChatPanel";
 export { RhChatAnalysisPanel } from "@/components/rh-chat/RhChatAnalysisPanel";
 export { RhChatComposer } from "@/components/rh-chat/RhChatComposer";
 export { RhChatConversationRow } from "@/components/rh-chat/RhChatConversationRow";

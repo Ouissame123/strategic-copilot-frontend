@@ -1,118 +1,165 @@
-import { Link } from "react-router";
+import { useCallback, useState } from "react";
+import { useSearchParams } from "react-router";
+import { EmptyState } from "@/components/application/empty-state/empty-state";
+import { ProjectCard } from "@/components/talent/projects/ProjectCard";
+import { ProjectDetailDrawer } from "@/components/talent/projects/ProjectDetailDrawer";
+import { ProjectsKpiBar } from "@/components/talent/projects/ProjectsKpiBar";
+import { ProjectsTabs } from "@/components/talent/projects/ProjectsTabs";
+import { TalentProjectsDensityToggle } from "@/components/talent/projects/TalentProjectsDensityToggle";
+import {
+    parseProjectTabParam,
+    readTalentProjectsDensity,
+    writeTalentProjectsDensity,
+    type TalentProjectsDensity,
+} from "@/components/talent/projects/talent-projects-ui";
+import { TALENT_PAGE_STACK } from "@/components/talent/ui/talent-workspace-ui";
 import { ErrorState } from "@/components/ui/ErrorState";
 import { useCopilotPage } from "@/hooks/use-copilot-page";
-import { useTalentWorkspacePageQuery } from "@/hooks/use-talent-workspace-page-query";
-import { numOf, textOf } from "@/utils/talent-page-parsers";
-
-function statusTone(status: string): string {
-    const s = status.toLowerCase();
-    if (s.includes("risk") || s.includes("retard")) return "bg-[#fffbeb] text-[#92400e]";
-    if (s.includes("start") || s.includes("demarr")) return "bg-[#eff6ff] text-[#1d4ed8]";
-    if (s.includes("term") || s.includes("done")) return "bg-[#f3f4f6] text-[#6b7280]";
-    return "bg-[#eafaf3] text-[#15803d]";
-}
-
-function avatarInitials(row: Record<string, unknown>): string[] {
-    const names = textOf(row, ["members", "team_members", "team"], "")
-        .split(/[;,]/)
-        .map((x) => x.trim())
-        .filter(Boolean)
-        .slice(0, 4);
-    if (names.length === 0) return ["T"];
-    return names.map((name) => name[0]?.toUpperCase() ?? "T");
-}
+import { useTalentProjects, useTalentProjectsSummary } from "@/hooks/useTalentProjects";
+import { useWorkspaceTopbarMeta } from "@/layouts/workspace-topbar-meta";
+import type { ProjectTab, TalentProjectListItem } from "@/types/talent-projects";
+import { cx } from "@/utils/cx";
 
 export function TalentProjectsPage() {
-    useCopilotPage("projects_list", "Talent Projects");
-    const q = useTalentWorkspacePageQuery("projects");
+    useCopilotPage("projects_list", "Mes projets");
 
-    if (q.isLoading) {
-        return <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">{Array.from({ length: 6 }).map((_, i) => <div key={i} className="h-44 animate-pulse rounded-xl bg-secondary" />)}</div>;
-    }
-    if (q.error) {
-        return <ErrorState title="Projets indisponibles" message="Impossible de charger les projets talent." detail={q.error instanceof Error ? q.error.message : String(q.error)} onRetry={() => void q.refetch()} />;
-    }
+    const [searchParams, setSearchParams] = useSearchParams();
+    const tab = parseProjectTabParam(searchParams.get("tab"));
+    const [density, setDensity] = useState<TalentProjectsDensity>(() => readTalentProjectsDensity());
+    const [selectedId, setSelectedId] = useState<string | null>(null);
+    const [selectedRow, setSelectedRow] = useState<TalentProjectListItem | null>(null);
 
-    const projects = q.data?.items ?? [];
-    const active = projects.filter((row) => !/done|termine|completed/i.test(textOf(row, ["status"], ""))).length;
-    const done = projects.length - active;
-    const tabs = ["Tous", "En cours", "A risque", "Termines"];
+    const summaryQuery = useTalentProjectsSummary();
+    const listQuery = useTalentProjects(tab);
+
+    const activeCount = summaryQuery.data?.by_tab.active;
+    useWorkspaceTopbarMeta(
+        "Mes projets",
+        activeCount != null ? `${activeCount} projet${activeCount > 1 ? "s" : ""} actif${activeCount > 1 ? "s" : ""}` : "Vos affectations et jalons",
+    );
+
+    const setTab = useCallback(
+        (next: ProjectTab) => {
+            setSearchParams((prev) => {
+                const params = new URLSearchParams(prev);
+                if (next === "active") params.delete("tab");
+                else params.set("tab", next);
+                return params;
+            });
+        },
+        [setSearchParams],
+    );
+
+    const toggleDensity = () => {
+        const next: TalentProjectsDensity = density === "compact" ? "comfortable" : "compact";
+        setDensity(next);
+        writeTalentProjectsDensity(next);
+    };
+
+    const openDrawer = (project: TalentProjectListItem) => {
+        setSelectedId(project.project_id);
+        setSelectedRow(project);
+    };
+
+    const closeDrawer = () => {
+        setSelectedId(null);
+        setSelectedRow(null);
+    };
+
+    const projects = listQuery.data ?? [];
+    const showGlobalEmpty =
+        !summaryQuery.isLoading && !summaryQuery.isError && summaryQuery.data?.total === 0;
 
     return (
-        <div className="space-y-6">
-            <header className="flex flex-wrap items-start justify-between gap-3">
-                <div>
-                    <h1 className="text-[33px] font-semibold leading-none tracking-[-0.03em] text-[#18171e]">Mes projets</h1>
-                    <p className="mt-2 text-sm text-[#6b6880]">{active} projets actifs · {done} termines</p>
-                </div>
-                <button type="button" className="rounded-lg bg-[#7c6ef5] px-3.5 py-2 text-sm font-medium text-white transition hover:bg-[#5a4de0]">
-                    + Nouveau projet
-                </button>
-            </header>
-
-            <div className="inline-flex gap-1 rounded-lg bg-[#f7f6f3] p-1">
-                {tabs.map((tab, i) => (
-                    <button
-                        key={tab}
-                        type="button"
-                        className={`rounded-md px-3 py-1.5 text-[12.5px] ${
-                            i === 2
-                                ? "bg-white font-medium text-[#18171e] shadow-[0_1px_3px_rgba(0,0,0,0.08)]"
-                                : "text-[#a09db5]"
-                        }`}
-                    >
-                        {tab}
-                    </button>
-                ))}
-            </div>
-
-            {projects.length === 0 ? (
-                <div className="rounded-xl border border-black/5 bg-white p-6 text-sm text-tertiary">Aucun projet disponible.</div>
+        <div className={TALENT_PAGE_STACK}>
+            {summaryQuery.isError ? (
+                <ErrorState
+                    title="Résumé indisponible"
+                    message="Impossible de charger les indicateurs projets."
+                    detail={
+                        summaryQuery.error instanceof Error ? summaryQuery.error.message : String(summaryQuery.error)
+                    }
+                    onRetry={() => void summaryQuery.refetch()}
+                />
             ) : (
-                <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-                    {projects.map((row, i) => {
-                        const id = textOf(row, ["project_id", "id"], "");
-                        const name = textOf(row, ["name", "title", "project_name"]);
-                        const subtitle = textOf(row, ["client", "role", "project_role"], "");
-                        const status = textOf(row, ["status"], "");
-                        const due = textOf(row, ["due_date", "deadline"], "");
-                        const progress = Math.max(0, Math.min(100, numOf(row, ["progress_pct", "progress", "completion_pct"]) ?? 0));
-                        const progressLabel = textOf(row, ["progress_label"], progress ? `${progress}%` : "—");
-                        const initials = avatarInitials(row);
-                        return (
-                            <div key={`project-${i}`} className="rounded-xl border border-black/5 bg-white p-4 shadow-[0_1px_3px_rgba(0,0,0,0.06)]">
-                                <div className="mb-1.5 flex items-start justify-between gap-2">
-                                    <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${statusTone(status)}`}>{status || "N/A"}</span>
-                                    <span className="text-xs text-[#a09db5]">{due || "—"}</span>
-                                </div>
-                                <p className="text-[14.5px] font-semibold text-[#18171e]">{name}</p>
-                                <p className="mt-1 text-xs text-[#a09db5]">{subtitle || "—"}</p>
-                                <div className="mt-3 h-1 overflow-hidden rounded-full bg-[#f7f6f3]">
-                                    <div className="h-full rounded-full bg-[#7c6ef5]" style={{ width: `${progress}%` }} />
-                                </div>
-                                <div className="mt-3 flex items-center justify-between">
-                                    <div className="flex items-center">
-                                        {initials.map((initial, idx) => (
-                                            <span
-                                                key={`${initial}-${idx}`}
-                                                className="-ml-1.5 flex size-5 items-center justify-center rounded-full border-2 border-white bg-[#7c6ef5] text-[9px] font-semibold text-white first:ml-0"
-                                            >
-                                                {initial}
-                                            </span>
-                                        ))}
-                                    </div>
-                                    <span className="text-xs text-[#a09db5]">{progressLabel}</span>
-                                </div>
-                                {id ? (
-                                    <Link to={`/workspace/talent/projects/${encodeURIComponent(id)}`} className="mt-2 inline-block text-[11px] font-semibold text-[#7c6ef5] underline">
-                                        Ouvrir
-                                    </Link>
-                                ) : null}
-                            </div>
-                        );
-                    })}
-                </div>
+                <ProjectsKpiBar summary={summaryQuery.data} isLoading={summaryQuery.isLoading} />
             )}
+
+            {!showGlobalEmpty ? (
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                    <ProjectsTabs tab={tab} summary={summaryQuery.data} onTabChange={setTab} />
+                    <div className="flex flex-wrap items-center gap-3">
+                        {!listQuery.isLoading && !listQuery.isError ? (
+                            <p className="text-sm text-tertiary">
+                                {projects.length} projet{projects.length > 1 ? "s" : ""} affiché
+                                {projects.length > 1 ? "s" : ""}
+                            </p>
+                        ) : null}
+                        <TalentProjectsDensityToggle density={density} onToggle={toggleDensity} />
+                    </div>
+                </div>
+            ) : null}
+
+            {showGlobalEmpty ? (
+                <EmptyState
+                    title="Aucun projet pour l'instant"
+                    description="Vous n'avez pas encore d'affectation projet — revenez plus tard ou contactez votre manager."
+                />
+            ) : null}
+
+            {listQuery.isLoading ? (
+                <div
+                    className={cx(
+                        "grid gap-3",
+                        density === "compact" ? "sm:grid-cols-2 xl:grid-cols-3" : "sm:grid-cols-2",
+                    )}
+                >
+                    {Array.from({ length: 6 }).map((_, i) => (
+                        <div key={i} className="h-44 animate-pulse rounded-2xl bg-secondary" />
+                    ))}
+                </div>
+            ) : null}
+
+            {listQuery.isError ? (
+                <ErrorState
+                    title="Projets indisponibles"
+                    message="Impossible de charger vos projets."
+                    detail={listQuery.error instanceof Error ? listQuery.error.message : String(listQuery.error)}
+                    onRetry={() => void listQuery.refetch()}
+                />
+            ) : null}
+
+            {!listQuery.isLoading && !listQuery.isError && !showGlobalEmpty && projects.length === 0 ? (
+                <EmptyState
+                    title="Aucun projet dans cet onglet"
+                    description="Essayez un autre filtre (actifs, planifiés ou passés)."
+                />
+            ) : null}
+
+            {!listQuery.isLoading && !listQuery.isError && projects.length > 0 ? (
+                <div
+                    className={cx(
+                        "grid gap-3",
+                        density === "compact" ? "sm:grid-cols-2 xl:grid-cols-3" : "sm:grid-cols-2",
+                    )}
+                >
+                    {projects.map((project) => (
+                        <ProjectCard
+                            key={project.assignment_id}
+                            project={project}
+                            density={density}
+                            onClick={openDrawer}
+                        />
+                    ))}
+                </div>
+            ) : null}
+
+            <ProjectDetailDrawer
+                open={Boolean(selectedId)}
+                projectId={selectedId}
+                listRow={selectedRow}
+                onClose={closeDrawer}
+            />
         </div>
     );
 }

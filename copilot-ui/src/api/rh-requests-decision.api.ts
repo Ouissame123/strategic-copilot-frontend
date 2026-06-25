@@ -77,6 +77,27 @@ export type RhRequestHistoryResponse = {
     items: RhRequestHistoryEntry[];
 };
 
+export type RhRequestsSummary = {
+    total: number;
+    open?: number;
+    pending?: number;
+    urgent?: number;
+    stale_14d?: number;
+    in_progress: number;
+    done: number;
+    rejected: number;
+    accepted?: number;
+    cancelled?: number;
+    done_7d?: number;
+};
+
+export type RhRequestsSummaryResponse = {
+    status: string;
+    workflow: string;
+    action: string;
+    summary: RhRequestsSummary;
+};
+
 export async function fetchRhRequestsList(
     filters: RhRequestsListFilters = {},
     options?: ApiClientOptions,
@@ -89,6 +110,13 @@ export async function fetchRhRequestsList(
     const qs = query.toString();
     const path = qs ? `${basePath()}?${qs}` : basePath();
     return apiGet<RhRequestsListResponse>(path, options);
+}
+
+/** GET `/webhook/rh/requests/summary` — KPI inbox demandes managers. */
+export async function fetchRhRequestsSummary(
+    options?: ApiClientOptions,
+): Promise<RhRequestsSummaryResponse | RhRequestsSummary> {
+    return apiGet<RhRequestsSummaryResponse | RhRequestsSummary>(`${basePath()}/summary`, options);
 }
 
 export async function fetchRhRequestById(id: string, options?: ApiClientOptions): Promise<RhRequestGetResponse> {

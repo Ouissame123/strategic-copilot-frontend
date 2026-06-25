@@ -1,7 +1,7 @@
-import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { keepPreviousData, useMutation, useQuery, useQueryClient, type QueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { orchestratorApi } from "../api/orchestrator.api";
-import { managerProjectsApi } from "../api/manager-projects.api";
+import { isDescriptionOnlyProjectPatch, isManagerProjectNotDeletableError, managerProjectsApi } from "../api/manager-projects.api";
 import { strategistApi } from "../api/strategist.api";
 import { readEnv } from "@/config/resolve-api-url";
 import { readMissionControlHttpErrorMessage } from "@/lib/user-facing-api-error";
@@ -14,8 +14,20 @@ import type {
     ExecuteRequest,
     ProposeRequest,
     ProjectDetailResponse,
-    WmpUpdateProjectPatchBody,
+    ProjectsListResponse,
+    ManagerProjectPatchBody,
 } from "../types/api.types";
+
+/** Invalidation ciblée après création ou suppression d'un projet (liste Mes projets, dashboard, matchmaker). */
+async function invalidateAfterProjectListChange(qc: QueryClient): Promise<void> {
+    await Promise.all([
+        qc.invalidateQueries({ queryKey: ["projects"] }),
+        qc.invalidateQueries({ queryKey: queryKeys.projects.all }),
+        qc.invalidateQueries({ queryKey: ["dashboard"] }),
+        qc.invalidateQueries({ queryKey: ["manager-matchmaker"] }),
+        qc.refetchQueries({ queryKey: ["projects"], type: "active" }),
+    ]);
+}
 
 export const useProjects = (filters?: { status?: string; search?: string; limit?: number }) =>
     useQuery({
@@ -34,10 +46,45 @@ export const useProjectDetail = (id: string, options?: { enabled?: boolean }) =>
         placeholderData: keepPreviousData,
     });
 
+export type AssignTalentMutationVars = {
+    projectId: string;
+    body: AssignTalentRequest;
+    /** Libellé UI uniquement — jamais envoyé au backend. */
+    talentDisplayName?: string;
+};
+
 export const useAssignTalent = () => {
     const qc = useQueryClient();
     return useMutation({
-        mutationFn: ({ projectId, body }: { projectId: string; body: AssignTalentRequest }) => managerProjectsApi.assign(projectId, body),
+        mutationFn: ({ projectId, body }: AssignTalentMutationVars) => managerProjectsApi.assign(projectId, body),
+        onMutate: async (vars) => {
+            const detailKey = ["project-detail", vars.projectId] as const;
+            await qc.cancelQueries({ queryKey: detailKey });
+            const prev = qc.getQueryData<ProjectDetailResponse>(detailKey);
+            if (prev) {
+                const nextAssignment = {
+                    talent_id: vars.body.talent_id,
+                    talent_name: vars.talentDisplayName,
+                    allocation_pct: vars.body.allocation_pct,
+                    assignment_type: vars.body.assignment_type,
+                    role_on_project: vars.body.role_on_project ?? undefined,
+                    status: "active",
+                };
+                qc.setQueryData<ProjectDetailResponse>(detailKey, {
+                    ...prev,
+                    assignments: [
+                        ...prev.assignments.filter((a) => a.talent_id !== vars.body.talent_id),
+                        nextAssignment,
+                    ],
+                });
+            }
+            return { prev, projectId: vars.projectId };
+        },
+        onError: (_err, _vars, ctx) => {
+            if (ctx?.prev) {
+                qc.setQueryData(["project-detail", ctx.projectId], ctx.prev);
+            }
+        },
         onSuccess: async (_, { projectId }) => {
             void qc.invalidateQueries({ queryKey: ["project-detail", projectId] });
             void qc.invalidateQueries({ queryKey: queryKeys.manager.projectDetail(projectId) });
@@ -78,8 +125,53 @@ export const useCreateProject = () => {
     const qc = useQueryClient();
     return useMutation({
         mutationFn: (body: CreateProjectRequest) => managerProjectsApi.create(body).then((r) => r.data),
-        onSuccess: () => {
-            qc.invalidateQueries({ queryKey: ["projects"] });
+        onSuccess: async () => {
+            await invalidateAfterProjectListChange(qc);
+        },
+    });
+};
+
+export const useDeleteProject = () => {
+    const qc = useQueryClient();
+    const { push: pushToast } = useToast();
+    const { t } = useTranslation("common");
+
+    return useMutation({
+        mutationFn: (projectId: string) => managerProjectsApi.delete(projectId).then((r) => r.data),
+        onMutate: async (projectId) => {
+            await qc.cancelQueries({ queryKey: ["projects"] });
+            const previous = qc.getQueriesData<ProjectsListResponse>({ queryKey: ["projects"] });
+            qc.setQueriesData<ProjectsListResponse>({ queryKey: ["projects"] }, (old) => {
+                if (!old?.items) return old;
+                const nextItems = old.items.filter((p) => p.id !== projectId);
+                const prevTotal = Math.round(Number(old.total) || old.items.length);
+                return {
+                    ...old,
+                    items: nextItems,
+                    total: Math.max(0, prevTotal - (old.items.length - nextItems.length)),
+                };
+            });
+            return { previous };
+        },
+        onError: (error, _projectId, context) => {
+            context?.previous?.forEach(([key, data]) => {
+                qc.setQueryData(key, data);
+            });
+            if (isManagerProjectNotDeletableError(error)) {
+                pushToast(t("managerWorkspace.projects.deleteProjectNotDeletable"), "error");
+                return;
+            }
+            pushToast(
+                readMissionControlHttpErrorMessage(error) || t("managerWorkspace.projects.deleteProjectError"),
+                "error",
+            );
+        },
+        onSuccess: async (data) => {
+            await invalidateAfterProjectListChange(qc);
+            pushToast(
+                t("managerWorkspace.projects.deleteProjectSuccess", { name: data.name || data.deleted_project_id }),
+                "success",
+            );
         },
     });
 };
@@ -89,34 +181,66 @@ export const useUpdateProject = () => {
     const { push: pushToast } = useToast();
     const { t } = useTranslation("common");
     return useMutation({
-        mutationFn: ({ projectId, body }: { projectId: string; body: WmpUpdateProjectPatchBody }) =>
+        mutationFn: ({ projectId, body }: { projectId: string; body: ManagerProjectPatchBody }) =>
             managerProjectsApi.update(projectId, body).then((r) => r.data),
-        onSuccess: async (data, { projectId }) => {
+        onMutate: async ({ projectId, body }) => {
+            if (!isDescriptionOnlyProjectPatch(body)) return undefined;
+            const pid = projectId.trim();
+            await qc.cancelQueries({ queryKey: queryKeys.projectDetail(pid) });
+            const prev = qc.getQueryData<ProjectDetailResponse>(queryKeys.projectDetail(pid));
+            if (prev) {
+                const next: ProjectDetailResponse = {
+                    ...prev,
+                    project: { ...prev.project, description: body.description },
+                };
+                qc.setQueryData(queryKeys.projectDetail(pid), next);
+                qc.setQueryData(queryKeys.manager.projectDetail(pid), next);
+            }
+            return { prev, projectId: pid };
+        },
+        onSuccess: async (data, { projectId, body }) => {
+            const pid = projectId.trim();
             const patchDetail = (old: ProjectDetailResponse | undefined): ProjectDetailResponse | undefined => {
                 if (!old) return old;
-                return { ...old, project: { ...old.project, ...data.project } };
+                const merged = data?.project ? { ...old.project, ...data.project } : old.project;
+                if (isDescriptionOnlyProjectPatch(body)) {
+                    return { ...old, project: { ...merged, description: body.description } };
+                }
+                return { ...old, project: merged };
             };
-            qc.setQueryData(queryKeys.projectDetail(projectId), patchDetail);
-            qc.setQueryData(queryKeys.manager.projectDetail(projectId), patchDetail);
+            qc.setQueryData(queryKeys.projectDetail(pid), patchDetail);
+            qc.setQueryData(queryKeys.manager.projectDetail(pid), patchDetail);
 
-            void qc.invalidateQueries({ queryKey: queryKeys.projectDetail(projectId) });
-            void qc.invalidateQueries({ queryKey: queryKeys.manager.projectDetail(projectId) });
+            void qc.invalidateQueries({ queryKey: queryKeys.projectDetail(pid) });
+            void qc.invalidateQueries({ queryKey: queryKeys.manager.projectDetail(pid) });
             void qc.invalidateQueries({ queryKey: ["projects"] });
             void qc.invalidateQueries({ queryKey: queryKeys.projects.all });
 
             await Promise.all([
-                qc.refetchQueries({ queryKey: queryKeys.projectDetail(projectId) }),
-                qc.refetchQueries({ queryKey: queryKeys.manager.projectDetail(projectId) }),
+                qc.refetchQueries({ queryKey: queryKeys.projectDetail(pid) }),
+                qc.refetchQueries({ queryKey: queryKeys.manager.projectDetail(pid) }),
                 qc.refetchQueries({ queryKey: ["projects"] }),
             ]);
 
-            pushToast(t("managerWorkspace.missionControl.projectChangesSaved"), "success");
-        },
-        onError: (error) => {
             pushToast(
-                t("managerWorkspace.missionControl.projectStatusSaveError", {
-                    message: readMissionControlHttpErrorMessage(error),
-                }),
+                isDescriptionOnlyProjectPatch(body)
+                    ? t("managerWorkspace.missionControl.projectDescriptionSaved")
+                    : t("managerWorkspace.missionControl.projectChangesSaved"),
+                "success",
+            );
+        },
+        onError: (error, { projectId, body }, ctx) => {
+            if (ctx?.prev && isDescriptionOnlyProjectPatch(body)) {
+                const pid = projectId.trim();
+                qc.setQueryData(queryKeys.projectDetail(pid), ctx.prev);
+                qc.setQueryData(queryKeys.manager.projectDetail(pid), ctx.prev);
+            }
+            pushToast(
+                isDescriptionOnlyProjectPatch(body)
+                    ? t("managerWorkspace.missionControl.projectDescriptionSaveError")
+                    : t("managerWorkspace.missionControl.projectStatusSaveError", {
+                          message: readMissionControlHttpErrorMessage(error),
+                      }),
                 "error",
             );
         },
@@ -127,16 +251,6 @@ export const useStrategistPropose = () => {
     const qc = useQueryClient();
     return useMutation({
         mutationFn: (body: ProposeRequest) => strategistApi.propose(body).then((r) => r.data),
-        onSuccess: () => {
-            void invalidateAfterStrategistArbitrage(qc);
-        },
-    });
-};
-
-export const useStrategistExecute = () => {
-    const qc = useQueryClient();
-    return useMutation({
-        mutationFn: (body: ExecuteRequest) => strategistApi.execute(body).then((r) => r.data),
         onSuccess: () => {
             void invalidateAfterStrategistArbitrage(qc);
         },

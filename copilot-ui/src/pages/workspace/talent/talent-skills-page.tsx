@@ -1,155 +1,270 @@
-import { TalentStatCard } from "@/components/talent/talent-stat-card";
+import { useCallback, useState } from "react";
+import { useNavigate, useSearchParams } from "react-router";
+import { EmptyState } from "@/components/application/empty-state/empty-state";
+import { Button } from "@/components/base/buttons/button";
+import { AddSkillModal } from "@/components/talent/skills/AddSkillModal";
+import { CatalogSearch } from "@/components/talent/skills/CatalogSearch";
+import { MySkillCard } from "@/components/talent/skills/MySkillCard";
+import { SkillEditDrawer } from "@/components/talent/skills/SkillEditDrawer";
+import { SkillGapCard } from "@/components/talent/skills/SkillGapCard";
+import { SkillsKpiBar } from "@/components/talent/skills/SkillsKpiBar";
+import { SkillsTabs } from "@/components/talent/skills/SkillsTabs";
+import { TalentSkillsDensityToggle } from "@/components/talent/skills/TalentSkillsDensityToggle";
+import {
+    parseSkillsTabParam,
+    readTalentSkillsDensity,
+    writeTalentSkillsDensity,
+    type TalentSkillsDensity,
+} from "@/components/talent/skills/talent-skills-ui";
+import { TALENT_PAGE_STACK } from "@/components/talent/ui/talent-workspace-ui";
 import { ErrorState } from "@/components/ui/ErrorState";
 import { useCopilotPage } from "@/hooks/use-copilot-page";
-import { useTalentWorkspacePageQuery } from "@/hooks/use-talent-workspace-page-query";
-import { numOf, textOf } from "@/utils/talent-page-parsers";
-
-type SkillRow = Record<string, unknown>;
-
-function skillCategory(row: SkillRow): string {
-    const raw = textOf(row, ["category", "skill_category", "type"], "");
-    return raw.toLowerCase();
-}
-
-function barColor(index: number): string {
-    const palette = ["#7c6ef5", "#22c27a", "#f59e0b", "#3b82f6", "#ef4444"];
-    return palette[index % palette.length]!;
-}
-
-function recTone(kind: string): string {
-    const k = kind.toLowerCase();
-    if (k.includes("renfor")) return "bg-[#fef2f2] border-[#fecaca]";
-    if (k.includes("progress")) return "bg-[#fffbeb] border-[#fde68a]";
-    return "bg-[#eafaf3] border-[#bbf7d0]";
-}
+import {
+    useAddSkill,
+    useTalentSkillsGaps,
+    useTalentSkillsList,
+    useTalentSkillsSummary,
+} from "@/hooks/useTalentSkills";
+import { useWorkspaceTopbarMeta } from "@/layouts/workspace-topbar-meta";
+import type { CatalogSkill, MySkill, SkillGap, SkillsTab } from "@/types/talent-skills";
+import { cx } from "@/utils/cx";
 
 export function TalentSkillsPage() {
-    useCopilotPage("none", "Talent Skills");
-    const q = useTalentWorkspacePageQuery("skills");
+    useCopilotPage("none", "Mes compétences");
 
-    if (q.isLoading) {
-        return <div className="space-y-2">{Array.from({ length: 6 }).map((_, i) => <div key={i} className="h-14 animate-pulse rounded-xl bg-secondary" />)}</div>;
-    }
-    if (q.error) {
-        return <ErrorState title="Competences indisponibles" message="Impossible de charger les competences talent." detail={q.error instanceof Error ? q.error.message : String(q.error)} onRetry={() => void q.refetch()} />;
-    }
+    const navigate = useNavigate();
+    const [searchParams, setSearchParams] = useSearchParams();
+    const tab = parseSkillsTabParam(searchParams.get("tab"));
+    const [density, setDensity] = useState<TalentSkillsDensity>(() => readTalentSkillsDensity());
+    const [selectedSkill, setSelectedSkill] = useState<MySkill | null>(null);
+    const [catalogSkill, setCatalogSkill] = useState<CatalogSkill | null>(null);
+    const [addModalOpen, setAddModalOpen] = useState(false);
 
-    const root = q.data?.root ?? {};
-    const skills = (q.data?.items ?? (Array.isArray(root.skills) ? (root.skills as Array<Record<string, unknown>>) : [])) as SkillRow[];
-    const managerial = skills.filter((row) => skillCategory(row).includes("manag"));
-    const technical = skills.filter((row) => !skillCategory(row).includes("manag"));
-    const leftCol = managerial.length > 0 ? managerial : skills.slice(0, Math.ceil(skills.length / 2));
-    const rightCol = technical.length > 0 ? technical : skills.slice(Math.ceil(skills.length / 2));
-    const recommendations = Array.isArray(root.recommendations)
-        ? (root.recommendations as SkillRow[])
-        : Array.isArray(root.skill_recommendations)
-          ? (root.skill_recommendations as SkillRow[])
-          : [];
-    const globalScore = textOf(root, ["score_global", "global_score", "score"], "—");
-    const mastered = textOf(root, ["mastered_count", "skills_mastered"], "—");
-    const toDevelop = textOf(root, ["to_develop_count", "skills_to_develop"], "—");
+    const summaryQuery = useTalentSkillsSummary();
+    const listQuery = useTalentSkillsList({ limit: 100 });
+    const gapsQuery = useTalentSkillsGaps(tab === "gaps");
+    const addMutation = useAddSkill();
+
+    const totalSkills = summaryQuery.data?.total;
+    useWorkspaceTopbarMeta(
+        "Mes compétences",
+        totalSkills != null
+            ? `${totalSkills} compétence${totalSkills > 1 ? "s" : ""} répertoriée${totalSkills > 1 ? "s" : ""}`
+            : "Niveaux, gaps et catalogue",
+    );
+
+    const setTab = useCallback(
+        (next: SkillsTab) => {
+            setSearchParams((prev) => {
+                const params = new URLSearchParams(prev);
+                if (next === "mine") params.delete("tab");
+                else params.set("tab", next);
+                return params;
+            });
+        },
+        [setSearchParams],
+    );
+
+    const toggleDensity = () => {
+        const next: TalentSkillsDensity = density === "compact" ? "comfortable" : "compact";
+        setDensity(next);
+        writeTalentSkillsDensity(next);
+    };
+
+    const openEditDrawer = (skill: MySkill) => setSelectedSkill(skill);
+    const closeEditDrawer = () => setSelectedSkill(null);
+
+    const openAddFromCatalog = (skill: CatalogSkill) => {
+        setCatalogSkill(skill);
+        setAddModalOpen(true);
+    };
+
+    const handleAddSkill = (payload: Parameters<typeof addMutation.mutate>[0]) => {
+        addMutation.mutate(payload, {
+            onSuccess: () => {
+                setAddModalOpen(false);
+                setCatalogSkill(null);
+                setTab("mine");
+            },
+        });
+    };
+
+    const handleRequestFormation = (gap: SkillGap) => {
+        navigate(`/workspace/talent/requests?type=formation&skill=${encodeURIComponent(gap.skill_name)}`);
+    };
+
+    const skills = listQuery.data ?? [];
+    const gaps = gapsQuery.data ?? [];
+    const showGlobalEmpty =
+        tab === "mine" && !summaryQuery.isLoading && !summaryQuery.isError && summaryQuery.data?.total === 0;
 
     return (
-        <div className="space-y-6">
-            <header className="flex flex-wrap items-start justify-between gap-3">
-                <div>
-                    <h1 className="text-[33px] font-semibold leading-none tracking-[-0.03em] text-[#18171e]">Mes competences</h1>
-                    <p className="mt-2 text-sm text-[#6b6880]">Niveaux et progression des competences.</p>
-                </div>
-                <button type="button" className="rounded-lg bg-[#7c6ef5] px-3.5 py-2 text-sm font-medium text-white transition hover:bg-[#5a4de0]">
-                    Demander une evaluation
-                </button>
-            </header>
+        <div className={TALENT_PAGE_STACK}>
+            {summaryQuery.isError ? (
+                <ErrorState
+                    title="Résumé indisponible"
+                    message="Impossible de charger les indicateurs compétences."
+                    detail={
+                        summaryQuery.error instanceof Error ? summaryQuery.error.message : String(summaryQuery.error)
+                    }
+                    onRetry={() => void summaryQuery.refetch()}
+                />
+            ) : (
+                <SkillsKpiBar summary={summaryQuery.data} isLoading={summaryQuery.isLoading} />
+            )}
 
-            <div className="grid gap-3 md:grid-cols-3">
-                <TalentStatCard label="Score global" value={globalScore} hint={globalScore !== "—" ? "Mise a jour automatique" : undefined} />
-                <TalentStatCard label="Competences maitrisees" value={mastered} />
-                <TalentStatCard label="A developper" value={toDevelop} />
+            <div className="flex flex-wrap items-center justify-between gap-3">
+                <SkillsTabs
+                    tab={tab}
+                    mineCount={summaryQuery.data?.total}
+                    gapsCount={gapsQuery.data?.length}
+                    onTabChange={setTab}
+                />
+                <div className="flex flex-wrap items-center gap-3">
+                    {tab === "mine" ? (
+                        <Button type="button" color="secondary" size="sm" onClick={() => setTab("catalog")}>
+                            Ajouter une compétence
+                        </Button>
+                    ) : null}
+                    {tab !== "catalog" ? <TalentSkillsDensityToggle density={density} onToggle={toggleDensity} /> : null}
+                </div>
             </div>
 
-            {skills.length === 0 ? (
-                <div className="rounded-xl border border-black/5 bg-white p-6 text-sm text-tertiary">Aucune competence disponible.</div>
-            ) : (
+            {tab === "mine" ? (
                 <>
-                    <div className="grid gap-4 xl:grid-cols-2">
-                        <section className="rounded-xl border border-black/5 bg-white p-5 shadow-[0_1px_3px_rgba(0,0,0,0.06)]">
-                            <h2 className="mb-3 text-sm font-semibold uppercase tracking-[0.05em] text-[#6b6880]">Competences manageriales</h2>
-                            {leftCol.length === 0 ? (
-                                <p className="text-sm text-[#a09db5]">Aucune entree.</p>
-                            ) : (
-                                leftCol.map((row, i) => {
-                                    const pct = Math.max(0, Math.min(100, numOf(row, ["score_pct", "level_pct", "progress_pct", "value"]) ?? 0));
-                                    const name = textOf(row, ["name", "skill_name", "title"]);
-                                    const label = textOf(row, ["level", "score_label"], pct ? `${pct}%` : "—");
-                                    return (
-                                        <div key={`left-${i}`} className="border-b border-black/5 py-2.5 last:border-b-0">
-                                            <div className="flex items-center gap-2">
-                                                <span className="flex size-7 items-center justify-center rounded-md bg-[#f3f0ff] text-[12px]">⚙</span>
-                                                <div className="min-w-0 flex-1">
-                                                    <p className="truncate text-[13.5px] font-medium text-[#18171e]">{name}</p>
-                                                    <div className="mt-1 h-1 overflow-hidden rounded-full bg-[#f7f6f3]">
-                                                        <div className="h-full rounded-full" style={{ width: `${pct}%`, backgroundColor: barColor(i) }} />
-                                                    </div>
-                                                </div>
-                                                <span className="text-xs font-semibold text-[#6b6880]">{label}</span>
-                                            </div>
-                                        </div>
-                                    );
-                                })
+                    {listQuery.isLoading ? (
+                        <div
+                            className={cx(
+                                "grid gap-3",
+                                density === "compact" ? "sm:grid-cols-2 xl:grid-cols-3" : "sm:grid-cols-2",
                             )}
-                        </section>
+                        >
+                            {Array.from({ length: 6 }).map((_, i) => (
+                                <div key={i} className="h-36 animate-pulse rounded-2xl bg-secondary" />
+                            ))}
+                        </div>
+                    ) : null}
 
-                        <section className="rounded-xl border border-black/5 bg-white p-5 shadow-[0_1px_3px_rgba(0,0,0,0.06)]">
-                            <h2 className="mb-3 text-sm font-semibold uppercase tracking-[0.05em] text-[#6b6880]">Competences techniques</h2>
-                            {rightCol.length === 0 ? (
-                                <p className="text-sm text-[#a09db5]">Aucune entree.</p>
-                            ) : (
-                                rightCol.map((row, i) => {
-                                    const pct = Math.max(0, Math.min(100, numOf(row, ["score_pct", "level_pct", "progress_pct", "value"]) ?? 0));
-                                    const name = textOf(row, ["name", "skill_name", "title"]);
-                                    const label = textOf(row, ["level", "score_label"], pct ? `${pct}%` : "—");
-                                    return (
-                                        <div key={`right-${i}`} className="border-b border-black/5 py-2.5 last:border-b-0">
-                                            <div className="flex items-center gap-2">
-                                                <span className="flex size-7 items-center justify-center rounded-md bg-[#eff6ff] text-[12px]">◆</span>
-                                                <div className="min-w-0 flex-1">
-                                                    <p className="truncate text-[13.5px] font-medium text-[#18171e]">{name}</p>
-                                                    <div className="mt-1 h-1 overflow-hidden rounded-full bg-[#f7f6f3]">
-                                                        <div className="h-full rounded-full" style={{ width: `${pct}%`, backgroundColor: barColor(i + 2) }} />
-                                                    </div>
-                                                </div>
-                                                <span className="text-xs font-semibold text-[#6b6880]">{label}</span>
-                                            </div>
-                                        </div>
-                                    );
-                                })
+                    {listQuery.isError ? (
+                        <ErrorState
+                            title="Compétences indisponibles"
+                            message="Impossible de charger vos compétences."
+                            detail={listQuery.error instanceof Error ? listQuery.error.message : String(listQuery.error)}
+                            onRetry={() => void listQuery.refetch()}
+                        />
+                    ) : null}
+
+                    {showGlobalEmpty ? (
+                        <div className="flex flex-col items-center gap-4">
+                            <EmptyState>
+                                <EmptyState.Content>
+                                    <EmptyState.Title>Aucune compétence pour l&apos;instant</EmptyState.Title>
+                                    <EmptyState.Description>
+                                        Ajoutez vos compétences depuis le catalogue pour construire votre profil.
+                                    </EmptyState.Description>
+                                </EmptyState.Content>
+                                <EmptyState.Footer>
+                                    <Button type="button" color="primary" size="sm" onClick={() => setTab("catalog")}>
+                                        Parcourir le catalogue
+                                    </Button>
+                                </EmptyState.Footer>
+                            </EmptyState>
+                        </div>
+                    ) : null}
+
+                    {!listQuery.isLoading && !listQuery.isError && skills.length > 0 ? (
+                        <div
+                            className={cx(
+                                "grid gap-3",
+                                density === "compact" ? "sm:grid-cols-2 xl:grid-cols-3" : "sm:grid-cols-2",
                             )}
-                        </section>
-                    </div>
-
-                    <section className="rounded-xl border border-black/5 bg-white p-5 shadow-[0_1px_3px_rgba(0,0,0,0.06)]">
-                        <h2 className="mb-3 text-sm font-semibold uppercase tracking-[0.05em] text-[#6b6880]">Recommandations de developpement</h2>
-                        {recommendations.length === 0 ? (
-                            <p className="text-sm text-[#a09db5]">Aucune recommandation disponible.</p>
-                        ) : (
-                            <div className="grid gap-3 md:grid-cols-3">
-                                {recommendations.slice(0, 3).map((row, i) => {
-                                    const type = textOf(row, ["type", "category", "kind"], i === 0 ? "A renforcer" : i === 1 ? "En progression" : "Quasi maitrise");
-                                    const skill = textOf(row, ["skill", "name", "title"]);
-                                    const note = textOf(row, ["note", "recommendation", "description"], "");
-                                    return (
-                                        <article key={`rec-${i}`} className={`rounded-lg border p-3 ${recTone(type)}`}>
-                                            <p className="text-xs font-semibold text-[#6b6880]">{type}</p>
-                                            <p className="mt-1 text-[15px] font-semibold text-[#18171e]">{skill}</p>
-                                            <p className="mt-1 text-xs text-[#6b6880]">{note || "—"}</p>
-                                        </article>
-                                    );
-                                })}
-                            </div>
-                        )}
-                    </section>
+                        >
+                            {skills.map((skill) => (
+                                <MySkillCard
+                                    key={skill.skill_id}
+                                    skill={skill}
+                                    density={density}
+                                    onClick={openEditDrawer}
+                                />
+                            ))}
+                        </div>
+                    ) : null}
                 </>
-            )}
+            ) : null}
+
+            {tab === "gaps" ? (
+                <>
+                    {gapsQuery.isLoading ? (
+                        <div
+                            className={cx(
+                                "grid gap-3",
+                                density === "compact" ? "sm:grid-cols-2 xl:grid-cols-3" : "sm:grid-cols-2",
+                            )}
+                        >
+                            {Array.from({ length: 4 }).map((_, i) => (
+                                <div key={i} className="h-40 animate-pulse rounded-2xl bg-secondary" />
+                            ))}
+                        </div>
+                    ) : null}
+
+                    {gapsQuery.isError ? (
+                        <ErrorState
+                            title="Gaps indisponibles"
+                            message="Impossible de charger les écarts de compétences."
+                            detail={gapsQuery.error instanceof Error ? gapsQuery.error.message : String(gapsQuery.error)}
+                            onRetry={() => void gapsQuery.refetch()}
+                        />
+                    ) : null}
+
+                    {!gapsQuery.isLoading && !gapsQuery.isError && gaps.length === 0 ? (
+                        <EmptyState>
+                            <EmptyState.Content>
+                                <EmptyState.Title>Aucun gap identifié</EmptyState.Title>
+                                <EmptyState.Description>
+                                    Vos compétences couvrent les besoins de vos projets actuels.
+                                </EmptyState.Description>
+                            </EmptyState.Content>
+                        </EmptyState>
+                    ) : null}
+
+                    {!gapsQuery.isLoading && !gapsQuery.isError && gaps.length > 0 ? (
+                        <div
+                            className={cx(
+                                "grid gap-3",
+                                density === "compact" ? "sm:grid-cols-2 xl:grid-cols-3" : "sm:grid-cols-2",
+                            )}
+                        >
+                            {gaps.map((gap) => (
+                                <SkillGapCard
+                                    key={gap.skill_id}
+                                    gap={gap}
+                                    density={density}
+                                    onRequestFormation={handleRequestFormation}
+                                />
+                            ))}
+                        </div>
+                    ) : null}
+                </>
+            ) : null}
+
+            {tab === "catalog" ? (
+                <div className="rounded-lg border border-secondary/60 bg-primary p-4 shadow-sm">
+                    <CatalogSearch onAdd={openAddFromCatalog} />
+                </div>
+            ) : null}
+
+            <SkillEditDrawer open={Boolean(selectedSkill)} skill={selectedSkill} onClose={closeEditDrawer} />
+
+            <AddSkillModal
+                isOpen={addModalOpen}
+                skill={catalogSkill}
+                isSubmitting={addMutation.isPending}
+                onOpenChange={(open) => {
+                    setAddModalOpen(open);
+                    if (!open) setCatalogSkill(null);
+                }}
+                onSubmit={handleAddSkill}
+            />
         </div>
     );
 }

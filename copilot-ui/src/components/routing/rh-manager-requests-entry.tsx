@@ -1,27 +1,20 @@
 import { Navigate, useLocation } from "react-router";
-import { WorkspaceShellLayout } from "@/layouts/workspace-shell-layout";
-import { useRhWorkspaceNavItems } from "@/layouts/nav/use-rh-workspace-nav";
-import ManagerRequestsPage from "@/pages/rh/ManagerRequestsPage";
 import { useAuth } from "@/providers/auth-provider";
 
 /**
- * `/workspace/rh/manager-requests` : les managers sont redirigés vers « Demandes RH » manager ;
- * les utilisateurs RH voient la file de traitement (composant partagé, hors duplication de logique métier).
+ * `/workspace/rh/manager-requests` — legacy bookmark / notifications.
+ * Managers → espace manager ; RH → `/workspace/rh/actions?tab=requests`.
  */
-function RhManagerRequestsShellPage() {
-    const items = useRhWorkspaceNavItems();
-    return (
-        <WorkspaceShellLayout workspaceRole="rh" navItems={items}>
-            <ManagerRequestsPage />
-        </WorkspaceShellLayout>
-    );
-}
-
 export function RhManagerRequestsEntry() {
     const { user } = useAuth();
     const { search } = useLocation();
+
     if (user?.role === "manager") {
-        return <Navigate to={search ? `/workspace/manager/hr-requests${search}` : "/workspace/manager/hr-requests"} replace />;
+        const target = search ? `/workspace/manager/rh-requests${search}` : "/workspace/manager/rh-requests";
+        return <Navigate to={target} replace />;
     }
-    return <RhManagerRequestsShellPage />;
+
+    const params = new URLSearchParams(search);
+    if (!params.has("tab")) params.set("tab", "requests");
+    return <Navigate to={`/workspace/rh/actions?${params.toString()}`} replace />;
 }

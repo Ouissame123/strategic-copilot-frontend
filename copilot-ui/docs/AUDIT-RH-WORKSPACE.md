@@ -1,10 +1,19 @@
 # Audit workspace RH — Strategic Copilot (frontend)
 
-**Date :** 2026-05-25  
-**Périmètre :** rôle `rh` · routes `/workspace/rh/*` (+ `/workspace/rh/manager-requests` accessible aussi au rôle `manager`)  
+**Date :** 2026-06-11 (Sprint 1 frontend appliqué)  
+**Périmètre :** rôle `rh` · routes `/workspace/rh/*` (+ `/workspace/rh/manager-requests` et `/workspace/rh/projects-budget` accessibles aussi au rôle `manager`)  
 **Codebase :** `copilot-ui/src`  
 **Backend :** webhooks n8n (`https://n8nprod.aphelionxinnovations.com`) — en dev, proxy Vite `/webhook` → n8n  
 **Auth :** `Authorization: Bearer <JWT>` sur tous les appels (via `httpGet` / `httpPost` / `httpPatch` / `httpDelete` ou `fetch` dédiés)
+
+## Sprint 1 — correctifs frontend (2026-06-11)
+
+| # | Bug | Statut front | Backend n8n (parallèle) |
+|---|-----|--------------|-------------------------|
+| 1 | Routes legacy mortes → fausse complétude | ✅ 9 redirects supprimés · `RhNotFoundPage` · legacy `talent/:id` + `actions/:id` conservés | — |
+| 2 | `console.log` Workforce Arbitration | ✅ supprimés | — |
+| 3 | Fallback `rh_score = 65` | ✅ `null` + `ScoreHeroEmpty` | — |
+| 4 | Demandes managers filtres/KPI client | ✅ params serveur + `GET /requests/summary` · fallback client `TODO BACKEND` | ⏳ `BACKEND_N8N_Sprint1_Changes.md` — summary + filtres SQL |
 
 ---
 
@@ -13,7 +22,7 @@
 | Élément | Détail |
 |---------|--------|
 | **Layout** | `layouts/rh-workspace-layout.tsx` → `WorkspaceShellLayout` |
-| **Navigation** | `layouts/nav/use-rh-workspace-nav.ts` (8 entrées sidebar) |
+| **Navigation** | `layouts/nav/use-rh-workspace-nav.ts` (10 entrées sidebar) |
 | **Protection** | `ProtectedRoute` rôle `rh` ; `manager-requests` accepte `manager` \| `rh` |
 | **Stack data** | React Query + hooks dédiés + `fetch` / client HTTP central (`api/api.ts`) |
 | **Topbar RH** | `RhNotificationsTopbarDropdown` — notifications WF_RH_Notifications |
@@ -30,19 +39,22 @@
 | `/workspace/rh/workforce-arbitration` | `RhWorkforceArbitrationPage` | Oui | Actif |
 | `/workspace/rh/mobility` | `RhMobilityPage` | Oui | Actif |
 | `/workspace/rh/chat` | `RhChatPage` | Oui | Actif |
-| `/workspace/rh/profile` | `RhProfilePage` (placeholder) | Oui | Placeholder |
+| `/workspace/rh/profile` | `RhProfilePage` | Oui | Actif |
+| `/workspace/rh/projects-budget` | `RhProjectsBudgetEntry` → `RhProjectsBudgetPage` | Oui | Actif |
 | `/workspace/rh/manager-requests` | `RhManagerRequestsEntry` → `ManagerRequestsPage` | Oui | Actif |
 | `/users` | Redirect → `/workspace/rh/employees` | — | Legacy |
 
-### Redirects / legacy (conservés, non implémentés)
+### Redirects legacy (fonctionnels)
 
 | Route | Redirection |
 |-------|-------------|
 | `copilot` | → `/workspace/rh/chat` |
-| `skills-catalog`, `critical-gaps`, `training-plans`, `org-alerts` | → `dashboard` |
-| `talent/*` | → `employees` |
-| `actions/*` | → `manager-requests` |
-| `sessions`, `reports`, `projects`, `projects/*`, `decision-log` | → `dashboard` |
+| `/workspace/rh/talent/:talentId` | → `/workspace/rh/employees?talentId=:id` |
+| `/workspace/rh/actions/:actionId` | → `/workspace/rh/manager-requests?action=:id` |
+
+### Routes mortes (Sprint 1)
+
+Les anciennes routes `skills-catalog`, `critical-gaps`, `training-plans`, `org-alerts`, `sessions`, `reports`, `projects`, `decision-log` ne redirigent plus vers le dashboard : elles renvoient **404** (`RhNotFoundPage` via `path="*"`).
 
 ### Sidebar (`use-rh-workspace-nav.ts`)
 
@@ -300,9 +312,17 @@ Fichier : `vite.config.ts` (racine monorepo).
 
 | | |
 |---|---|
-| **Page** | `RhProfilePage` → `RhPlaceholderPage("profile")` |
-| **Statut** | Placeholder — « page en reconstruction » |
-| **API** | Aucune |
+| **Page** | `RhProfilePage` |
+| **Statut** | Actif — GET/PATCH `/webhook/rh/profile` |
+| **API** | `rh-profile.api.ts` |
+
+### 4.9 Budget RH — `/workspace/rh/projects-budget`
+
+| | |
+|---|---|
+| **Page** | `RhProjectsBudgetPage` |
+| **Workflow** | `WF_RH_Project_Budget_v1` |
+| **API** | `rh-budget.api.ts` — strict backend |
 
 ---
 

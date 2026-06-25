@@ -1,4 +1,6 @@
 import { resolveRhWebhookBase } from "@/api/rh-dashboard.api";
+import { API_ROUTES } from "@/lib/api-routes";
+import { FEATURES } from "@/lib/feature-flags";
 
 /**
  * Routes WF_RH_Conversations + WF_RH_Chat (chemins webhook n8n).
@@ -12,6 +14,10 @@ export const RH_CHAT_ENDPOINTS = {
 } as const;
 
 export type RhChatEndpointKey = keyof typeof RH_CHAT_ENDPOINTS;
+
+function resolveRhChatPostPath(): string {
+    return FEATURES.USE_RH_CHAT_V3_RAG ? API_ROUTES.rhChatV3() : RH_CHAT_ENDPOINTS.chat;
+}
 
 function rhChatApiBaseOverride(): string | undefined {
     return (import.meta.env.VITE_RH_CHAT_API_BASE as string | undefined)?.trim();
@@ -42,6 +48,9 @@ export function buildRhChatUrl(route: RhChatEndpointKey, conversationId?: string
         if (route === "archive") {
             return `${RH_CHAT_ENDPOINTS.archive}/${encodeURIComponent(id!)}/archive`;
         }
+        if (route === "chat") {
+            return resolveRhChatPostPath();
+        }
         return RH_CHAT_ENDPOINTS[route];
     }
 
@@ -52,6 +61,9 @@ export function buildRhChatUrl(route: RhChatEndpointKey, conversationId?: string
     }
     if (route === "archive") {
         return `${webhookBase}${webhookPathSuffix(RH_CHAT_ENDPOINTS.archive)}/${encodeURIComponent(id!)}/archive`;
+    }
+    if (route === "chat") {
+        return `${webhookBase}${webhookPathSuffix(resolveRhChatPostPath())}`;
     }
     return `${webhookBase}${webhookPathSuffix(RH_CHAT_ENDPOINTS[route])}`;
 }

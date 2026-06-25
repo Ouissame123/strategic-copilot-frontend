@@ -29,6 +29,9 @@ import { invalidateManagerRiskQueries } from "@/hooks/use-manager-risk-data";
 import { useNotifications } from "@/hooks/useNotifications";
 import { useWatchdogScan } from "@/hooks/useTeam";
 import { useWorkspaceTopbarMeta } from "@/layouts/workspace-topbar-meta";
+import { PaginationFooter } from "@/components/common/PaginationFooter";
+import { buildManagerListSearchParams, readUrlPagination } from "@/lib/manager-url-pagination";
+import { DEFAULT_PAGE_SIZE } from "@/lib/pagination-utils";
 import { readUserFacingApiErrorMessage } from "@/lib/user-facing-api-error";
 import { useToast } from "@/providers/toast-provider";
 import type { ManagerRiskAlertPatchAction } from "@/services/notifications.api";
@@ -66,9 +69,16 @@ export default function NotificationsPage() {
     const [searchParams, setSearchParams] = useSearchParams();
     const navigate = useNavigate();
     const queryClient = useQueryClient();
-    const urlSeverity = searchParams.get("filter")?.replace("severity:", "") ?? "";
+    const urlSeverity = searchParams.get("severity") ?? searchParams.get("filter")?.replace("severity:", "") ?? "";
+    const urlStatus = searchParams.get("status") ?? "";
+    const { page, limit } = readUrlPagination(searchParams);
 
-    const { data, isPending, isError, error, refetch } = useNotifications({ limit: 200 });
+    const { data, isPending, isError, error, refetch, isFetching } = useNotifications({
+        page,
+        limit,
+        severity: urlSeverity || undefined,
+        status: urlStatus || undefined,
+    });
     const { push } = useToast();
     const watchdogScan = useWatchdogScan();
 
@@ -82,16 +92,51 @@ export default function NotificationsPage() {
         type: "",
         projectId: "",
         talentId: "",
-        status: "",
+        status: urlStatus,
         showIgnored: false,
         quickFilters: new Set(),
     });
+
+    const updateListParams = useCallback(
+        (next: Partial<{ page: number; limit: number; severity?: string; status?: string }>) => {
+            const merged = {
+                page: next.page ?? page,
+                limit: next.limit ?? limit,
+                severity: next.severity !== undefined ? next.severity : filters.severity || urlSeverity,
+                status: next.status !== undefined ? next.status : filters.status || urlStatus,
+            };
+            const resetPage =
+                next.severity !== undefined || next.status !== undefined || next.limit !== undefined;
+            setSearchParams(
+                buildManagerListSearchParams(
+                    {
+                        severity: merged.severity || undefined,
+                        status: merged.status || undefined,
+                    },
+                    { page: resetPage && next.page === undefined ? 1 : merged.page, limit: merged.limit },
+                ),
+            );
+        },
+        [filters.severity, filters.status, limit, page, setSearchParams, urlSeverity, urlStatus],
+    );
 
     const allItems = data?.items ?? [];
 
     const openItems = useMemo(() => allItems.filter((a) => !isClosedAlertStatus(a.status)), [allItems]);
 
     const counts = useMemo(() => {
+        if (data?.counts) {
+            return {
+                total: data.pagination?.total ?? data.total ?? openItems.length,
+                critical: data.counts.critical ?? 0,
+                high: data.counts.high ?? 0,
+                medium: data.counts.medium ?? 0,
+                low: data.counts.low ?? 0,
+                resolved: data.counts.ack ?? 0,
+                talents: new Set(openItems.map((a) => a.talent_id).filter(Boolean)).size,
+                projects: new Set(openItems.map((a) => a.project_id).filter(Boolean)).size,
+            };
+        }
         const talentIds = new Set<string>();
         const projectIds = new Set<string>();
         for (const a of openItems) {
@@ -110,7 +155,7 @@ export default function NotificationsPage() {
             talents: talentIds.size,
             projects: projectIds.size,
         };
-    }, [allItems, openItems]);
+    }, [allItems, data?.counts, data?.pagination?.total, data?.total, openItems]);
 
     const filteredAlerts = useMemo(() => filterAlerts(allItems, filters), [allItems, filters]);
 
@@ -311,12 +356,9 @@ export default function NotificationsPage() {
     );
 
     const setHeroSeverity = (id: string) => {
-        setFilters((f) => ({ ...f, severity: id === "all" ? "" : id }));
-        if (id === "all") {
-            setSearchParams({});
-        } else {
-            setSearchParams({ filter: `severity:${id}` });
-        }
+        const severity = id === "all" ? "" : id;
+        setFilters((f) => ({ ...f, severity }));
+        updateListParams({ severity, page: 1 });
     };
 
     const resetFilters = () => {
@@ -330,7 +372,7 @@ export default function NotificationsPage() {
             showIgnored: false,
             quickFilters: new Set(),
         });
-        setSearchParams({});
+        setSearchParams(buildManagerListSearchParams({}, { page: 1, limit }));
     };
 
     const toggleQuickFilter = (id: AlertQuickFilter) => {
@@ -413,11 +455,17 @@ export default function NotificationsPage() {
                     <AlertsFilters
                         filters={filters}
                         onSearchChange={(search) => setFilters((f) => ({ ...f, search }))}
-                        onSeverityChange={(severity) => setFilters((f) => ({ ...f, severity }))}
+                        onSeverityChange={(severity) => {
+                            setFilters((f) => ({ ...f, severity }));
+                            updateListParams({ severity, page: 1 });
+                        }}
                         onTypeChange={(type) => setFilters((f) => ({ ...f, type }))}
                         onProjectChange={(projectId) => setFilters((f) => ({ ...f, projectId }))}
                         onTalentChange={(talentId) => setFilters((f) => ({ ...f, talentId }))}
-                        onStatusChange={(status) => setFilters((f) => ({ ...f, status }))}
+                        onStatusChange={(status) => {
+                            setFilters((f) => ({ ...f, status }));
+                            updateListParams({ status, page: 1 });
+                        }}
                         onShowIgnoredChange={(showIgnored) => setFilters((f) => ({ ...f, showIgnored }))}
                         onToggleQuickFilter={toggleQuickFilter}
                         onReset={resetFilters}
@@ -515,6 +563,13 @@ export default function NotificationsPage() {
                                     </AlertSeveritySection>
                                 );
                             })}
+                            <PaginationFooter
+                                pagination={data?.pagination}
+                                onPageChange={(p) => updateListParams({ page: p })}
+                                onPageSizeChange={(size) => updateListParams({ limit: size, page: 1 })}
+                                itemLabel="notifications"
+                                loading={isFetching}
+                            />
                         </div>
                     ) : null}
                 </div>

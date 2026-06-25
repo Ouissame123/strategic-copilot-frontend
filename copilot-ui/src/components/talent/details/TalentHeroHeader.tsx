@@ -1,5 +1,5 @@
 import { Link } from "react-router";
-import { ArrowLeft, Shield } from "lucide-react";
+import { ArrowLeft } from "lucide-react";
 import {
     TALENT_TITLE,
     riskLevelStyles,
@@ -24,8 +24,6 @@ export interface TalentHeroHeaderProps {
     contractEndDate: string | null | undefined;
     contractEndingSoon?: boolean;
     onBack: () => void;
-    onWatchdog: () => void;
-    watchdogPending?: boolean;
 }
 
 function truncateEmail(email: string, max = 32): string {
@@ -52,8 +50,6 @@ export function TalentHeroHeader({
     contractEndDate,
     contractEndingSoon,
     onBack,
-    onWatchdog,
-    watchdogPending,
 }: TalentHeroHeaderProps) {
     const location = [city, country].map((s) => String(s ?? "").trim()).filter(Boolean).join(", ");
     const risk = riskLevelStyles(riskLevel);
@@ -69,15 +65,6 @@ export function TalentHeroHeader({
                     >
                         <ArrowLeft className="h-3.5 w-3.5" aria-hidden />
                         Retour équipe
-                    </button>
-                    <button
-                        type="button"
-                        onClick={onWatchdog}
-                        disabled={watchdogPending}
-                        className="inline-flex items-center gap-1.5 rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-2 text-xs font-semibold text-indigo-800 transition hover:bg-indigo-100 disabled:opacity-60 dark:border-indigo-800 dark:bg-indigo-950/40 dark:text-indigo-200 dark:hover:bg-indigo-950/60"
-                    >
-                        <Shield className="h-3.5 w-3.5" aria-hidden />
-                        {watchdogPending ? "Scan…" : "Watchdog"}
                     </button>
                     <Link
                         to="/workspace/manager/projects"

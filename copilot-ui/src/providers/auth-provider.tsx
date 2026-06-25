@@ -293,6 +293,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         await syncSession();
     }, [syncSession]);
 
+    useEffect(() => {
+        (window as Window & { __authContext?: { user: AuthUser | null } }).__authContext = { user };
+    }, [user]);
+
     const permissions = useMemo<Permission[]>(() => {
         if (!user?.role || user.status !== "active") return [];
         return PERMISSIONS_BY_ROLE[user.role];

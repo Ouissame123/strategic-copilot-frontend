@@ -1,9 +1,53 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient, keepPreviousData } from "@tanstack/react-query";
 import { invalidateManagerRiskQueries } from "./use-manager-risk-data";
 import { isAxiosError } from "axios";
-import { managerNotificationsApi } from "../api/manager-notifications.api";
+import { cascadeRiskKpiAfterAlertAction } from "@/api/project-risks.api";
+import { httpClient } from "@/lib/http-client";
+import { DEFAULT_PAGE_SIZE, paginationParamsRecord, parsePaginationMeta, type PaginationMeta } from "@/lib/pagination-utils";
 import { notificationsApi, notificationsService, rhActionsApi } from "@/services/notifications.api";
+import { useToast } from "@/providers/toast-provider";
+import { queryKeys } from "@/lib/query-keys";
 import type { NotificationItem, NotificationsResponse, RhActionPatchRequest, RiskAlertActionRequest } from "../types/api.types";
+
+export type NotificationsFilters = {
+    severity?: "critical" | "high" | "medium" | "low" | string;
+    status?: "pending" | "sent" | "failed" | "ack" | "skipped" | string;
+    time_filter?: "unread" | "last_24h" | "all" | string;
+    page?: number;
+    limit?: number;
+};
+
+export type ManagerNotificationsResponse = NotificationsResponse & {
+    pagination?: PaginationMeta;
+    counts?: {
+        critical?: number;
+        high?: number;
+        medium?: number;
+        low?: number;
+        pending?: number;
+        ack?: number;
+        sent?: number;
+    };
+    buckets?: {
+        today?: NotificationItem[];
+        yesterday?: NotificationItem[];
+        this_week?: NotificationItem[];
+        older?: NotificationItem[];
+    };
+};
+
+export type RiskAlertMutationVars = {
+    id: string;
+    body: RiskAlertActionRequest;
+    projectId?: string;
+};
+
+const RISK_ALERT_ACTION_TOAST: Record<RiskAlertActionRequest["action"], string> = {
+    resolve: "Alerte résolue. Le Watchdog la ré-créera si la cause root persiste.",
+    ignore: "Alerte ignorée. Action tracée dans l'audit.",
+    reopen: "Alerte rouverte.",
+    dismiss: "Alerte ignorée. Action tracée dans l'audit.",
+};
 
 function readPayloadField(payload: unknown, ...keys: string[]): string | undefined {
     if (payload == null) return undefined;
@@ -26,8 +70,8 @@ function readPayloadField(payload: unknown, ...keys: string[]): string | undefin
     return undefined;
 }
 
-/** Tolère les réponses n8n enveloppées ou alias de tableau sans changer l’URL. */
-function normalizeNotificationsPayload(raw: unknown): NotificationsResponse {
+/** Tolère les réponses n8n enveloppées ou alias de tableau sans changer l'URL. */
+function normalizeNotificationsPayload(raw: unknown, fallbackPageSize = DEFAULT_PAGE_SIZE): ManagerNotificationsResponse {
     if (raw == null || typeof raw !== "object") return { items: [], total: 0 };
     const root = raw as Record<string, unknown>;
     const o =
@@ -103,32 +147,74 @@ function normalizeNotificationsPayload(raw: unknown): NotificationsResponse {
             : typeof o.total === "number" && !Number.isNaN(o.total)
               ? o.total
               : items.length;
-    return { items, total };
+
+    const pagination = parsePaginationMeta(
+        o.pagination,
+        typeof (o.pagination as Record<string, unknown> | undefined)?.total === "number"
+            ? Number((o.pagination as Record<string, unknown>).total)
+            : total,
+        fallbackPageSize,
+    );
+
+    const countsRaw = o.counts;
+    const counts =
+        countsRaw && typeof countsRaw === "object"
+            ? {
+                  critical: Number((countsRaw as Record<string, unknown>).critical) || 0,
+                  high: Number((countsRaw as Record<string, unknown>).high) || 0,
+                  medium: Number((countsRaw as Record<string, unknown>).medium) || 0,
+                  low: Number((countsRaw as Record<string, unknown>).low) || 0,
+                  pending: Number((countsRaw as Record<string, unknown>).pending) || 0,
+                  ack: Number((countsRaw as Record<string, unknown>).ack) || 0,
+                  sent: Number((countsRaw as Record<string, unknown>).sent) || 0,
+              }
+            : undefined;
+
+    const bucketsRaw = o.buckets;
+    const buckets =
+        bucketsRaw && typeof bucketsRaw === "object"
+            ? {
+                  today: asItemList((bucketsRaw as Record<string, unknown>).today),
+                  yesterday: asItemList((bucketsRaw as Record<string, unknown>).yesterday),
+                  this_week: asItemList((bucketsRaw as Record<string, unknown>).this_week),
+                  older: asItemList((bucketsRaw as Record<string, unknown>).older),
+              }
+            : undefined;
+
+    return { items, total, pagination, counts, buckets };
 }
 
-/** Liste d’alertes manager : GET manager/notifications uniquement. */
-async function fetchManagerNotificationsAlerts(params?: {
-    severity?: string;
-    status?: string;
-    limit?: number;
-}): Promise<NotificationsResponse> {
-    const r = await managerNotificationsApi.notifications(params);
-    return normalizeNotificationsPayload(r.data);
+/** Liste d'alertes manager : GET manager/notifications (paginé). */
+async function fetchManagerNotificationsAlerts(params?: NotificationsFilters): Promise<ManagerNotificationsResponse> {
+    const limit = params?.limit ?? DEFAULT_PAGE_SIZE;
+    const query: Record<string, string> = {
+        ...paginationParamsRecord({ page: params?.page ?? 1, limit }),
+    };
+    if (params?.severity) query.severity = params.severity;
+    if (params?.status) query.status = params.status;
+    if (params?.time_filter) query.time_filter = params.time_filter;
+
+    const r = await httpClient.get<unknown>("/webhook/manager/notifications", {
+        params: query,
+        skipGlobalHttpErrorToast: true,
+    });
+    return normalizeNotificationsPayload(r.data, limit);
 }
 
-export const useNotifications = (params?: { severity?: string; status?: string; limit?: number }) =>
+export const useNotifications = (params?: NotificationsFilters) =>
     useQuery({
         queryKey: ["manager-notifications", "notifications", params],
         queryFn: async () => {
             try {
                 return await fetchManagerNotificationsAlerts(params);
             } catch (e) {
-                /** 401 : session refusée par n8n ; ne pas faire échouer la cloche (liste vide, pas d’erreur bloquante). */
+                /** 401 : session refusée par n8n ; ne pas faire échouer la cloche (liste vide, pas d'erreur bloquante). */
                 if (isAxiosError(e) && e.response?.status === 401) return { items: [], total: 0 };
                 throw e;
             }
         },
-        staleTime: 60_000,
+        staleTime: 30_000,
+        placeholderData: keepPreviousData,
         retry: (failureCount, error) => {
             if (isAxiosError(error) && error.response?.status === 401) return false;
             return failureCount < 1;
@@ -210,14 +296,34 @@ export const usePatchRhAction = () => {
 
 export const useRiskAlertAction = () => {
     const qc = useQueryClient();
+    const { push } = useToast();
+
     return useMutation({
-        mutationFn: ({ id, body }: { id: string; body: RiskAlertActionRequest }) =>
+        mutationFn: ({ id, body }: RiskAlertMutationVars) =>
             notificationsService.updateRiskAlert(id, { action: body.action, note: body.note }),
-        onSuccess: async () => {
-            await qc.invalidateQueries({ queryKey: ["manager-notifications"] });
-            await qc.invalidateQueries({ queryKey: ["notifications"] });
-            await qc.invalidateQueries({ queryKey: ["projects"] });
-            await invalidateManagerRiskQueries(qc);
+        onSuccess: (data, vars) => {
+            const action = vars.body.action;
+            const message = RISK_ALERT_ACTION_TOAST[action] ?? "Action appliquée.";
+            const durationMs = action === "resolve" ? 6000 : undefined;
+            push(message, "success", durationMs);
+
+            const projectId = vars.projectId?.trim() || data?.alert?.project_id?.trim() || "";
+            if (projectId && (action === "resolve" || action === "ignore" || action === "dismiss")) {
+                cascadeRiskKpiAfterAlertAction(projectId);
+            }
+        },
+        onSettled: async (_data, _err, vars) => {
+            const projectId = vars.projectId?.trim();
+            await Promise.all([
+                qc.invalidateQueries({ queryKey: ["manager-notifications"] }),
+                qc.invalidateQueries({ queryKey: ["notifications"] }),
+                qc.invalidateQueries({ queryKey: ["projects"] }),
+                invalidateManagerRiskQueries(qc),
+            ]);
+            if (projectId) {
+                await qc.invalidateQueries({ queryKey: ["project-detail", projectId] });
+                await qc.invalidateQueries({ queryKey: queryKeys.manager.projectDetail(projectId) });
+            }
         },
     });
 };

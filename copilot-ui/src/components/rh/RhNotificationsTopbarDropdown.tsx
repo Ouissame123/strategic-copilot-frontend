@@ -65,7 +65,7 @@ function severityStyles(severity: RhNotificationSeverity): {
 
 function notificationDetailHref(n: RhNotification): string | null {
     if (n.talent_id) return `/workspace/rh/employees?talentId=${encodeURIComponent(n.talent_id)}`;
-    if (n.project_id) return `/workspace/rh/manager-requests`;
+    if (n.project_id) return `/workspace/rh/actions?tab=requests`;
     return null;
 }
 

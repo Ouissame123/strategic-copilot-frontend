@@ -6,7 +6,12 @@ import "@/styles/globals.css";
 import "@/i18n";
 
 import { ProtectedRoute } from "@/components/auth/protected-route";
+import { RhActionsEntry } from "@/components/routing/rh-actions-entry";
 import { RhManagerRequestsEntry } from "@/components/routing/rh-manager-requests-entry";
+import { RhProjectsBudgetEntry } from "@/components/routing/rh-projects-budget-entry";
+import { RhRisksEntry } from "@/components/routing/rh-risks-entry";
+import { AdminAccountsLegacyRedirect } from "@/components/routing/admin-accounts-legacy-redirect";
+import { AdminAccountsHealthLegacyRedirect } from "@/components/routing/admin-accounts-health-legacy-redirect";
 import {
     LegacyDecisionLogRedirect,
     LegacyProfileRedirect,
@@ -35,13 +40,15 @@ import {
     RhProfilePage,
     RhWorkforceArbitrationPage,
     RhChatPage,
-    RhAccountsPage,
 } from "@/pages/workspace/rh";
+import AdminLayout from "@/layouts/admin-layout";
+import AdminUsersPage from "@/pages/admin/AdminUsersPage";
+import AdminAccountsHealthPage from "@/pages/admin/AdminAccountsHealthPage";
 import DashboardPage from "@/pages/manager/DashboardPage";
 import ProjectsPageManager from "@/pages/manager/ProjectsPage";
 import ManagerProjectMissionControlPage from "@/pages/manager/ManagerProjectMissionControlPage";
 import TeamPage from "@/pages/manager/TeamPage";
-import TalentRequestsPage from "@/pages/manager/TalentRequestsPage";
+import ManagerTalentRequestsPage from "@/pages/manager/TalentRequestsPage";
 import TalentDetailPage from "@/pages/manager/TalentDetailPage";
 import RisksPage from "@/pages/manager/RisksPage";
 import ReportsPage from "@/pages/manager/ReportsPage";
@@ -51,6 +58,8 @@ import NotificationsPage from "@/pages/manager/NotificationsPage";
 import HelperChatPage from "@/pages/manager/HelperChatPage";
 import ValidationsPage from "@/pages/manager/ValidationsPage";
 import ManagerRhRequestsPage from "@/pages/workspace/manager/manager-rh-requests-page";
+import { TalentOpportunitiesPage } from "@/pages/workspace/talent/talent-opportunities-page";
+import { TalentRequestsPage } from "@/pages/workspace/talent/talent-requests-page";
 import {
     TalentDashboardPage,
     TalentNotificationsPage,
@@ -101,10 +110,37 @@ createRoot(document.getElementById("root")!).render(
                                     <Route path="/" element={<ProtectedRoute><RootWorkspaceRedirect /></ProtectedRoute>} />
 
                                     <Route
+                                        path="/workspace/rh/actions"
+                                        element={
+                                            <ProtectedRoute roles={["rh"]}>
+                                                <RhActionsEntry />
+                                            </ProtectedRoute>
+                                        }
+                                    />
+
+                                    <Route
                                         path="/workspace/rh/manager-requests"
                                         element={
                                             <ProtectedRoute roles={["manager", "rh"]}>
                                                 <RhManagerRequestsEntry />
+                                            </ProtectedRoute>
+                                        }
+                                    />
+
+                                    <Route
+                                        path="/workspace/rh/projects-budget"
+                                        element={
+                                            <ProtectedRoute roles={["manager", "rh"]}>
+                                                <RhProjectsBudgetEntry />
+                                            </ProtectedRoute>
+                                        }
+                                    />
+
+                                    <Route
+                                        path="/workspace/rh/risks"
+                                        element={
+                                            <ProtectedRoute roles={["rh"]}>
+                                                <RhRisksEntry />
                                             </ProtectedRoute>
                                         }
                                     />
@@ -125,13 +161,14 @@ createRoot(document.getElementById("root")!).render(
                                         <Route path="workforce-arbitration" element={<RhWorkforceArbitrationPage />} />
                                         <Route path="chat" element={<RhChatPage />} />
                                         <Route path="profile" element={<RhProfilePage />} />
-                                        <Route path="accounts" element={<RhAccountsPage />} />
+                                        <Route path="accounts/health" element={<AdminAccountsHealthLegacyRedirect />} />
+                                        <Route path="accounts" element={<AdminAccountsLegacyRedirect />} />
                                         <Route path="skills-catalog" element={<Navigate to="/workspace/rh/dashboard" replace />} />
                                         <Route path="critical-gaps" element={<Navigate to="/workspace/rh/dashboard" replace />} />
                                         <Route path="training-plans" element={<Navigate to="/workspace/rh/dashboard" replace />} />
                                         <Route path="org-alerts" element={<Navigate to="/workspace/rh/dashboard" replace />} />
                                         <Route path="talent/*" element={<Navigate to="/workspace/rh/employees" replace />} />
-                                        <Route path="actions/*" element={<Navigate to="/workspace/rh/manager-requests" replace />} />
+                                        <Route path="actions/*" element={<Navigate to="/workspace/rh/actions" replace />} />
                                         <Route path="sessions" element={<Navigate to="/workspace/rh/dashboard" replace />} />
                                         <Route path="reports" element={<Navigate to="/workspace/rh/dashboard" replace />} />
                                         <Route path="projects" element={<Navigate to="/workspace/rh/dashboard" replace />} />
@@ -154,7 +191,7 @@ createRoot(document.getElementById("root")!).render(
                                         <Route path="projects/:projectId" element={<ManagerProjectMissionControlPage />} />
                                         <Route path="team" element={<TeamPage />} />
                                         <Route path="team/:talentId" element={<TalentDetailPage />} />
-                                        <Route path="talent-requests" element={<TalentRequestsPage />} />
+                                        <Route path="talent-requests" element={<ManagerTalentRequestsPage />} />
                                         <Route path="rh-requests" element={<ManagerRhRequestsPage />} />
                                         <Route path="risks" element={<RisksPage />} />
                                         <Route path="recommendations" element={<Navigate to="/workspace/manager/dashboard" replace />} />
@@ -168,6 +205,27 @@ createRoot(document.getElementById("root")!).render(
                                         <Route path="portfolio" element={<Navigate to="/workspace/manager/projects" replace />} />
                                         <Route path="monitoring" element={<Navigate to="/workspace/manager/team" replace />} />
                                     </Route>
+
+                                    <Route
+                                        path="/workspace/talent/requests"
+                                        element={
+                                            <ProtectedRoute roles={["talent"]}>
+                                                <TalentWorkspaceAppLayout>
+                                                    <TalentRequestsPage />
+                                                </TalentWorkspaceAppLayout>
+                                            </ProtectedRoute>
+                                        }
+                                    />
+                                    <Route
+                                        path="/workspace/talent/opportunities"
+                                        element={
+                                            <ProtectedRoute roles={["talent"]}>
+                                                <TalentWorkspaceAppLayout>
+                                                    <TalentOpportunitiesPage />
+                                                </TalentWorkspaceAppLayout>
+                                            </ProtectedRoute>
+                                        }
+                                    />
 
                                     <Route
                                         path="/workspace/talent"
@@ -189,8 +247,22 @@ createRoot(document.getElementById("root")!).render(
                                         <Route path="notifications" element={<TalentNotificationsPage />} />
                                         <Route path="profile" element={<TalentProfileWorkspacePage />} />
                                         <Route path="decision-log" element={<Navigate to="/workspace/talent" replace />} />
+                                        <Route path="*" element={<Navigate to="dashboard" replace />} />
                                     </Route>
                                     <Route path="/workspace/talent/missions" element={<Navigate to="/workspace/talent/projects" replace />} />
+
+                                    <Route
+                                        path="/admin"
+                                        element={
+                                            <ProtectedRoute roles={["rh"]}>
+                                                <AdminLayout />
+                                            </ProtectedRoute>
+                                        }
+                                    >
+                                        <Route index element={<Navigate to="users" replace />} />
+                                        <Route path="users" element={<AdminUsersPage />} />
+                                        <Route path="accounts/health" element={<AdminAccountsHealthPage />} />
+                                    </Route>
 
                                     <Route path="*" element={<NotFound />} />
                                 </Routes>

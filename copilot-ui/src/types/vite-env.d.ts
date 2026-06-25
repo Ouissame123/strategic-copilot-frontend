@@ -193,6 +193,16 @@ interface ImportMetaEnv {
     /** Suffixe : `/{id}/password-reset` est ajouté automatiquement. */
     readonly VITE_API_RH_USERS_PASSWORD_RESET_BASE?: string;
     readonly VITE_API_RH_SESSIONS?: string;
+    /** GET/POST comptes talent — défaut `/webhook/rh/accounts/talent`. */
+    readonly VITE_API_RH_ACCOUNTS_TALENT?: string;
+    /** PATCH compte talent — défaut `/webhook/wf-rh-talent-patch-v1/rh/accounts/talent/:id`. */
+    readonly VITE_API_RH_TALENT_PATCH_BASE?: string;
+    /** DELETE compte talent — défaut `/webhook/wf-rh-talent-delete-v1/rh/accounts/talent/:id`. */
+    readonly VITE_API_RH_TALENT_DELETE_BASE?: string;
+    /** POST grant-access portail — défaut `/webhook/wf-rh-talent-grant-v1/rh/talents/{id}/grant-access`. */
+    readonly VITE_API_RH_TALENT_GRANT_ACCESS_BASE?: string;
+    /** Origine n8n absolue (défaut prod). Surcharge : `VITE_N8N_API_BASE`. */
+    readonly VITE_N8N_API_BASE?: string;
 
     /**
      * Préfixe commun des webhooks n8n « projet » (chemins relatifs au navigateur, souvent combiné au proxy Vite).
@@ -231,6 +241,12 @@ interface ImportMetaEnv {
     readonly VITE_COPILOT_PROJECT_DETAIL_URL?: string;
     /** POST what-if (`:id` = projet). Défaut `/api/copilot/projects/:id/what-if`. */
     readonly VITE_COPILOT_WHAT_IF_URL?: string;
+    /** Helper Chat v2 URL (défaut `/api/helper/chat-v2`). */
+    readonly VITE_HELPER_CHAT_URL?: string;
+    /** `true` : Helper Chat v3 PRO (`/api/helper/chat-v3`). */
+    readonly VITE_USE_HELPER_V3?: string;
+    /** URL POST helper chat v3 (défaut `/webhook/api/helper/chat-v3`). */
+    readonly VITE_HELPER_CHAT_V3_URL?: string;
     /** URL complète GET staffing / talents Copilot (défaut `/api/copilot/staffing`). */
     readonly VITE_COPILOT_STAFFING_URL?: string;
     /** URL complète GET espace talent (défaut `/api/copilot/talent`). */
@@ -240,8 +256,14 @@ interface ImportMetaEnv {
     readonly VITE_RH_ACTIONS_URL?: string;
     /** PATCH WF_Manager_RH_Actions — `/webhook/c8bae94d-…/api/rh/actions/:id`. */
     readonly VITE_RH_ACTIONS_PATCH_URL?: string;
-    /** WF_RH_Requests_Decision — GET/PATCH `/webhook/rh/requests` (rôle rh uniquement). */
+    /** WF_RH_Requests_Decision — LIST/GET `/webhook/rh/requests` (rôle rh uniquement). */
     readonly VITE_RH_REQUESTS_URL?: string;
+    /** PATCH décision — `/webhook/wf-rh-requests-decision-v1/rh/requests/{id}`. */
+    readonly VITE_RH_REQUESTS_PATCH_URL?: string;
+    readonly VITE_RH_REQUESTS_PATCH_WEBHOOK_PREFIX?: string;
+    /** DELETE — `/webhook/wf-rh-requests-delete-v1/rh/requests/{id}`. */
+    readonly VITE_RH_REQUESTS_DELETE_URL?: string;
+    readonly VITE_RH_REQUESTS_DELETE_WEBHOOK_PREFIX?: string;
     /** PATCH action RH — `:id` remplacé par l’identifiant (sinon `{base}/{id}`). */
     readonly VITE_RH_ACTION_PATCH_URL?: string;
     /** GET synthèse dashboard RH (défaut `/webhook/rh/dashboard`). */
@@ -252,6 +274,24 @@ interface ImportMetaEnv {
     readonly VITE_RH_NOTIFICATIONS_URL?: string;
     /** Base absolue optionnelle pour `DashboardRH` (ex. `https://…/webhook`). */
     readonly VITE_RH_DASHBOARD_API_BASE?: string;
+    /**
+     * WF_RH_Assignments_v2 — GET list talents→manager.
+     * Défaut : `/webhook/wf-rh-assignments-list-v2/rh/assignments`.
+     */
+    readonly VITE_RH_ASSIGNMENTS_LIST_WEBHOOK_PREFIX?: string;
+    readonly VITE_RH_ASSIGNMENTS_LIST_URL?: string;
+    /**
+     * WF_RH_Assignments_v2 — POST create assignment.
+     * Défaut : `/webhook/wf-rh-assignments-create-v2/rh/assignments`.
+     */
+    readonly VITE_RH_ASSIGNMENTS_CREATE_WEBHOOK_PREFIX?: string;
+    readonly VITE_RH_ASSIGNMENTS_CREATE_URL?: string;
+    /**
+     * WF_RH_Assignments_v2 — PATCH reassign manager.
+     * Défaut : `/webhook/wf-rh-assignments-update-v2/rh/assignments/{id}` (`id` = talent_id).
+     */
+    readonly VITE_RH_ASSIGNMENTS_UPDATE_WEBHOOK_PREFIX?: string;
+    readonly VITE_RH_ASSIGNMENTS_UPDATE_URL?: string;
     /**
      * DELETE affectation talent→manager — WF_RH_Assignments_Delete_v2.
      * Préfixe : `/webhook/wf-rh-assignments-delete-v2/rh/assignments` (défaut) ou URL absolue.

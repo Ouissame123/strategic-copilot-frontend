@@ -23,8 +23,6 @@ export function ProfileTabSecurity({
     passwordSaving,
     canSubmitPassword,
     passwordMessage,
-    sessions,
-    onRevokeSession,
     mustChangePassword,
     passwordExpiresInDays,
 }: ProfileTabSecurityProps) {

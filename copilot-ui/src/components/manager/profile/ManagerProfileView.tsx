@@ -9,21 +9,13 @@ import { useToast } from "@/providers/toast-provider";
 import { ProfileIdentityCard } from "./ProfileIdentityCard";
 import { ProfileSkeleton } from "./ProfileSkeleton";
 import { ProfileTabAccount } from "./ProfileTabAccount";
-import { ProfileTabAiPreferences } from "./ProfileTabAiPreferences";
-import { ProfileTabNotifications } from "./ProfileTabNotifications";
 import { ProfileTabSecurity } from "./ProfileTabSecurity";
 import { ProfileTabs } from "./ProfileTabs";
-import type { NotifChannel, NotifMatrixRow } from "./NotificationMatrix";
 import {
-    DEFAULT_AI_PREFS,
-    DEFAULT_NOTIF_MATRIX_ROWS,
     MANAGER_ACCOUNT_PREFS_KEY,
-    MANAGER_AI_PREFS_KEY,
     MANAGER_COMPANY_FALLBACK,
-    MANAGER_NOTIF_MATRIX_KEY,
     isValidEmail,
     type ManagerAccountPrefs,
-    type ManagerAiPrefs,
     type ProfileTabId,
 } from "./profile-shared";
 
@@ -41,10 +33,6 @@ function loadJson<T>(key: string, fallback: T): T {
     } catch {
         return fallback;
     }
-}
-
-function rowsEqual(a: NotifMatrixRow[], b: NotifMatrixRow[]): boolean {
-    return JSON.stringify(a) === JSON.stringify(b);
 }
 
 export function ManagerProfileView() {
@@ -67,16 +55,6 @@ export function ManagerProfileView() {
     );
     const [savedAccountPrefs, setSavedAccountPrefs] = useState<ManagerAccountPrefs>(accountPrefs);
     const [savedTheme, setSavedTheme] = useState(theme);
-
-    const [notifRows, setNotifRows] = useState<NotifMatrixRow[]>(() =>
-        loadJson(MANAGER_NOTIF_MATRIX_KEY, [...DEFAULT_NOTIF_MATRIX_ROWS]),
-    );
-    const [savedNotifRows, setSavedNotifRows] = useState<NotifMatrixRow[]>(notifRows);
-    const [notifSaving, setNotifSaving] = useState(false);
-
-    const [aiPrefs, setAiPrefs] = useState<ManagerAiPrefs>(() => loadJson(MANAGER_AI_PREFS_KEY, DEFAULT_AI_PREFS));
-    const [savedAiPrefs, setSavedAiPrefs] = useState<ManagerAiPrefs>(aiPrefs);
-    const [aiSaving, setAiSaving] = useState(false);
 
     const [pwd, setPwd] = useState({ current: "", next: "", confirm: "" });
     const [pwdMsg, setPwdMsg] = useState<{ type: "ok" | "err"; text: string } | null>(null);
@@ -119,9 +97,6 @@ export function ManagerProfileView() {
         pwd.next === pwd.confirm &&
         pwd.next !== pwd.current;
     const canSubmitPassword = passwordDirty && passwordValid && !changePassword.isPending;
-
-    const notifDirty = !rowsEqual(notifRows, savedNotifRows);
-    const aiDirty = JSON.stringify(aiPrefs) !== JSON.stringify(savedAiPrefs);
 
     const passwordExpiresInDays = useMemo(() => {
         if (!user?.password_expires_at) return null;
@@ -183,42 +158,6 @@ export function ManagerProfileView() {
         }
     };
 
-    const handleNotifChange = (id: string, channel: NotifChannel, value: boolean) => {
-        setNotifRows((rows) =>
-            rows.map((r) => {
-                if (r.id !== id) return r;
-                if (channel === "email") return { ...r, email: value };
-                if (channel === "inApp") return { ...r, inApp: value };
-                if (r.slackDisabled) return r;
-                return { ...r, slack: value };
-            }),
-        );
-    };
-
-    const handleNotifSave = () => {
-        if (!notifDirty) return;
-        setNotifSaving(true);
-        try {
-            localStorage.setItem(MANAGER_NOTIF_MATRIX_KEY, JSON.stringify(notifRows));
-            setSavedNotifRows([...notifRows]);
-            pushToast("Préférences de notification enregistrées.", "success");
-        } finally {
-            setNotifSaving(false);
-        }
-    };
-
-    const handleAiSave = () => {
-        if (!aiDirty) return;
-        setAiSaving(true);
-        try {
-            localStorage.setItem(MANAGER_AI_PREFS_KEY, JSON.stringify(aiPrefs));
-            setSavedAiPrefs({ ...aiPrefs });
-            pushToast("Préférences IA enregistrées.", "success");
-        } finally {
-            setAiSaving(false);
-        }
-    };
-
     const handleLogout = async () => {
         setLogoutPending(true);
         try {
@@ -229,11 +168,6 @@ export function ManagerProfileView() {
         } finally {
             setLogoutPending(false);
         }
-    };
-
-    const handleRevokeSession = (id: string) => {
-        setSessions((s) => s.filter((x) => x.id !== id));
-        pushToast("Session révoquée.", "success");
     };
 
     if (isLoading) {
@@ -304,26 +238,6 @@ export function ManagerProfileView() {
                             passwordMessage={pwdMsg}
                             mustChangePassword={user.must_change_password}
                             passwordExpiresInDays={passwordExpiresInDays}
-                        />
-                    ) : null}
-
-                    {activeTab === "notifications" ? (
-                        <ProfileTabNotifications
-                            rows={notifRows}
-                            onChange={handleNotifChange}
-                            onSave={handleNotifSave}
-                            saving={notifSaving}
-                            canSave={notifDirty && !notifSaving}
-                        />
-                    ) : null}
-
-                    {activeTab === "ai" ? (
-                        <ProfileTabAiPreferences
-                            prefs={aiPrefs}
-                            onChange={setAiPrefs}
-                            onSave={handleAiSave}
-                            saving={aiSaving}
-                            canSave={aiDirty && !aiSaving}
                         />
                     ) : null}
                 </div>

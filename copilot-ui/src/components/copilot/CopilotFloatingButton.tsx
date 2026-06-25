@@ -25,7 +25,7 @@ export const CopilotFloatingButton = forwardRef<HTMLButtonElement, CopilotFloati
                 )}
                 style={{ animationDuration: "200ms" }}
             >
-                <Sparkles className="size-6 text-white" aria-hidden />
+                <Stars02 className="size-6 text-white" aria-hidden />
             </button>
         );
     },

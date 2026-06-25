@@ -1,5 +1,6 @@
 import { readOptionalAlertText } from "@/lib/risk-alert-display";
 import { getUrgencyLevel } from "@/lib/risk-alert-display";
+import type { RiskAlertItem } from "@/api/project-risks.api";
 import type { ManagerRiskAlertPatchAction } from "@/services/notifications.api";
 import type { AlertItem, TopAlert } from "@/types/api.types";
 import { cx } from "@/utils/cx";
@@ -158,6 +159,28 @@ export function toDisplayFromTop(a: TopAlert): DisplayAlert {
         detectedAt: a.created_at,
         sourceAgent: undefined,
         status: a.status,
+    };
+}
+
+export function toDisplayFromProjectRiskItem(a: RiskAlertItem): DisplayAlert {
+    const rowId = String(a.alert_id ?? "").trim();
+    const patchId = rowId || `risk-${a.project_id}-${a.detected_at ?? a.created_at ?? ""}`;
+    return {
+        patchId,
+        id: rowId || undefined,
+        alertId: rowId || undefined,
+        riskAlertId: rowId || undefined,
+        severity: a.severity ?? "medium",
+        projectName: a.project_name ?? "Projet",
+        projectId: a.project_id,
+        category: a.category ?? "—",
+        riskType: a.category ?? undefined,
+        message: (a.message ?? a.title ?? "").trim() || "—",
+        title: a.title?.trim() || undefined,
+        riskScore: typeof a.risk_score === "number" ? a.risk_score : undefined,
+        detectedAt: a.detected_at ?? a.created_at ?? undefined,
+        sourceAgent: a.source_agent ?? undefined,
+        status: a.status ?? undefined,
     };
 }
 

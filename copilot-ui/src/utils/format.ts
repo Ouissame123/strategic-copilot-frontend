@@ -12,6 +12,23 @@ export function formatViabilityScore(score: number | null | undefined): { displa
     };
 }
 
+/** Affichage score 0–10 pour cartes opportunités talent (valeur, unité, barre %). */
+export function formatViabilityScoreDisplay(score: number | null | undefined): {
+    value: string;
+    unit: string;
+    barPct: number;
+} {
+    if (score == null || !Number.isFinite(Number(score))) {
+        return { value: "—", unit: "", barPct: 0 };
+    }
+    const n = Number(score);
+    return {
+        value: n.toFixed(1),
+        unit: "/10",
+        barPct: Math.min(100, Math.max(0, Math.round(n * 10))),
+    };
+}
+
 /** Score 0–10 depuis `latest_viability` (API : `viability_score`, normalisé en `score`). */
 export function readLatestViabilityScore(latest: { score?: number } | null | undefined): number | null {
     const n = latest?.score;
@@ -130,4 +147,49 @@ export function formatMissionViabilityExplanation(
         }
         return canonical;
     });
+}
+
+/** Montant ISO 4217 — jamais de symbole hardcodé. */
+export function formatCurrency(amount: number, currency: string = "EUR", locale = "fr-FR"): string {
+    const n = Number(amount);
+    if (!Number.isFinite(n)) return "—";
+    try {
+        return new Intl.NumberFormat(locale, {
+            style: "currency",
+            currency: currency.trim() || "EUR",
+            maximumFractionDigits: 0,
+        }).format(n);
+    } catch {
+        return `${n} ${currency}`;
+    }
+}
+
+/** Date courte locale FR. */
+export function formatDateFR(iso: string | null | undefined, locale = "fr-FR"): string {
+    if (!iso?.trim()) return "—";
+    const d = new Date(iso);
+    if (Number.isNaN(d.getTime())) return "—";
+    return new Intl.DateTimeFormat(locale, { day: "2-digit", month: "short", year: "numeric" }).format(d);
+}
+
+/** Date relative lisible (MAJ, historique). */
+export function formatDateRelative(iso: string | null | undefined, locale = "fr-FR"): string {
+    if (!iso?.trim()) return "—";
+    const t = new Date(iso).getTime();
+    if (!Number.isFinite(t)) return "—";
+    const ageMs = Date.now() - t;
+    const days = Math.floor(ageMs / 86_400_000);
+    if (days <= 0) return "aujourd'hui";
+    if (days === 1) return "hier";
+    if (days < 7) return `il y a ${days}j`;
+    if (days < 30) return `il y a ${Math.floor(days / 7)}sem.`;
+    return formatDateFR(iso, locale);
+}
+
+/** Date courte pour listes (historique budget RH). */
+export function formatShortDate(iso: string | null | undefined, locale = "fr-FR"): string {
+    if (!iso?.trim()) return "—";
+    const d = new Date(iso);
+    if (Number.isNaN(d.getTime())) return iso;
+    return new Intl.DateTimeFormat(locale, { dateStyle: "medium", timeStyle: "short" }).format(d);
 }

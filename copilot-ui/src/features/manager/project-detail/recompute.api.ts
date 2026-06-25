@@ -1,5 +1,4 @@
 import { ApiError, apiPost } from "@/utils/apiClient";
-import { uuidv4 } from "@/utils/uuid";
 import type { RecomputeRequest, RecomputeResponse } from "@/features/manager/project-detail/types";
 
 export async function recomputeAgent(req: RecomputeRequest): Promise<RecomputeResponse> {
@@ -10,7 +9,7 @@ export async function recomputeAgent(req: RecomputeRequest): Promise<RecomputeRe
             await new Promise((resolve) => window.setTimeout(resolve, 1500));
             return {
                 ok: true,
-                run_id: uuidv4(),
+                run_id: crypto.randomUUID(),
                 started_at: new Date().toISOString(),
             };
         }

@@ -1,68 +1,86 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { CheckCircle } from "lucide-react";
 import { useNavigate, useSearchParams } from "react-router";
 import { useTranslation } from "react-i18next";
-import { WorkspacePageShell } from "@/components/workspace/workspace-page-shell";
-import { useWorkspaceTopbarMeta } from "@/layouts/workspace-topbar-meta";
-import { TeamHero } from "@/components/team/TeamHero";
-import { TeamFiltersBar } from "@/components/team/TeamFiltersBar";
+import { Button } from "@/components/base/buttons/button";
+import { ProjectsEmptyState } from "@/components/manager/projects/ProjectsEmptyState";
+import { TeamInsightBar } from "@/components/team/TeamInsightBar";
+import { TeamSegmentsBar } from "@/components/team/TeamSegmentsBar";
+import { TalentDrawer } from "@/components/team/TalentDrawer";
 import { TalentIntelligenceTable } from "@/components/team/TalentIntelligenceTable";
 import { TalentMobileCards } from "@/components/team/TalentMobileCards";
-import { TALENT_PAGE_BG } from "@/components/talent/talent-detail-shared";
-import {
-    compareNullableNum,
-    matchesIpiFilter,
-    matchesStatusFilter,
-    resolveTalentRiskLevel,
-    sortToggle,
-    type TeamIpiFilter,
-    type TeamSortKey,
-    type TeamStatusFilter,
-} from "@/components/team/team-list-utils";
-import { managerTeamApi } from "@/api/manager-team.api";
-import { TalentDrawer } from "@/components/team/TalentDrawer";
+import { WorkspacePageShell } from "@/components/workspace/workspace-page-shell";
+import { useWorkspaceTopbarMeta } from "@/layouts/workspace-topbar-meta";
+import { useCopilotPage } from "@/hooks/use-copilot-page";
 import { useTeam, useWatchdogScan } from "@/hooks/useTeam";
 import { authStorage } from "@/lib/auth-storage";
-import { useToast } from "@/providers/toast-provider";
+import {
+    matchesTeamSearch,
+    matchesTeamSegmentFilter,
+    sortTeamTalents,
+    type TeamSegmentFilter,
+    type TeamTableDensity,
+    type TeamTableSortKey,
+} from "@/lib/manager-team-list-utils";
+import type { TalentListItem } from "@/types/api.types";
 import { managerProjectsOpenModalPath } from "@/utils/workspace-routes";
 
-const RISK_RANK = { low: 1, medium: 2, high: 3 } as const;
+const DENSITY_STORAGE_KEY = "team.density";
+const FILTER_STORAGE_KEY = "team.segmentFilter";
+
+function readInitialDensity(): TeamTableDensity {
+    if (typeof window === "undefined") return "comfortable";
+    return window.localStorage.getItem(DENSITY_STORAGE_KEY) === "compact" ? "compact" : "comfortable";
+}
+
+function readInitialSegmentFilter(): TeamSegmentFilter {
+    if (typeof window === "undefined") return "all";
+    const stored = window.localStorage.getItem(FILTER_STORAGE_KEY);
+    if (stored === "all" || stored === "overloaded" || stored === "contract_ending" || stored === "healthy") return stored;
+    return "all";
+}
+
+function segmentFromSearchParams(searchParams: URLSearchParams): TeamSegmentFilter | null {
+    const filter = searchParams.get("filter");
+    if (filter === "overloaded") return "overloaded";
+    if (searchParams.get("contract_ending") === "1") return "contract_ending";
+    return null;
+}
 
 export default function TeamPage() {
     const { t } = useTranslation("common");
     const navigate = useNavigate();
     const [searchParams, setSearchParams] = useSearchParams();
-    const [search, setSearch] = useState("");
-    const [sort, setSort] = useState<{ key: TeamSortKey; dir: "asc" | "desc" }>({ key: "allocation", dir: "desc" });
-    const [contractEndingOnly, setContractEndingOnly] = useState(false);
-    const [statusFilter, setStatusFilter] = useState<TeamStatusFilter>("all");
-    const [ipiFilter, setIpiFilter] = useState<TeamIpiFilter>("all");
+    const [segmentFilter, setSegmentFilter] = useState<TeamSegmentFilter>(() => {
+        const fromUrl = segmentFromSearchParams(searchParams);
+        return fromUrl ?? readInitialSegmentFilter();
+    });
+    const [searchQuery, setSearchQuery] = useState("");
+    const [density, setDensity] = useState<TeamTableDensity>(() => readInitialDensity());
+    const [sortKey, setSortKey] = useState<TeamTableSortKey>("charge_pct");
+    const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
     const [selectedTalentId, setSelectedTalentId] = useState<string | null>(null);
     const [isTalentDrawerOpen, setIsTalentDrawerOpen] = useState(false);
+
     const accessToken = authStorage.getAccessToken() ?? undefined;
-    const { push } = useToast();
+    const team = useTeam({ scope: "mine", limit: 200 });
+    const watchdogScan = useWatchdogScan();
 
-    const openTalentDrawer = (talentId: string) => {
-        setSelectedTalentId(talentId);
-        setIsTalentDrawerOpen(true);
-    };
+    const talents = team.data?.talents ?? [];
+    const counts = team.data?.counts;
 
-    const closeTalentDrawer = () => {
-        setIsTalentDrawerOpen(false);
-        setSelectedTalentId(null);
-    };
+    useEffect(() => {
+        window.localStorage.setItem(DENSITY_STORAGE_KEY, density);
+    }, [density]);
 
-    const goToTalentDetail = (talentId: string) => {
-        navigate(`/workspace/manager/team/${encodeURIComponent(talentId)}`);
-    };
+    useEffect(() => {
+        window.localStorage.setItem(FILTER_STORAGE_KEY, segmentFilter);
+    }, [segmentFilter]);
 
-    const goToTalentWatchdog = (talentId: string) => {
-        navigate(`/workspace/manager/team/${encodeURIComponent(talentId)}?tab=watchdog`);
-    };
-
-    const filterParam = searchParams.get("filter");
-    const contractEndingParam = searchParams.get("contract_ending");
-    const isOverloadedFilter = filterParam === "overloaded";
-    const isContractEndingFilter = contractEndingParam === "1";
+    useEffect(() => {
+        const fromUrl = segmentFromSearchParams(searchParams);
+        if (fromUrl) setSegmentFilter(fromUrl);
+    }, [searchParams]);
 
     useEffect(() => {
         const talentId = searchParams.get("talent_id")?.trim();
@@ -74,197 +92,160 @@ export default function TeamPage() {
         setIsTalentDrawerOpen(true);
     }, [searchParams, setSearchParams]);
 
-    useEffect(() => {
-        if (isContractEndingFilter) setContractEndingOnly(true);
-    }, [isContractEndingFilter]);
+    useCopilotPage();
+    useWorkspaceTopbarMeta(t("managerWorkspace.teamPageHero.title"), undefined, null);
 
-    const team = useTeam({
-        scope: "mine",
-        limit: 200,
-        search: search.trim() || undefined,
-        contract_ending: contractEndingOnly || isContractEndingFilter || undefined,
-    });
-    const watchdogScan = useWatchdogScan();
+    const openTalentDrawer = useCallback((talentId: string) => {
+        setSelectedTalentId(talentId);
+        setIsTalentDrawerOpen(true);
+    }, []);
 
-    const onHeaderSort = (key: TeamSortKey) => {
-        setSort((prev) => sortToggle(prev.key, key, prev.dir));
-    };
+    const closeTalentDrawer = useCallback(() => {
+        setIsTalentDrawerOpen(false);
+        setSelectedTalentId(null);
+    }, []);
 
-    const rows = useMemo(() => {
-        let list = [...(team.data?.talents ?? [])];
+    const goToTalentDetail = useCallback(
+        (talentId: string) => {
+            navigate(`/workspace/manager/team/${encodeURIComponent(talentId)}`);
+        },
+        [navigate],
+    );
 
-        if (isOverloadedFilter) {
-            list = list.filter((talent) => Number(talent.total_allocation_pct ?? 0) >= 100);
-        }
-        if (isContractEndingFilter || contractEndingOnly) {
-            const horizon = new Date();
-            horizon.setDate(horizon.getDate() + 90);
-            list = list.filter((talent) => {
-                if (!talent.contract_end_date) return false;
-                const endDate = new Date(talent.contract_end_date);
-                return !Number.isNaN(endDate.getTime()) && endDate <= horizon;
-            });
-        }
+    const sendTalentMessage = useCallback((talent: TalentListItem) => {
+        const email = talent.email?.trim();
+        if (!email) return;
+        window.location.href = `mailto:${encodeURIComponent(email)}`;
+    }, []);
 
-        list = list.filter((t) => matchesStatusFilter(t, statusFilter) && matchesIpiFilter(t, ipiFilter));
-
-        const { key, dir } = sort;
-        const mul = dir === "asc" ? 1 : -1;
-
-        list.sort((a, b) => {
-            if (key === "name") return mul * a.full_name.localeCompare(b.full_name, "fr");
-            if (key === "allocation") return mul * ((a.total_allocation_pct ?? 0) - (b.total_allocation_pct ?? 0));
-            if (key === "ipi") return mul * compareNullableNum(a.insights?.ipi_score ?? null, b.insights?.ipi_score ?? null, dir);
-            if (key === "contract") {
-                const da = a.contract_end_date ?? "9999-12-31";
-                const db = b.contract_end_date ?? "9999-12-31";
-                return mul * da.localeCompare(db);
+    const handleSegmentChange = useCallback(
+        (next: TeamSegmentFilter) => {
+            setSegmentFilter(next);
+            const params = new URLSearchParams(searchParams);
+            if (next === "overloaded") {
+                params.set("filter", "overloaded");
+                params.delete("contract_ending");
+            } else if (next === "contract_ending") {
+                params.delete("filter");
+                params.set("contract_ending", "1");
+            } else {
+                params.delete("filter");
+                params.delete("contract_ending");
             }
-            if (key === "status") {
-                return mul * (a.project_status ?? "").localeCompare(b.project_status ?? "", "fr");
+            setSearchParams(params, { replace: true });
+        },
+        [searchParams, setSearchParams],
+    );
+
+    const filteredTalents = useMemo(
+        () =>
+            talents.filter(
+                (talent) => matchesTeamSegmentFilter(talent, segmentFilter) && matchesTeamSearch(talent, searchQuery),
+            ),
+        [talents, segmentFilter, searchQuery],
+    );
+
+    const sortedTalents = useMemo(
+        () => sortTeamTalents(filteredTalents, sortKey, sortDir),
+        [filteredTalents, sortKey, sortDir],
+    );
+
+    const onHeaderSort = useCallback((key: TeamTableSortKey) => {
+        setSortKey((prevKey) => {
+            if (prevKey === key) {
+                setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+                return prevKey;
             }
-            if (key === "risk") {
-                const ra = RISK_RANK[resolveTalentRiskLevel(a)];
-                const rb = RISK_RANK[resolveTalentRiskLevel(b)];
-                return mul * (ra - rb);
-            }
-            return 0;
+            setSortDir(key === "name" || key === "contract_end_date" ? "asc" : "desc");
+            return key;
         });
+    }, []);
 
-        return list;
-    }, [
-        team.data?.talents,
-        sort,
-        isOverloadedFilter,
-        isContractEndingFilter,
-        contractEndingOnly,
-        statusFilter,
-        ipiFilter,
-    ]);
+    const toggleDensity = () => setDensity((d) => (d === "comfortable" ? "compact" : "comfortable"));
 
-    const kpis = useMemo(() => {
-        const list = team.data?.talents ?? [];
-        return {
-            total: list.length,
-            overloaded: list.filter((t) => Number(t.total_allocation_pct ?? 0) > 100 || Number(t.remaining_capacity_pct ?? 0) < 0).length,
-            healthy: list.filter((t) => t.status_color === "green").length,
-            contractEndingSoon: list.filter((t) => Boolean(t.contract_ending_soon)).length,
-        };
-    }, [team.data?.talents]);
-
-    const activeFiltersCount = useMemo(() => {
-        let n = 0;
-        if (search.trim()) n += 1;
-        if (contractEndingOnly || isContractEndingFilter) n += 1;
-        if (isOverloadedFilter) n += 1;
-        if (statusFilter !== "all") n += 1;
-        if (ipiFilter !== "all") n += 1;
-        return n;
-    }, [search, contractEndingOnly, isContractEndingFilter, isOverloadedFilter, statusFilter, ipiFilter]);
-
-    const onResetFilters = () => {
-        setSearch("");
-        setContractEndingOnly(false);
-        setStatusFilter("all");
-        setIpiFilter("all");
-        setSearchParams({});
-    };
-
-    const onOverloadedToggle = () => {
-        const next = new URLSearchParams(searchParams);
-        if (isOverloadedFilter) next.delete("filter");
-        else next.set("filter", "overloaded");
-        setSearchParams(next);
-    };
-
-    const onContractEndingChange = (checked: boolean) => {
-        setContractEndingOnly(checked);
-        const next = new URLSearchParams(searchParams);
-        if (checked) next.set("contract_ending", "1");
-        else next.delete("contract_ending");
-        setSearchParams(next);
-    };
-
-    useWorkspaceTopbarMeta(t("managerWorkspace.teamPageHero.title"), t("managerWorkspace.teamPageHero.subtitle"));
+    const showEmptyOverloaded = !team.isLoading && sortedTalents.length === 0 && segmentFilter === "overloaded";
+    const showEmptySearch = !team.isLoading && sortedTalents.length === 0 && Boolean(searchQuery.trim());
 
     return (
-        <WorkspacePageShell
-            role="manager"
-            eyebrow={t("workspaceRoles.manager")}
-            title={t("managerWorkspace.teamPageHero.title")}
-            description={false}
-            omitHeader
-        >
-            <section className={TALENT_PAGE_BG}>
-                <TeamHero
-                    title={t("managerWorkspace.teamPageHero.title")}
-                    subtitle={t("managerWorkspace.teamPageHero.subtitle")}
-                    kpis={kpis}
-                    watchdogPending={watchdogScan.isPending}
-                    onGlobalWatchdog={() =>
-                        watchdogScan.mutate(
-                            { use_ai: true },
-                            {
-                                onSuccess: () => push("Scan Watchdog global lancé.", "success"),
-                                onError: () => push("Échec du scan Watchdog global.", "error"),
-                            },
-                        )
-                    }
-                />
+        <WorkspacePageShell role="manager" eyebrow="" title="" omitHeader>
+            <div className="mx-auto max-w-7xl space-y-3 px-4 py-4 sm:px-6 lg:px-8">
+                <header className="space-y-2 border-b border-slate-100 pb-3 dark:border-slate-800">
+                    <div className="flex flex-wrap items-baseline justify-between gap-3">
+                        <h1 className="text-xl font-semibold text-slate-900 dark:text-slate-100">
+                            Mon équipe
+                            {typeof counts?.total === "number" ? (
+                                <span className="ml-2 text-base font-normal text-slate-400 tabular-nums">{counts.total}</span>
+                            ) : null}
+                        </h1>
+                        <Button type="button" color="tertiary" size="sm" onClick={toggleDensity}>
+                            {density === "comfortable" ? "Dense" : "Confort"}
+                        </Button>
+                    </div>
 
-                <main className="mx-auto max-w-7xl space-y-4 px-4 py-6 sm:px-6 lg:px-8">
-                    <TeamFiltersBar
-                        search={search}
-                        onSearchChange={setSearch}
-                        contractEndingOnly={contractEndingOnly || isContractEndingFilter}
-                        onContractEndingChange={onContractEndingChange}
-                        overloadedOnly={isOverloadedFilter}
-                        onOverloadedToggle={onOverloadedToggle}
-                        statusFilter={statusFilter}
-                        onStatusFilterChange={setStatusFilter}
-                        ipiFilter={ipiFilter}
-                        onIpiFilterChange={setIpiFilter}
-                        onReset={onResetFilters}
-                        activeFiltersCount={activeFiltersCount}
+                    <TeamInsightBar counts={counts} onFilterClick={handleSegmentChange} />
+
+                    <TeamSegmentsBar
+                        filter={segmentFilter}
+                        onFilterChange={handleSegmentChange}
+                        counts={counts}
+                        searchQuery={searchQuery}
+                        onSearchChange={setSearchQuery}
                     />
+                </header>
 
-                    {(isOverloadedFilter || isContractEndingFilter || activeFiltersCount > 0) &&
-                    rows.length !== (team.data?.talents?.length ?? 0) ? (
-                        <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-100">
-                            {rows.length} talent{rows.length > 1 ? "s" : ""} affiché{rows.length > 1 ? "s" : ""} sur{" "}
-                            {team.data?.talents?.length ?? 0}
-                        </p>
-                    ) : null}
+                {team.isLoading && !team.data ? (
+                    <p className="py-6 text-center text-sm text-slate-500 dark:text-slate-400">Chargement de l&apos;équipe…</p>
+                ) : null}
 
-                    {team.isLoading ? (
-                        <p className="text-center text-sm text-slate-500 dark:text-slate-400">Chargement de l&apos;équipe…</p>
-                    ) : null}
+                {team.isError ? (
+                    <p className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800 dark:border-red-900/50 dark:bg-red-950/30 dark:text-red-100">
+                        Impossible de charger l&apos;équipe.{" "}
+                        <button type="button" onClick={() => void team.refetch()} className="underline">
+                            Réessayer
+                        </button>
+                    </p>
+                ) : null}
 
-                    {team.isError ? (
-                        <p className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800 dark:border-red-900/50 dark:bg-red-950/30 dark:text-red-100">
-                            Impossible de charger l&apos;équipe.
-                        </p>
-                    ) : null}
-
-                    <TalentIntelligenceTable
-                        rows={rows}
-                        sort={sort}
-                        onSort={onHeaderSort}
-                        isLoading={team.isLoading}
-                        onOpenDrawer={openTalentDrawer}
-                        onGoDetail={goToTalentDetail}
-                        onGoWatchdog={goToTalentWatchdog}
+                {showEmptyOverloaded ? (
+                    <ProjectsEmptyState
+                        icon={CheckCircle}
+                        title="Aucun talent en surcharge"
+                        description="L'équipe est sous contrôle. Tu seras notifié si une situation évolue."
                     />
+                ) : null}
 
-                    <TalentMobileCards
-                        rows={rows}
-                        isLoading={team.isLoading}
-                        onOpenDrawer={openTalentDrawer}
-                        onGoDetail={goToTalentDetail}
-                        onGoWatchdog={goToTalentWatchdog}
+                {showEmptySearch ? (
+                    <ProjectsEmptyState
+                        title={`Aucun talent ne correspond à « ${searchQuery.trim()} »`}
+                        actionLabel="Réinitialiser"
+                        onAction={() => setSearchQuery("")}
                     />
-                </main>
-            </section>
+                ) : null}
+
+                {!showEmptyOverloaded && !showEmptySearch ? (
+                    <>
+                        <TalentIntelligenceTable
+                            rows={sortedTalents}
+                            sort={{ key: sortKey, dir: sortDir }}
+                            onSort={onHeaderSort}
+                            density={density}
+                            isLoading={team.isLoading}
+                            onOpenDrawer={openTalentDrawer}
+                            onGoDetail={goToTalentDetail}
+                            onSendMessage={sendTalentMessage}
+                        />
+
+                        <TalentMobileCards
+                            rows={sortedTalents}
+                            density={density}
+                            isLoading={team.isLoading}
+                            onOpenDrawer={openTalentDrawer}
+                            onGoDetail={goToTalentDetail}
+                            onSendMessage={sendTalentMessage}
+                        />
+                    </>
+                ) : null}
+            </div>
 
             <TalentDrawer
                 talentId={selectedTalentId}
@@ -273,8 +254,7 @@ export default function TeamPage() {
                 accessToken={accessToken}
                 onProjectClick={(projectId) => navigate(managerProjectsOpenModalPath(projectId))}
                 onWatchdog={async (id) => {
-                    await managerTeamApi.watchdogScan({ talent_id: id, use_ai: true });
-                    push("Scan Watchdog lancé.", "success");
+                    await watchdogScan.mutateAsync({ talent_id: id, use_ai: true });
                 }}
             />
         </WorkspacePageShell>

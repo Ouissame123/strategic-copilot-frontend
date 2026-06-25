@@ -48,41 +48,41 @@ export const backendApi = {
     get rhUsersCreate(): string {
         return resolveUrl(readEnv("VITE_API_RH_USERS_CREATE"), "/rh/users");
     },
-    /** DELETE utilisateur manager/RH */
+    /** DELETE utilisateur manager/RH — workflow `wf-rh-users-delete-v1` */
     rhUserDelete(id: string): string {
         const base = trimUrl(readEnv("VITE_API_RH_USERS_DELETE_BASE"));
         if (base) {
             return `${base}/${encodeURIComponent(id)}`;
         }
-        return resolveUrl(undefined, `/rh/users/${encodeURIComponent(id)}`);
+        return resolveUrl(undefined, `/webhook/wf-rh-users-delete-v1/rh/users/${encodeURIComponent(id)}`);
     },
-    /** PATCH utilisateur manager/RH (change_password, toggle_status) */
+    /** PATCH utilisateur manager/RH — workflow `wf-rh-users-patch-v1` */
     rhUserPatch(id: string): string {
         const base = trimUrl(readEnv("VITE_API_RH_USERS_PATCH_BASE"));
         if (base) {
             return `${base}/${encodeURIComponent(id)}`;
         }
-        return resolveUrl(undefined, `/rh/users/${encodeURIComponent(id)}`);
+        return resolveUrl(undefined, `/webhook/wf-rh-users-patch-v1/rh/users/${encodeURIComponent(id)}`);
     },
-    /** GET/POST comptes talent (gestion des comptes) */
+    /** GET/POST comptes talent (gestion des comptes) — `/webhook/rh/accounts/talent` */
     get rhAccountsTalent(): string {
-        return resolveUrl(readEnv("VITE_API_RH_ACCOUNTS_TALENT"), "/rh/accounts/talent");
+        return resolveUrl(readEnv("VITE_API_RH_ACCOUNTS_TALENT"), "/webhook/rh/accounts/talent");
     },
-    /** DELETE compte talent */
+    /** DELETE compte talent — `/webhook/wf-rh-talent-delete-v1/rh/accounts/talent/:id` */
     rhAccountsTalentDelete(id: string): string {
-        const explicit = trimUrl(readEnv("VITE_API_RH_ACCOUNTS_TALENT"));
-        if (explicit) {
-            return `${explicit}/${encodeURIComponent(id)}`;
+        const base = trimUrl(readEnv("VITE_API_RH_TALENT_DELETE_BASE"));
+        if (base) {
+            return `${base}/${encodeURIComponent(id)}`;
         }
-        return resolveUrl(undefined, `/rh/accounts/talent/${encodeURIComponent(id)}`);
+        return resolveUrl(undefined, `/webhook/wf-rh-talent-delete-v1/rh/accounts/talent/${encodeURIComponent(id)}`);
     },
-    /** PATCH compte talent (toggle_status) */
+    /** PATCH compte talent — `/webhook/wf-rh-talent-patch-v1/rh/accounts/talent/:id` */
     rhAccountsTalentPatch(id: string): string {
-        const explicit = trimUrl(readEnv("VITE_API_RH_ACCOUNTS_TALENT"));
-        if (explicit) {
-            return `${explicit}/${encodeURIComponent(id)}`;
+        const base = trimUrl(readEnv("VITE_API_RH_TALENT_PATCH_BASE"));
+        if (base) {
+            return `${base}/${encodeURIComponent(id)}`;
         }
-        return resolveUrl(undefined, `/rh/accounts/talent/${encodeURIComponent(id)}`);
+        return resolveUrl(undefined, `/webhook/wf-rh-talent-patch-v1/rh/accounts/talent/${encodeURIComponent(id)}`);
     },
     get rhUsersRole(): string {
         return resolveUrl(readEnv("VITE_API_RH_USERS_ROLE"), "/rh/users/role");

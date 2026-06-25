@@ -124,7 +124,7 @@ function requestMessageRaw(row: Record<string, unknown>): string {
     return stripLeadingSubjectPrefix(primaryMessage(row));
 }
 
-export default function ManagerRequestsPage() {
+export default function ManagerRequestsPage({ embedded = false }: { embedded?: boolean }) {
     const { t } = useTranslation("common");
     const [searchParams, setSearchParams] = useSearchParams();
     const [statusFilter, setStatusFilter] = useState<RhRequestStatusBucket | "all">("pending");
@@ -263,16 +263,15 @@ export default function ManagerRequestsPage() {
 
     const listErrorMessage = listQuery.error ? mapRhRequestsDecisionError(listQuery.error) : null;
 
-    useWorkspaceTopbarMeta(t("managerWorkspace.pendingRh.listPageTitle"), t("managerWorkspace.pendingRh.listPageSubtitle"));
+    useWorkspaceTopbarMeta(
+        embedded ? "" : t("managerWorkspace.pendingRh.listPageTitle"),
+        embedded ? null : t("managerWorkspace.pendingRh.listPageSubtitle"),
+    );
 
-    return (
-        <WorkspacePageShell
-            role="rh"
-            eyebrow={t("workspaceRoles.rh")}
-            title={t("managerWorkspace.pendingRh.listPageTitle")}
-            omitHeader
-        >
+    const body = (
+        <>
             <div className="space-y-4">
+                {!embedded ? (
                 <div className="flex flex-wrap justify-end gap-2">
                     <Link
                         to="/workspace/rh/dashboard"
@@ -281,6 +280,7 @@ export default function ManagerRequestsPage() {
                         Tableau de bord RH
                     </Link>
                 </div>
+                ) : null}
 
                 <section aria-label="Indicateurs par statut" className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
                     {RH_REQUEST_STATUS_BUCKETS.map((key) => (
@@ -484,6 +484,19 @@ export default function ManagerRequestsPage() {
                 onDecision={runDecision}
                 tr={t}
             />
+        </>
+    );
+
+    if (embedded) return body;
+
+    return (
+        <WorkspacePageShell
+            role="rh"
+            eyebrow={t("workspaceRoles.rh")}
+            title={t("managerWorkspace.pendingRh.listPageTitle")}
+            omitHeader
+        >
+            {body}
         </WorkspacePageShell>
     );
 }

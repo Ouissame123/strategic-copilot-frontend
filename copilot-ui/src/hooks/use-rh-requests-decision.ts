@@ -3,6 +3,7 @@ import {
     fetchRhRequestById,
     fetchRhRequestHistory,
     fetchRhRequestsList,
+    fetchRhRequestsSummary,
     patchRhRequestDecision,
     type RhRequestPatchBody,
     type RhRequestsListFilters,
@@ -13,7 +14,7 @@ import {
 } from "@/api/rh-requests-decision.constants";
 import { queryKeys } from "@/lib/query-keys";
 import { getApiAuthToken } from "@/utils/apiClient";
-import { mapRhRequestsDecisionError, parseRhRequestsListResponse } from "@/utils/rh-requests-decision";
+import { mapRhRequestsDecisionError, parseRhRequestsListResponse, parseRhRequestsSummary } from "@/utils/rh-requests-decision";
 
 export function useRhRequestsListQuery(
     filters: RhRequestsListFilters = {},
@@ -31,6 +32,25 @@ export function useRhRequestsListQuery(
         enabled,
         staleTime: 30_000,
         retry: false,
+        refetchOnWindowFocus: false,
+    });
+}
+
+export function useRhRequestsSummaryQuery(options?: { enabled?: boolean }) {
+    const token = getApiAuthToken();
+    const enabled = (options?.enabled ?? true) && Boolean(token);
+
+    return useQuery({
+        queryKey: queryKeys.rh.requestsSummary(),
+        queryFn: async ({ signal }) => {
+            const raw = await fetchRhRequestsSummary({ signal });
+            return parseRhRequestsSummary(raw);
+        },
+        enabled,
+        staleTime: 60_000,
+        gcTime: 5 * 60_000,
+        retry: false,
+        refetchInterval: 60_000,
         refetchOnWindowFocus: false,
     });
 }

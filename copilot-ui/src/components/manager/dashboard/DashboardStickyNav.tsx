@@ -6,11 +6,11 @@ import {
 } from "@/lib/manager-dashboard-display";
 import { cx } from "@/utils/cx";
 
-const TABS: { id: ManagerDashboardTabId; emoji: string; labelKey: string }[] = [
-    { id: "overview", emoji: "📊", labelKey: "managerWorkspace.dashboard.navOverview" },
-    { id: "fragile", emoji: "🎯", labelKey: "managerWorkspace.dashboard.navFragile" },
-    { id: "matchmaker", emoji: "🤝", labelKey: "managerWorkspace.dashboard.navMatchmaker" },
-    { id: "analyst", emoji: "📈", labelKey: "managerWorkspace.dashboard.navAnalyst" },
+const TABS: { id: ManagerDashboardTabId; labelKey: string }[] = [
+    { id: "overview", labelKey: "managerWorkspace.dashboard.navPilotage" },
+    { id: "risk", labelKey: "managerWorkspace.dashboard.navRisks" },
+    { id: "matchmaker", labelKey: "managerWorkspace.dashboard.navTalents" },
+    { id: "actions", labelKey: "managerWorkspace.dashboard.navActions" },
 ];
 
 function scrollToDashboardSection(tabId: ManagerDashboardTabId) {
@@ -61,13 +61,12 @@ export function DashboardStickyNav() {
                                 scrollToDashboardSection(tab.id);
                             }}
                             className={cx(
-                                "inline-flex shrink-0 items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-semibold transition-colors",
+                                "inline-flex shrink-0 items-center rounded-lg px-3 py-2 text-xs font-semibold transition-colors",
                                 isActive
-                                    ? "bg-indigo-50 text-indigo-700 ring-1 ring-indigo-200 dark:bg-indigo-950/50 dark:text-indigo-300 dark:ring-indigo-800"
-                                    : "text-slate-600 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-100",
+                                    ? "bg-brand-primary/15 text-brand-secondary ring-1 ring-brand-secondary/25"
+                                    : "text-tertiary hover:bg-secondary_subtle hover:text-primary",
                             )}
                         >
-                            <span aria-hidden>{tab.emoji}</span>
                             {t(tab.labelKey)}
                         </button>
                     );

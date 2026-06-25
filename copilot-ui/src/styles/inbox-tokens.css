@@ -1,0 +1,62 @@
+/**
+ * Inbox RH — tokens sémantiques (Linear-style).
+ * Utilise les couleurs Tailwind via @theme pour compatibilité dark-mode.
+ */
+:root {
+    --inbox-ease: cubic-bezier(0.16, 1, 0.3, 1);
+    --inbox-duration-fast: 120ms;
+    --inbox-duration-base: 180ms;
+}
+
+@theme {
+    --color-inbox-priority-urgent: oklch(0.577 0.245 27.325);
+    --color-inbox-priority-high: oklch(0.705 0.213 47.604);
+    --color-inbox-priority-normal: oklch(0.623 0.214 259.815);
+    --color-inbox-priority-low: oklch(0.554 0.046 257.417);
+
+    --color-inbox-agent-watchdog: oklch(0.577 0.245 27.325);
+    --color-inbox-agent-strategist: oklch(0.627 0.265 303.9);
+    --color-inbox-agent-analyst: oklch(0.623 0.214 259.815);
+    --color-inbox-agent-matchmaker: oklch(0.627 0.194 149.214);
+    --color-inbox-agent-manager: oklch(0.554 0.046 257.417);
+
+    --color-inbox-status-pending: oklch(0.769 0.188 70.08);
+    --color-inbox-status-accepted: oklch(0.627 0.194 149.214);
+    --color-inbox-status-rejected: oklch(0.577 0.245 27.325);
+    --color-inbox-status-in-progress: oklch(0.623 0.214 259.815);
+}
+
+@keyframes inbox-slide-in-right {
+    from {
+        transform: translateX(100%);
+        opacity: 0.6;
+    }
+    to {
+        transform: translateX(0);
+        opacity: 1;
+    }
+}
+
+@keyframes inbox-fade-in {
+    from {
+        opacity: 0;
+    }
+    to {
+        opacity: 1;
+    }
+}
+
+@utility animate-inbox-slide-in {
+    animation: inbox-slide-in-right var(--inbox-duration-base) var(--inbox-ease) both;
+}
+
+@utility animate-inbox-fade-in {
+    animation: inbox-fade-in var(--inbox-duration-fast) ease-out both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .animate-inbox-slide-in,
+    .animate-inbox-fade-in {
+        animation: none;
+    }
+}

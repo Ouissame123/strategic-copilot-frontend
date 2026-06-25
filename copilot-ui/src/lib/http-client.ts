@@ -2,6 +2,7 @@ import axios, { AxiosError, type AxiosRequestConfig } from "axios";
 import { API_CONFIG } from "../config/api.config";
 import { authStorage } from "./auth-storage";
 import { applyRefreshedAuthTokens } from "./apply-refreshed-auth-tokens";
+import { API_BASE, rhWebhookUrl } from "./api-config";
 import { buildN8nUrl, getHttpClientBaseUrl } from "./build-n8n-url";
 import { getApiAuthToken } from "@/utils/apiClient";
 import { getStoredRefreshToken } from "@/utils/session-tokens";
@@ -9,14 +10,26 @@ import { getStoredRefreshToken } from "@/utils/session-tokens";
 /** Sur la config Axios : si true, pas d’événement `http:error` (toast global) — l’appelant affiche son propre message. */
 export type HttpClientRequestConfig = AxiosRequestConfig & { skipGlobalHttpErrorToast?: boolean };
 
+function resolveHttpClientUrl(url: string | undefined): string | undefined {
+    if (!url || /^https?:\/\//i.test(url)) return url;
+    const base = getHttpClientBaseUrl() || API_BASE;
+    if (url.startsWith("/webhook/")) return `${base}${url}`;
+    if (url.startsWith("/rh/") || url.startsWith("/wf-")) return rhWebhookUrl(url);
+    if (url.startsWith("/")) return `${base}${url}`;
+    return url;
+}
+
 export const httpClient = axios.create({
     timeout: API_CONFIG.TIMEOUT_MS,
     headers: { "Content-Type": "application/json" },
+    /** JWT Bearer uniquement — pas de cookies cross-origin (CORS n8n prod). */
+    withCredentials: false,
 });
 
 httpClient.interceptors.request.use((config) => {
-    const base = getHttpClientBaseUrl();
-    config.baseURL = base.length > 0 ? base : "";
+    config.withCredentials = false;
+    config.baseURL = "";
+    config.url = resolveHttpClientUrl(config.url);
     const token = authStorage.getAccessToken()?.trim() || getApiAuthToken()?.trim() || null;
     if (token && config.headers) {
         config.headers.Authorization = `Bearer ${token}`;
@@ -35,7 +48,9 @@ httpClient.interceptors.response.use(
         if (error.response?.status === 401 && !originalRequest._retry) {
             if (
                 originalRequest.url?.includes("/webhook/login") ||
-                originalRequest.url?.includes("/webhook/refresh")
+                originalRequest.url?.includes("/webhook/refresh") ||
+                originalRequest.url?.includes("/webhook/auth/forgot-password") ||
+                originalRequest.url?.includes("/webhook/auth/reset-password")
             ) {
                 return Promise.reject(error);
             }

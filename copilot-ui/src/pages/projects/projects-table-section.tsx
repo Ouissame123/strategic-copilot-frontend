@@ -16,7 +16,6 @@ import {
     normalizeProjectStatus,
 } from "@/pages/projects/projects-utils";
 import { useWorkspacePaths } from "@/hooks/use-workspace-paths";
-import { useWhatIf } from "@/providers/what-if-provider";
 import { cx } from "@/utils/cx";
 
 type ProjectsTableSectionProps = {
@@ -120,7 +119,6 @@ export function ProjectsTableSection({
     const { t } = useTranslation(["projects", "portfolio", "dataCrud", "common"]);
     const navigate = useNavigate();
     const paths = useWorkspacePaths();
-    const { open: openWhatIf } = useWhatIf();
     const [jumpPage, setJumpPage] = useState(() => String(pagination.page));
 
     useEffect(() => {
@@ -300,24 +298,6 @@ export function ProjectsTableSection({
                                                         }}
                                                     >
                                                         Ouvrir
-                                                    </Button>
-                                                    <Button
-                                                        size="sm"
-                                                        color="secondary"
-                                                        onClick={() => {
-                                                            const pid = String(
-                                                                (row as Record<string, unknown>).project_id ?? row.id ?? "",
-                                                            ).trim();
-                                                            if (!pid) return;
-                                                            const pname = String(
-                                                                (row as Record<string, unknown>).name ??
-                                                                    (row as Record<string, unknown>).title ??
-                                                                    "",
-                                                            ).trim();
-                                                            openWhatIf({ projectId: pid, projectName: pname });
-                                                        }}
-                                                    >
-                                                        What-if
                                                     </Button>
                                                 </div>
                                             </Table.Cell>

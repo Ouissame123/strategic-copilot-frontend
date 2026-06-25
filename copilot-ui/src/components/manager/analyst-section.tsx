@@ -7,6 +7,8 @@ import {
     NINE_BOX_BACKEND_I18N_KEYS,
     type NineBoxBackendLabel,
 } from "@/lib/nine-box-dashboard";
+import { MANAGER_DASHBOARD_SECTION_IDS } from "@/features/manager/lib/copilot-engines";
+import { SectionTitleWithCodename } from "@/features/manager/components/dashboard/SectionTitleWithCodename";
 import { useManagerAnalystDashboard } from "@/hooks/use-manager-analyst";
 import { useAuth } from "@/providers/auth-provider";
 
@@ -108,14 +110,10 @@ function AnalystBlockShell({
     children: React.ReactNode;
     bodyClassName?: string;
 }) {
-    const { t } = useTranslation("common");
     return (
-        <article className="flex h-[520px] flex-col overflow-hidden rounded-2xl border border-secondary/80 bg-primary shadow-sm ring-1 ring-black/[0.04] dark:ring-white/[0.06]">
-            <div className="shrink-0 border-b border-secondary/60 bg-gradient-to-r from-secondary_subtle/40 to-transparent px-5 py-4 dark:from-secondary_subtle/15">
-                <div className="flex items-start justify-between gap-2">
-                    <h4 className="text-sm font-semibold tracking-tight text-primary">{title}</h4>
-                    <span className={analystBadgeClassName()}>{t("managerWorkspace.dashboard.analystBadge")}</span>
-                </div>
+        <article className="flex max-h-[380px] min-h-[240px] flex-col overflow-hidden rounded-2xl border border-secondary/80 bg-primary shadow-sm ring-1 ring-black/[0.04] dark:ring-white/[0.06]">
+            <div className="shrink-0 border-b border-secondary/60 bg-gradient-to-r from-secondary_subtle/40 to-transparent px-4 py-3 dark:from-secondary_subtle/15">
+                <h4 className="text-sm font-semibold tracking-tight text-primary">{title}</h4>
             </div>
             <div className={bodyClassName}>{children}</div>
         </article>
@@ -186,15 +184,16 @@ export function AnalystSection() {
     };
 
     return (
-        <section className="space-y-5 rounded-2xl border border-secondary bg-primary p-5 shadow-sm">
+        <section
+            id={MANAGER_DASHBOARD_SECTION_IDS.analyst}
+            className="scroll-mt-24 space-y-4 rounded-2xl border border-secondary bg-primary p-4 shadow-sm"
+        >
             <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
                 <div className="flex flex-col gap-2">
-                    <div className="flex flex-wrap items-center gap-2">
-                        <h3 className="text-base font-semibold text-primary">{t("managerWorkspace.dashboard.analystTitle")}</h3>
-                        <span className="rounded-full border border-brand-secondary/40 bg-brand-primary/15 px-2.5 py-0.5 text-[10px] font-semibold uppercase text-brand-secondary">
-                            {t("managerWorkspace.dashboard.analystBadge")}
-                        </span>
-                    </div>
+                    <SectionTitleWithCodename
+                        title={t("managerWorkspace.dashboard.analystTitle")}
+                        codename={t("managerWorkspace.dashboard.analystCodename")}
+                    />
                     <p className="max-w-3xl text-sm text-secondary">{t("managerWorkspace.dashboard.analystSubtitle")}</p>
                 </div>
                 <button

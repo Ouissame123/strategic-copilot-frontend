@@ -54,7 +54,7 @@ async function callRefresh(): Promise<boolean> {
             method: "POST",
             headers: { "Content-Type": "application/json", Accept: "application/json" },
             body: JSON.stringify({ refreshToken: rt }),
-            credentials: "include",
+            credentials: "omit",
             signal: controller.signal,
         });
         clearTimeout(timeoutId);
@@ -127,7 +127,7 @@ export async function httpRequest<T>(
                 method,
                 headers: buildHeaders(skipAuth, hasBody),
                 body: hasBody ? JSON.stringify(body) : undefined,
-                credentials: "include",
+                credentials: "omit",
                 signal,
             },
             timeout,

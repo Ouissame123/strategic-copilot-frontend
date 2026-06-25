@@ -20,7 +20,6 @@ import {
     MapPin,
     Calendar,
     Briefcase,
-    Activity,
     UserCheck,
     ChevronRight,
     ExternalLink,
@@ -126,8 +125,6 @@ interface Props {
     accessToken?: string;
     /** Callback bonus : ouvrir un projet depuis la liste */
     onProjectClick?: (projectId: string) => void;
-    /** Callback bonus : lancer scan Watchdog ciblé sur ce talent */
-    onWatchdog?: (talentId: string) => Promise<void>;
 }
 
 function normalizeDrawerPayload(json: unknown): TalentDetailResponse {
@@ -170,7 +167,7 @@ function normalizeDrawerPayload(json: unknown): TalentDetailResponse {
     };
 }
 
-export function TalentDrawer({ talentId, open = true, onClose, accessToken, onProjectClick, onWatchdog }: Props) {
+export function TalentDrawer({ talentId, open = true, onClose, accessToken, onProjectClick }: Props) {
     const [data, setData] = useState<TalentDetailResponse | null>(null);
     const [detailResponse, setDetailResponse] = useState<unknown>(null);
     const [loading, setLoading] = useState(false);
@@ -197,13 +194,6 @@ export function TalentDrawer({ talentId, open = true, onClose, accessToken, onPr
             })
             .filter((a) => Boolean(a.id));
     }, [detailResponse, data]);
-
-    useEffect(() => {
-        if (import.meta.env.DEV) {
-            console.log("TALENT DETAIL RESPONSE", detailResponse ?? data);
-            console.log("ACTIVE ALERTS RESTORED", activeAlerts);
-        }
-    }, [detailResponse, data, activeAlerts]);
 
     useEffect(() => {
         if (!talentId) {
@@ -425,16 +415,6 @@ export function TalentDrawer({ talentId, open = true, onClose, accessToken, onPr
                                     Actions manager
                                 </h3>
                                 <div className="flex flex-wrap gap-2">
-                                    {onWatchdog ? (
-                                        <button
-                                            type="button"
-                                            onClick={() => void onWatchdog(data.talent.id)}
-                                            className="inline-flex items-center gap-1.5 rounded border border-slate-300 px-3 py-1.5 text-xs font-semibold hover:bg-slate-50"
-                                        >
-                                            <Activity className="h-3.5 w-3.5" />
-                                            Lancer scan Watchdog
-                                        </button>
-                                    ) : null}
                                     <a
                                         href={`/workspace/manager/team/${data.talent.id}`}
                                         className="inline-flex items-center gap-1.5 rounded border border-indigo-300 bg-indigo-50 px-3 py-1.5 text-xs font-semibold text-indigo-700 hover:bg-indigo-100"

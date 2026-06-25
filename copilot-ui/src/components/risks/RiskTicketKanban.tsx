@@ -1,10 +1,12 @@
 import { useCallback, useMemo, useState } from "react";
-import { Link } from "react-router";
+import { Link, useNavigate } from "react-router";
 import {
     workflowStatusShowsReopen,
     workflowStatusShowsResolveIgnore,
 } from "@/components/notifications/notification-alert-utils";
-import { managerProjectsOpenModalPath } from "@/utils/workspace-routes";
+import type { ManagerRiskAlertPatchAction } from "@/services/notifications.api";
+import { managerProjectMissionControlPath, managerProjectsOpenModalPath } from "@/utils/workspace-routes";
+import { RootCauseHint, type AlertRootCauseTargetTab } from "./root-cause-hint";
 import { cx } from "@/utils/cx";
 import type { DisplayAlert, KanbanColumnId, RiskAlertPatchRequest } from "./risks-shared";
 import { kanbanColumnForAlert, RISK_CARD, resolveRiskAlertPatchId, severityBadgeClass, timeAgo } from "./risks-shared";
@@ -39,10 +41,16 @@ function KanbanTicketCard({
     onPatch: RiskTicketKanbanProps["onPatch"];
     onAnalyze: (projectId: string) => void;
 }) {
+    const navigate = useNavigate();
     const [showNote, setShowNote] = useState(false);
     const [note, setNote] = useState("");
     const showResolveIgnore = workflowStatusShowsResolveIgnore(alert.status);
     const showReopen = workflowStatusShowsReopen(alert.status);
+
+    const navigateToTab = (tab: AlertRootCauseTargetTab) => {
+        if (!alert.projectId) return;
+        navigate(managerProjectMissionControlPath(alert.projectId, tab));
+    };
 
     const submit = (action: ManagerRiskAlertPatchAction) => {
         onPatch({ id: alert.patchId, action, note: note.trim() || undefined });
@@ -70,6 +78,7 @@ function KanbanTicketCard({
                 <p className="mt-1 line-clamp-2 text-xs text-slate-600 dark:text-slate-400">{alert.message}</p>
             </button>
             <p className="mt-1 text-[10px] text-slate-400">{timeAgo(alert.detectedAt)}</p>
+            <RootCauseHint riskType={alert.riskType} onNavigateTab={alert.projectId ? navigateToTab : undefined} />
             {showNote ? (
                 <textarea
                     value={note}

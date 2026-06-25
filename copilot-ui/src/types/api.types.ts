@@ -196,9 +196,52 @@ export interface DashboardResponse {
     };
 }
 
+/** Action principale renvoyée par `projects[].ai_recommendation.top_action`. */
+export interface ProjectAiRecommendationTopAction {
+    id?: string | null;
+    label?: string | null;
+    rationale?: string | null;
+    type?: string | null;
+    confidence?: number | null;
+}
+
+/** Recommandation Strategist / Analyst sur une ligne projet (`GET /manager/projects`). */
+export interface ProjectAiRecommendation {
+    decision?: string | null;
+    decision_label?: string | null;
+    decision_color?: string | null;
+    decision_icon?: string | null;
+    viability_score?: number | null;
+    reason?: string | null;
+    reason_label?: string | null;
+    source_agent?: string | null;
+    confidence?: number | null;
+    explanation?: string | null;
+    top_action?: ProjectAiRecommendationTopAction | null;
+    arbitrages_pending?: number | null;
+    risks_count?: number | null;
+    arbitrage_options?: Array<{
+        id?: string | null;
+        type?: string | null;
+        label?: string | null;
+        rationale?: string | null;
+        confidence?: number | null;
+    }> | null;
+    risks_active?: Array<{
+        id?: string | null;
+        title?: string | null;
+        message?: string | null;
+        description?: string | null;
+        severity?: string | null;
+        risk_type?: string | null;
+        alert_code?: string | null;
+    }> | null;
+    warnings?: string[] | null;
+}
+
 /**
  * Ligne liste `GET /manager/projects` (Manager_Projects).
- * Champs dérivés (`reason_code`, `fragility_score`, etc.) : voir `enrichManagerProjectListItem` — TODO BACK workflow.
+ * Champs optionnels (`fragility_score`, `top_insight`, `days_to_milestone`) : renvoyés par le backend list si disponibles — jamais dérivés côté React.
  */
 export interface ProjectListItem {
     id: string;
@@ -215,8 +258,35 @@ export interface ProjectListItem {
     decision?: DecisionLabel | null;
     alerts_count?: number;
     equipe_size?: number;
+    /** `project_risk_scores.fragility_score` — uniquement si renvoyé par GET list. */
+    fragility_score?: number | null;
+    /** Recommandation courte Strategist / alerte — uniquement si renvoyée par GET list. */
+    top_insight?: string | null;
+    /** Jours jusqu'au jalon — uniquement si calculé par le backend list. */
+    days_to_milestone?: number | null;
+    /** Recommandation IA portefeuille — renvoyée par GET list si disponible. */
+    ai_recommendation?: ProjectAiRecommendation | null;
 }
-export interface ProjectsListResponse { items: ProjectListItem[]; total: number }
+
+/** Agrégats optionnels renvoyés par GET /webhook/manager/projects (si le workflow les expose). */
+export interface ManagerProjectsListCounts {
+    total?: number;
+    actifs?: number;
+    planifiés?: number;
+    en_pause?: number;
+    annulés?: number;
+    alerts_total?: number;
+    action_required?: number;
+    surveillance?: number;
+    stable?: number;
+    due_soon?: number;
+}
+
+export interface ProjectsListResponse {
+    items: ProjectListItem[];
+    total: number;
+    counts?: ManagerProjectsListCounts;
+}
 export interface ManagerProjectsListResponse {
     status: "success";
     workflow?: string;
@@ -224,6 +294,7 @@ export interface ManagerProjectsListResponse {
     enterprise_id?: string;
     count: number;
     projects: ProjectListItem[];
+    counts?: ManagerProjectsListCounts;
     filters_applied?: { status?: string | null; search?: string | null; limit?: number | null } | null;
 }
 export interface CreateProjectRequest { name: string; status: ProjectStatus; priority: number; milestone_at?: string; start_date?: string; budget_rh_planned?: number; description?: string }
@@ -325,7 +396,13 @@ export interface ArbitrageOption {
     status?: ArbitrageOptionStatus;
     created_at?: string;
 }
-export interface ProjectFull extends ProjectListItem { description?: string; start_date?: string; budget_rh_planned?: number }
+export interface ProjectFull extends ProjectListItem {
+    description?: string;
+    start_date?: string;
+    budget_rh_planned?: number;
+    /** TODO backend : exposer via DETAIL projet (WF_Manager_Project). */
+    requirements_count?: number;
+}
 export interface ProjectDetailResponse {
     project: ProjectFull;
     assignments: AssignmentItem[];
@@ -398,7 +475,23 @@ export interface TalentListItem {
     project_milestone_at?: string | null;
     latest_decision?: string | null;
 }
-export interface TeamListResponse { count: number; talents: TalentListItem[]; distribution: Record<string, number> }
+export interface TeamListResponse {
+    count: number;
+    talents: TalentListItem[];
+    distribution: Record<string, number>;
+    /** Agrégats backend — TODO SQL si absent (voir TeamInsightBar). */
+    counts?: ManagerTeamListCounts;
+}
+
+/** Compteurs équipe — renvoyés par GET /webhook/manager/team dans `counts`. */
+export interface ManagerTeamListCounts {
+    total?: number;
+    all?: number;
+    overloaded?: number;
+    contracts_ending_soon?: number;
+    contract_ending?: number;
+    healthy?: number;
+}
 export interface TalentDetailResponse {
     status?: "success";
     operation?: "get_detail";

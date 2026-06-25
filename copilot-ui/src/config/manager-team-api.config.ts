@@ -1,12 +1,9 @@
 import { readEnv } from "@/config/resolve-api-url";
-
-/** Chemin relatif par défaut : webhook n8n `WF_Manager_Team` détail (`wmt-detail-v1`). */
-const DEFAULT_MANAGER_TEAM_DETAIL_PREFIX = "/webhook/wmt-detail-v1/manager/team";
+import { API_ROUTES } from "@/lib/api-routes";
 
 /**
  * URL ou chemin pour GET détail talent (`…/:talentId`).
- * `VITE_MANAGER_TEAM_DETAIL_URL` : chemin avec placeholders `:talentId` ou `:id`, ou base sans placeholder (l’id est ajouté).
- * URL absolue `https://…/…/:talentId` acceptée (hors proxy Vite en dev — préférer chemin relatif).
+ * `VITE_MANAGER_TEAM_DETAIL_URL` : chemin avec placeholders `:talentId` ou `:id`.
  */
 export function getManagerTeamTalentDetailUrl(talentIdEncoded: string): string {
     const explicit = readEnv("VITE_MANAGER_TEAM_DETAIL_URL");
@@ -22,5 +19,5 @@ export function getManagerTeamTalentDetailUrl(talentIdEncoded: string): string {
         else rel = `${rel.replace(/\/$/, "")}/${talentIdEncoded}`;
         return rel.startsWith("/") ? rel : `/${rel}`;
     }
-    return `${DEFAULT_MANAGER_TEAM_DETAIL_PREFIX}/${talentIdEncoded}`;
+    return API_ROUTES.talentDetail(decodeURIComponent(talentIdEncoded));
 }
