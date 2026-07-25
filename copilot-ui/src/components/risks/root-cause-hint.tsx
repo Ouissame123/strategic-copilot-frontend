@@ -2,7 +2,7 @@ import { Info } from "lucide-react";
 import { Button } from "@/components/base/buttons/button";
 import type { MissionControlWorkspaceTabId } from "@/utils/workspace-routes";
 
-export type AlertRootCauseTargetTab = Extract<MissionControlWorkspaceTabId, "team" | "requirements" | "budget">;
+export type AlertRootCauseTargetTab = Extract<MissionControlWorkspaceTabId, "team" | "competences" | "budget">;
 
 type AlertRootCauseHint = {
     cause_label: string;
@@ -28,7 +28,7 @@ export const ROOT_CAUSE_HINTS: Record<string, AlertRootCauseHint> = {
     critical_skills_gap: {
         cause_label: "Une compétence critique n'est pas couverte",
         action_recommended: "Affecter un talent qualifié OU ajuster les exigences",
-        action_target_tab: "requirements",
+        action_target_tab: "competences",
     },
     conflict: {
         cause_label: "Conflit d'affectation sur projet high-priority",
@@ -51,7 +51,7 @@ export const ROOT_CAUSE_HINTS: Record<string, AlertRootCauseHint> = {
     health_warning: {
         cause_label: "Données amont incomplètes",
         action_recommended: "Compléter les champs manquants (skills, allocations, dates)",
-        action_target_tab: "requirements",
+        action_target_tab: "competences",
     },
     budget_overshoot: {
         cause_label: "Le budget actuel dépasse 90% du planifié",

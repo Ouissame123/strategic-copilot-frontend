@@ -36,7 +36,7 @@ export function ProfileIdentityCard({
                     sizeClass="size-24"
                 />
                 <h2 className="mt-4 text-xl font-bold tracking-tight text-slate-900 dark:text-slate-50">{fullName}</h2>
-                <p className="mt-1 text-sm font-medium text-indigo-600 dark:text-indigo-400">Manager</p>
+                <p className="mt-1 text-sm font-medium text-primary-600 dark:text-primary-400">Manager</p>
                 <p className="mt-0.5 text-sm text-slate-500 dark:text-slate-400">{company}</p>
                 <p className="mt-1 truncate max-w-full text-xs text-slate-400">{email}</p>
             </div>

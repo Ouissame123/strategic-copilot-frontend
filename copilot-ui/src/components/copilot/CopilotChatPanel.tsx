@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Trash01, XClose } from "@untitledui/icons";
-import { Sparkles } from "lucide-react";
+import { Stars02, Trash01, XClose } from "@untitledui/icons";
 import { HelperChatRagBadge } from "@/components/copilot/HelperChatRagBadge";
 import { ChatInputBox } from "@/components/copilot/ChatInputBox";
 import { ChatMessageList, type ChatThreadMessage } from "@/components/copilot/ChatMessageList";

@@ -9,7 +9,6 @@ import {
     contractUrgencyDotClass,
     ipiBandBadgeClass,
     readTalentChargePct,
-    type TeamTableDensity,
     type TeamTableSortKey,
 } from "@/lib/manager-team-list-utils";
 import { displayProjectName, displayRole, talentActionId } from "@/components/team/team-list-utils";
@@ -19,6 +18,7 @@ import { cx } from "@/utils/cx";
 const TH_CELL =
     "bg-slate-50 px-2 py-2 text-xs font-semibold uppercase tracking-wider text-slate-400 dark:bg-slate-800/80 dark:text-slate-400";
 const TD_BASE = "px-2 align-middle";
+const ROW_PADDING = "py-2.5";
 
 function SortableTh({
     label,
@@ -64,7 +64,6 @@ export interface TalentIntelligenceTableProps {
     onOpenDrawer: (talentId: string) => void;
     onGoDetail: (talentId: string) => void;
     onSendMessage?: (talent: TalentListItem) => void;
-    density?: TeamTableDensity;
     isLoading?: boolean;
 }
 
@@ -75,12 +74,8 @@ export function TalentIntelligenceTable({
     onOpenDrawer,
     onGoDetail,
     onSendMessage,
-    density = "comfortable",
     isLoading,
 }: TalentIntelligenceTableProps) {
-    const compact = density === "compact";
-    const rowPadding = compact ? "py-1.5" : "py-2.5";
-
     return (
         <section className="hidden w-full lg:block">
             <div className="w-full overflow-hidden rounded-xl border border-slate-100 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-900">
@@ -130,19 +125,16 @@ export function TalentIntelligenceTable({
                                         actionId && "cursor-pointer",
                                     )}
                                 >
-                                    <td className={cx(TD_BASE, rowPadding, "pl-3")}>
+                                    <td className={cx(TD_BASE, ROW_PADDING, "pl-3")}>
                                         <div className="flex min-w-0 items-center gap-2.5">
                                             <span
-                                                className={cx(
-                                                    "flex shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-indigo-400 to-purple-500 font-bold text-white ring-2 ring-white dark:ring-slate-900",
-                                                    compact ? "size-8 text-xs" : "size-9 text-sm",
-                                                )}
+                                                className="flex size-9 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-indigo-400 to-purple-500 text-sm font-bold text-white ring-2 ring-white dark:ring-slate-900"
                                                 aria-hidden
                                             >
                                                 {talentInitials(talent.full_name)}
                                             </span>
                                             <div className="min-w-0">
-                                                <div className={cx("truncate font-medium text-slate-900 dark:text-slate-100", compact && "text-sm")}>
+                                                <div className="truncate font-medium text-slate-900 dark:text-slate-100">
                                                     {talent.full_name}
                                                 </div>
                                                 {talent.role ? (
@@ -151,14 +143,14 @@ export function TalentIntelligenceTable({
                                             </div>
                                         </div>
                                     </td>
-                                    <td className={cx(TD_BASE, rowPadding)}>
+                                    <td className={cx(TD_BASE, ROW_PADDING)}>
                                         {projectName ? (
                                             <span className="block truncate text-sm text-slate-800 dark:text-slate-200">{projectName}</span>
                                         ) : (
                                             <span className="text-sm italic text-slate-400">aucun</span>
                                         )}
                                     </td>
-                                    <td className={cx(TD_BASE, rowPadding)}>
+                                    <td className={cx(TD_BASE, ROW_PADDING)}>
                                         <div className="flex min-w-[7rem] items-center gap-2">
                                             <span className={cx("text-sm font-semibold tabular-nums", chargeToneClass(charge))}>
                                                 {charge}%
@@ -171,7 +163,7 @@ export function TalentIntelligenceTable({
                                             </div>
                                         </div>
                                     </td>
-                                    <td className={cx(TD_BASE, rowPadding)}>
+                                    <td className={cx(TD_BASE, ROW_PADDING)}>
                                         {typeof ipiScore === "number" && Number.isFinite(ipiScore) ? (
                                             <div className="flex items-center gap-2">
                                                 <span className="text-sm font-semibold tabular-nums">{ipiScore.toFixed(1)}</span>
@@ -190,7 +182,7 @@ export function TalentIntelligenceTable({
                                             <span className="text-sm italic text-slate-400">—</span>
                                         )}
                                     </td>
-                                    <td className={cx(TD_BASE, rowPadding, "text-sm tabular-nums")}>
+                                    <td className={cx(TD_BASE, ROW_PADDING, "text-sm tabular-nums")}>
                                         {talent.contract_end_date ? (
                                             <div className="flex items-center gap-1.5">
                                                 <span
@@ -206,7 +198,7 @@ export function TalentIntelligenceTable({
                                         )}
                                     </td>
                                     <td
-                                        className={cx(TD_BASE, rowPadding, "pr-3 text-right")}
+                                        className={cx(TD_BASE, ROW_PADDING, "pr-3 text-right")}
                                         onClick={(e) => e.stopPropagation()}
                                         onKeyDown={(e) => e.stopPropagation()}
                                     >

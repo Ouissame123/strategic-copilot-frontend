@@ -64,8 +64,8 @@ export const NOTIFICATION_TYPE_CONFIG: Record<string, NotificationTypeConfig> = 
         iconCls: "text-purple-600 dark:text-purple-400",
         target: (n) =>
             n.entity_id
-                ? `/workspace/rh/actions?tab=matching&project=${encodeURIComponent(String(n.entity_id))}`
-                : "/workspace/rh/actions?tab=matching",
+                ? `/workspace/rh/workforce-arbitration?project=${encodeURIComponent(String(n.entity_id))}`
+                : "/workspace/rh/workforce-arbitration",
     },
     budget_overrun: {
         label: "Dépassement budget",

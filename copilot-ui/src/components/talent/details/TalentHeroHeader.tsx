@@ -68,7 +68,7 @@ export function TalentHeroHeader({
                     </button>
                     <Link
                         to="/workspace/manager/projects"
-                        className="ml-auto hidden text-xs font-medium text-indigo-600 hover:underline dark:text-indigo-400 sm:inline"
+                        className="ml-auto hidden text-xs font-medium text-primary-600 hover:underline dark:text-primary-400 sm:inline"
                     >
                         Copilot projets →
                     </Link>
@@ -76,7 +76,7 @@ export function TalentHeroHeader({
 
                 <Box className="flex flex-col gap-4 sm:flex-row sm:items-start sm:gap-6">
                     <Box
-                        className="flex h-16 w-16 flex-shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-indigo-400 to-purple-500 text-xl font-bold text-white shadow-lg ring-4 ring-white dark:ring-slate-800"
+                        className="flex h-16 w-16 flex-shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-primary-400 to-primary-500 text-xl font-bold text-white shadow-lg ring-4 ring-white dark:ring-slate-800"
                         aria-hidden
                     >
                         {talentInitials(talentName)}
@@ -102,7 +102,7 @@ export function TalentHeroHeader({
                             {email ? (
                                 <a
                                     href={`mailto:${email}`}
-                                    className="truncate text-indigo-600 hover:underline dark:text-indigo-400"
+                                    className="truncate text-primary-600 hover:underline dark:text-primary-400"
                                     title={email}
                                 >
                                     {truncateEmail(email)}

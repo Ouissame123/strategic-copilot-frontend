@@ -48,9 +48,9 @@ const IPI_DIST_LABELS: Record<keyof RhAnalystIpiResponse["distribution"], string
 };
 
 const IPI_DIST_COLORS: Record<keyof RhAnalystIpiResponse["distribution"], string> = {
-    top: "bg-violet-500",
+    top: "bg-primary-500",
     strong: "bg-emerald-500",
-    average: "bg-sky-500",
+    average: "bg-primary-500",
     at_risk: "bg-rose-500",
 };
 
@@ -106,7 +106,7 @@ function IpiPanel({ ipi, ipiError, loaded }: { ipi: RhAnalystIpiResponse | null;
         <>
             <div className="mb-4 flex flex-wrap items-end gap-6">
                 <div>
-                    <div className={cx("text-4xl font-bold tabular-nums tracking-tight text-violet-700 dark:text-violet-300")}>
+                    <div className={cx("text-4xl font-bold tabular-nums tracking-tight text-primary-700 dark:text-primary-300")}>
                         {ipi.avg_ipi.toFixed(1)}
                     </div>
                     <div className={cx("text-[11px]", RH_TEXT_MUTED)}>/ 10 · IPI moyen entreprise</div>
@@ -196,7 +196,7 @@ export function RhTalentInsightsSection({ enterpriseId, token }: RhTalentInsight
             description="Analyse IPI et matrice 9-Box — moteur Analyst n8n."
             action={
                 <div className="flex flex-wrap items-center gap-2">
-                    <span className="inline-flex items-center gap-1 rounded-full bg-violet-100 px-2 py-0.5 text-[10px] font-bold uppercase text-violet-700 dark:bg-violet-950/60 dark:text-violet-300">
+                    <span className="inline-flex items-center gap-1 rounded-full bg-primary-100 px-2 py-0.5 text-[10px] font-bold uppercase text-primary-700 dark:bg-primary-950/60 dark:text-primary-300">
                         <Sparkles size={11} aria-hidden />
                         Analyst
                     </span>
@@ -224,7 +224,7 @@ export function RhTalentInsightsSection({ enterpriseId, token }: RhTalentInsight
                         className={cx(
                             "flex-1 rounded-md px-3 py-1.5 text-[11px] font-semibold transition",
                             tab === t.id
-                                ? "bg-white text-violet-700 shadow-sm dark:bg-slate-900 dark:text-violet-300"
+                                ? "bg-white text-primary-700 shadow-sm dark:bg-slate-900 dark:text-primary-300"
                                 : "text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200",
                         )}
                     >
@@ -242,14 +242,14 @@ export function RhTalentInsightsSection({ enterpriseId, token }: RhTalentInsight
 
             {tab === "summary" && loaded ? (
                 <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
-                    <div className={cx(RH_CARD, "border-violet-100/80 p-4 dark:border-violet-900/30")}>
+                    <div className={cx(RH_CARD, "border-primary-100/80 p-4 dark:border-primary-900/30")}>
                         <div className={cx("mb-2 flex items-center gap-2 text-xs font-semibold", RH_TEXT_SECONDARY)}>
-                            <Gauge size={14} className="text-violet-600" aria-hidden />
+                            <Gauge size={14} className="text-primary-600" aria-hidden />
                             IPI — aperçu
                         </div>
                         {ipi ? (
                             <div className="flex items-baseline gap-2">
-                                <span className="text-2xl font-bold tabular-nums text-violet-700 dark:text-violet-300">
+                                <span className="text-2xl font-bold tabular-nums text-primary-700 dark:text-primary-300">
                                     {ipi.avg_ipi.toFixed(1)}
                                 </span>
                                 <span className={cx("text-xs", RH_TEXT_MUTED)}>/10 · {ipi.total_talents} talents</span>
@@ -258,9 +258,9 @@ export function RhTalentInsightsSection({ enterpriseId, token }: RhTalentInsight
                             <p className={cx("text-xs", WS_TEXT_FAINT)}>{ipiError || "Indisponible"}</p>
                         )}
                     </div>
-                    <div className={cx(RH_CARD, "border-indigo-100/80 p-4 dark:border-indigo-900/30")}>
+                    <div className={cx(RH_CARD, "border-primary-100/80 p-4 dark:border-primary-900/30")}>
                         <div className={cx("mb-2 flex items-center gap-2 text-xs font-semibold", RH_TEXT_SECONDARY)}>
-                            <Grid3X3 size={14} className="text-indigo-600" aria-hidden />
+                            <Grid3X3 size={14} className="text-primary-600" aria-hidden />
                             9-Box — aperçu
                         </div>
                         {nineBox ? (

@@ -58,6 +58,18 @@ function resolveSkillsCatalogPath(): string {
     return "/webhook/rh/skills/catalog";
 }
 
+function resolveRhChatPath(): string {
+    const fromEnv = readEnv("VITE_RH_CHAT_URL");
+    if (fromEnv) return fromEnv.replace(/\/$/, "");
+    return "/webhook/rh/chat";
+}
+
+function resolveRhChatV3Path(): string {
+    const fromEnv = readEnv("VITE_RH_CHAT_V3_URL");
+    if (fromEnv) return fromEnv.replace(/\/$/, "");
+    return "/webhook/rh/chat-v3";
+}
+
 // ─────────────────────────────────────────────────────────
 // CONSTANTS — Préfixes webhook actuels (résolus au chargement)
 // ─────────────────────────────────────────────────────────
@@ -101,6 +113,17 @@ const PREFIX = {
     helperChat: resolveHelperChatPath(),
     helperChatV3: resolveHelperChatV3Path(),
     skillsCatalog: resolveSkillsCatalogPath(),
+    rhConversationsList: resolvePrefix(["VITE_RH_CONVERSATIONS_LIST_PREFIX"], "/webhook/rh/conversations"),
+    rhConversationDetail: resolvePrefix(
+        ["VITE_RH_CONVERSATIONS_DETAIL_PREFIX"],
+        "/webhook/wf-rh-conversations-detail-v1/rh/conversations",
+    ),
+    rhConversationArchive: resolvePrefix(
+        ["VITE_RH_CONVERSATIONS_ARCHIVE_PREFIX"],
+        "/webhook/wf-rh-conversations-archive-v1/rh/conversations",
+    ),
+    rhChat: resolveRhChatPath(),
+    rhChatV3: resolveRhChatV3Path(),
 } as const;
 
 /** Base PATCH risk alerts — export rétrocompat `MANAGER_RISK_ALERTS_PATH`. */
@@ -155,6 +178,7 @@ export const API_ROUTES = {
     matchmaker: () => "/webhook/api/project/talents",
 
     // ────── F. Orchestrator / IA ──────
+    orchestratorAsk: () => "/webhook/api/orchestrator/ask",
     orchestratorRecompute: () => "/webhook/api/orchestrator/recompute",
     viability: () => "/webhook/api/project/viability",
     copilotRecompute: () => "/webhook/api/copilot/recompute",
@@ -181,6 +205,29 @@ export const API_ROUTES = {
 
     // ────── I. Skills catalog ──────
     skillsCatalog: () => PREFIX.skillsCatalog,
+
+    // ────── K. RH Copilot ──────
+    rhConversationsList: () => PREFIX.rhConversationsList,
+    rhConversationDetail: (id: string) =>
+        `${PREFIX.rhConversationDetail}/${encodePathSegment(id, "conversationId")}`,
+    rhConversationArchive: (id: string) =>
+        `${PREFIX.rhConversationArchive}/${encodePathSegment(id, "conversationId")}/archive`,
+    rhChat: () => PREFIX.rhChat,
+    rhChatV3: () => PREFIX.rhChatV3,
+
+    // ────── J. Mission Control aliases (spec PDF) ──────
+    MANAGER_PROJECTS: PREFIX.managerProjects,
+    MANAGER_PROJECT_DETAIL: (id: string) => `${PREFIX.wmpDetail}/${encodePathSegment(id, "projectId")}`,
+    MANAGER_PROJECT_PATCH: (id: string) => `${PREFIX.wmpUpdate}/${encodePathSegment(id, "projectId")}`,
+    MANAGER_PROJECT_DELETE: (id: string) => `${PREFIX.wmpDelete}/${encodePathSegment(id, "projectId")}`,
+    PROJECT_ASSIGN: (id: string) => `${PREFIX.wmpAssign}/${encodePathSegment(id, "projectId")}/assignments`,
+    PROJECT_UNASSIGN: (id: string, talentId: string) =>
+        `${PREFIX.wmpUnassign}/${encodePathSegment(id, "projectId")}/assignments/${encodePathSegment(talentId, "talentId")}`,
+    ORCHESTRATOR_RECOMPUTE: () => "/webhook/api/project/viability",
+    WHAT_IF: () => "/webhook/api/project/what-if",
+    STRATEGIST_EXECUTE: () => "/webhook/api/strategist/execute",
+    AGENT_RISKS: () => "/webhook/api/project/risks",
+    AGENT_TALENTS: () => "/webhook/api/project/talents",
 } as const;
 
 export type ApiRoutes = typeof API_ROUTES;

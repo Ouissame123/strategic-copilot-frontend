@@ -2,7 +2,7 @@
  * Page Talents RH — liste, modal CRUD base, drawer à onglets (skills hors modal).
  */
 import { useEffect, useMemo, useState } from "react";
-import { useSearchParams } from "react-router";
+import { Link, useSearchParams } from "react-router";
 import { AlertTriangle, Filter, RefreshCw, Search, UserPlus } from "lucide-react";
 import { TalentListCard } from "@/components/rh/talent/TalentListCard";
 import { CreateTalentModal } from "@/components/rh/CreateTalentModal";
@@ -244,6 +244,14 @@ export function TalentsRH({
                 >
                     <Filter size={13} aria-hidden /> Disponibles
                 </button>
+                <Link
+                    to="/workspace/rh/actions?tab=mobility"
+                    className={cx(
+                        "ml-auto text-xs font-medium text-primary-700 hover:underline dark:text-primary-300",
+                    )}
+                >
+                    Gérer les affectations →
+                </Link>
             </div>
 
             {loading ? (

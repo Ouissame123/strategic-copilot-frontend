@@ -1,15 +1,31 @@
 import type { QueryClient } from "@tanstack/react-query";
 import { useQuery } from "@tanstack/react-query";
-import { decisionsApi, type DecisionLogStatus, type ManagerDecisionLogResponse } from "@/services/decisions.api";
+import {
+    decisionsApi,
+    type DecisionLogStatus,
+    type ManagerDecisionLogQueryParams,
+    type ManagerDecisionLogResponse,
+} from "@/services/decisions.api";
+import { authStorage } from "@/lib/auth-storage";
 import { normalizeDecisionKind } from "@/utils/decisionLogHelpers";
+
+export type ManagerDecisionLogFilters = {
+    period: ManagerDecisionLogQueryParams["period"];
+    type?: string;
+    project_id?: string;
+    enterprise_id?: string;
+};
+
+export const managerDecisionLogQueryKeys = {
+    log: (filters: ManagerDecisionLogFilters) => ["manager-decision-log", filters] as const,
+};
 
 export function removeDecisionFromManagerLogCache(
     qc: QueryClient,
-    enterpriseId: string,
+    filters: ManagerDecisionLogFilters,
     decisionId: string,
-    limit = 100,
 ): void {
-    qc.setQueryData<ManagerDecisionLogResponse>(["manager-decision-log", enterpriseId, limit], (old) => {
+    qc.setQueryData<ManagerDecisionLogResponse>(managerDecisionLogQueryKeys.log(filters), (old) => {
         if (!old) return old;
         const removed = old.decisions.find((d) => d.decision_id === decisionId);
         if (!removed) return old;
@@ -25,35 +41,52 @@ export function removeDecisionFromManagerLogCache(
             other: kind === "other" ? Math.max(0, old.kpis.other - 1) : old.kpis.other,
         };
 
-        return { ...old, decisions, count: decisions.length, kpis };
+        return {
+            ...old,
+            decisions,
+            count: decisions.length,
+            kpis,
+            watch_decision: old.watch_decision?.decision_id === decisionId ? null : old.watch_decision,
+        };
     });
 }
 
 export function applyDecisionStatusInManagerLogCache(
     qc: QueryClient,
-    enterpriseId: string,
+    filters: ManagerDecisionLogFilters,
     decisionId: string,
     status: DecisionLogStatus,
-    limit = 100,
+    handledAt?: string | null,
 ): void {
-    qc.setQueryData<ManagerDecisionLogResponse>(["manager-decision-log", enterpriseId, limit], (old) => {
+    qc.setQueryData<ManagerDecisionLogResponse>(managerDecisionLogQueryKeys.log(filters), (old) => {
         if (!old) return old;
         const decisions = old.decisions.map((d) =>
-            d.decision_id === decisionId ? { ...d, status } : d,
+            d.decision_id === decisionId
+                ? {
+                      ...d,
+                      status,
+                      handled_at: status === "open" ? null : (handledAt ?? d.handled_at ?? new Date().toISOString()),
+                  }
+                : d,
         );
         return { ...old, decisions };
     });
 }
 
-/** GET /webhook/manager/decisions/log?enterprise_id=… (journal décisions manager). */
-export function useManagerDecisionLog(enterpriseId: string | undefined, options?: { limit?: number; enabled?: boolean }) {
-    const eid = enterpriseId?.trim() || undefined;
-    const enabled = (options?.enabled ?? true) && Boolean(eid);
+/** GET `/webhook/manager/decisions/log` — filtres serveur (period, type, project_id). */
+export function useManagerDecisionLog(filters: ManagerDecisionLogFilters) {
+    const token = authStorage.getAccessToken();
+    const queryFilters: ManagerDecisionLogFilters = {
+        period: filters.period ?? "30d",
+        type: filters.type && filters.type !== "all" ? filters.type : undefined,
+        project_id: filters.project_id?.trim() || undefined,
+        enterprise_id: filters.enterprise_id?.trim() || undefined,
+    };
 
     return useQuery({
-        queryKey: ["manager-decision-log", eid, options?.limit ?? 100],
-        queryFn: () => decisionsApi.getManagerLog(eid!, { limit: options?.limit }).then((r) => r.data),
-        enabled,
+        queryKey: managerDecisionLogQueryKeys.log(queryFilters),
+        queryFn: () => decisionsApi.getManagerLog(queryFilters),
+        enabled: Boolean(token?.trim()),
         staleTime: 30_000,
         refetchOnWindowFocus: false,
     });

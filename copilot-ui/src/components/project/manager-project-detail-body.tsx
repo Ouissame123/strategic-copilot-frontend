@@ -230,7 +230,7 @@ export function ManagerProjectDetailBody({ project, onOpenRh }: ManagerProjectDe
                         🤖
                     </button>
                     <header className="mb-4 flex items-center gap-2">
-                        <HeartHexagon className="size-4 text-violet-500" />
+                        <HeartHexagon className="size-4 text-primary-500" />
                         <h2 className="text-sm font-semibold text-primary">Santé projet</h2>
                     </header>
                     {analysis == null ? (

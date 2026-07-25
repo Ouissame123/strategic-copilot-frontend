@@ -19,7 +19,7 @@ export function EmailReportDialog({ report, onClose }: EmailReportDialogProps) {
     useEffect(() => {
         if (!report) return;
         setRecipientsRaw("");
-        setSubject(`Rapport Strategic Copilot — ${report.type}`);
+        setSubject(`Rapport Copilote Stratégique — ${report.type}`);
         setMessage("");
     }, [report]);
 
@@ -31,7 +31,7 @@ export function EmailReportDialog({ report, onClose }: EmailReportDialogProps) {
             {
                 report_id: report.reportId,
                 recipients,
-                subject: subject.trim() || `Rapport Strategic Copilot — ${report.type}`,
+                subject: subject.trim() || `Rapport Copilote Stratégique — ${report.type}`,
                 message: message.trim(),
             },
             { onSuccess: () => onClose() },

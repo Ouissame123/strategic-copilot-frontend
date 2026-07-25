@@ -36,9 +36,9 @@ export function ProjectDossierCard() {
     return (
         <article className="rounded-md border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-950">
             <header className="mb-3 flex items-center gap-2">
-                <FileText className="size-5 text-blue-600" aria-hidden />
+                <FileText className="size-5 text-primary-600" aria-hidden />
                 <h3 className="font-medium text-slate-900 dark:text-slate-100">Dossier projet</h3>
-                <span className="rounded bg-blue-100 px-1.5 py-0.5 text-[10px] font-semibold uppercase text-blue-700 dark:bg-blue-950/50 dark:text-blue-200">
+                <span className="rounded bg-primary-100 px-1.5 py-0.5 text-[10px] font-semibold uppercase text-primary-700 dark:bg-primary-950/50 dark:text-primary-200">
                     PDF
                 </span>
             </header>

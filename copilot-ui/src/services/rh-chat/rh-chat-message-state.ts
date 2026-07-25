@@ -1,6 +1,5 @@
 import type { RhChatMessage, RhChatMessageRole, RhChatPostResult } from "@/types/rh-chat";
-
-let localMessageSeq = 0;
+import { uuidv4 } from "@/utils/uuid";
 
 /** Ordre d’affichage si `created_at` identique : user avant assistant. */
 const ROLE_DISPLAY_RANK: Record<RhChatMessageRole, number> = {
@@ -15,14 +14,13 @@ function parseMessageTime(iso: string | null | undefined): number {
     return Number.isFinite(t) ? t : Number.NaN;
 }
 
-function nextLocalMessageId(role: "user" | "assistant"): string {
-    localMessageSeq += 1;
-    return `local-${role}-${Date.now()}-${localMessageSeq}`;
+function nextLocalMessageId(): string {
+    return uuidv4();
 }
 
 export function createLocalUserMessage(content: string): RhChatMessage {
     return {
-        id: nextLocalMessageId("user"),
+        id: nextLocalMessageId(),
         role: "user",
         content: content.trim(),
         created_at: new Date().toISOString(),
@@ -39,7 +37,7 @@ export function createLocalAssistantMessage(
         : new Date().toISOString();
 
     return {
-        id: nextLocalMessageId("assistant"),
+        id: result.assistant_message_id?.trim() || nextLocalMessageId(),
         role: "assistant",
         content: result.reply?.trim() || "—",
         created_at: createdAt,
@@ -112,10 +110,6 @@ function normalizeContent(content: string): string {
     return content.trim();
 }
 
-function isLocalOptimisticMessage(message: RhChatMessage): boolean {
-    return message.id.startsWith("local-");
-}
-
 /**
  * Retire les messages locaux une fois persistés côté serveur (comparaison par rôle + contenu).
  */
@@ -123,10 +117,9 @@ export function pruneSyncedLocalMessages(
     serverMessages: RhChatMessage[],
     localMessages: RhChatMessage[],
 ): RhChatMessage[] {
-    const pending = localMessages.filter(isLocalOptimisticMessage);
-    if (pending.length === 0) return localMessages;
+    if (localMessages.length === 0) return localMessages;
 
-    return pending.filter((local) => {
+    return localMessages.filter((local) => {
         if (local.role === "user") {
             return !serverMessages.some(
                 (s) => s.role === "user" && normalizeContent(s.content) === normalizeContent(local.content),

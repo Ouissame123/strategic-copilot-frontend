@@ -35,23 +35,15 @@ import {
     RISKS_BUCKET_ORDER,
     sortRiskDedupEntries,
     type RiskAlertDedupEntry,
-    type RisksDensity,
     type RisksSegmentFilter,
     type RisksStatusFilter,
 } from "@/lib/manager-risks-list-utils";
 import { useToast } from "@/providers/toast-provider";
 import { buildManagerListSearchParams, readUrlPagination } from "@/lib/manager-url-pagination";
 import { WORKSPACE_PREFIX } from "@/utils/workspace-routes";
-import { cx } from "@/utils/cx";
 
-const DENSITY_STORAGE_KEY = "risks.density";
 const SEGMENT_STORAGE_KEY = "risks.segmentFilter";
 const STATUS_STORAGE_KEY = "risks.statusFilter";
-
-function readInitialDensity(): RisksDensity {
-    if (typeof window === "undefined") return "comfortable";
-    return window.localStorage.getItem(DENSITY_STORAGE_KEY) === "compact" ? "compact" : "comfortable";
-}
 
 function readInitialSegmentFilter(): RisksSegmentFilter {
     if (typeof window === "undefined") return "all";
@@ -79,7 +71,6 @@ export default function RisksPage() {
     const [segmentFilter, setSegmentFilter] = useState<RisksSegmentFilter>(() => readInitialSegmentFilter());
     const [statusFilter, setStatusFilter] = useState<RisksStatusFilter>(() => readInitialStatusFilter());
     const [searchQuery, setSearchQuery] = useState(urlSearch);
-    const [density, setDensity] = useState<RisksDensity>(() => readInitialDensity());
     const [collapsedBuckets, setCollapsedBuckets] = useState<Set<string>>(new Set());
     const [selectedAlert, setSelectedAlert] = useState<DisplayAlert | null>(null);
     const [drawerOpen, setDrawerOpen] = useState(false);
@@ -116,14 +107,9 @@ export default function RisksPage() {
     const riskGlobalScore = useMemo(() => {
         const fromSummary = readAvgRiskScore(riskDetail.data?.summary);
         if (fromSummary != null) return fromSummary;
-        const raw = dashboard.data?.health?.avg_viability;
-        const n = Number(raw);
-        return Number.isFinite(n) ? n : null;
-    }, [riskDetail.data?.summary, dashboard.data?.health?.avg_viability]);
-
-    useEffect(() => {
-        window.localStorage.setItem(DENSITY_STORAGE_KEY, density);
-    }, [density]);
+        // v4_factual : plus de health/avg_viability sur le dashboard.
+        return null;
+    }, [riskDetail.data?.summary]);
 
     useEffect(() => {
         window.localStorage.setItem(SEGMENT_STORAGE_KEY, segmentFilter);
@@ -319,7 +305,7 @@ export default function RisksPage() {
                 ) : null}
 
                 {!isLoading && !showEmptyCritical && !showEmptySearch && dedupedSorted.length > 0 ? (
-                    <div className={cx(density === "compact" ? "space-y-4" : "space-y-5")}>
+                    <div className="space-y-5">
                         {RISKS_BUCKET_ORDER.map((bucket) => {
                             const list = groupedEntries[bucket];
                             if (list.length === 0) return null;
@@ -340,12 +326,11 @@ export default function RisksPage() {
                                         <span className="text-slate-400 tabular-nums">({list.length})</span>
                                     </button>
                                     {!collapsed ? (
-                                        <div className={cx(density === "compact" ? "space-y-1" : "space-y-1.5")}>
+                                        <div className="space-y-1.5">
                                             {list.map((entry) => (
                                                 <RiskAlertCard
                                                     key={entry.ids.join("-")}
                                                     entry={entry}
-                                                    density={density}
                                                     patchPending={patchAlert.isPending}
                                                     onOpenDrawer={openDrawer}
                                                     onPatch={onPatch}

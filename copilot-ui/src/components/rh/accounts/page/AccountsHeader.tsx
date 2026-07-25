@@ -1,20 +1,14 @@
 import { User, Users } from "lucide-react";
-import { Button } from "@/components/base/buttons/button";
 import type { RhStaffAccountsSummary, RhTalentAccountsSummary } from "@/types/rh-accounts.types";
-import type { RhAccountsDensity } from "./use-rh-accounts-density";
 import { cx } from "@/utils/cx";
 
 type AccountsHeaderProps = {
-    density: RhAccountsDensity;
-    onToggleDensity: () => void;
     usersSummary?: RhStaffAccountsSummary;
     talentsSummary?: RhTalentAccountsSummary;
     embedded?: boolean;
 };
 
 export function AccountsHeader({
-    density,
-    onToggleDensity,
     usersSummary,
     talentsSummary,
     embedded = false,
@@ -22,12 +16,7 @@ export function AccountsHeader({
     return (
         <header className={cx("space-y-1.5", !embedded && "border-b border-slate-100 pb-3 dark:border-slate-800")}>
             {!embedded ? (
-                <div className="flex items-baseline justify-between gap-3">
-                    <h1 className="text-xl font-semibold text-primary">Gestion des comptes</h1>
-                    <Button color="tertiary" size="sm" onPress={onToggleDensity}>
-                        {density === "comfortable" ? "Dense" : "Confort"}
-                    </Button>
-                </div>
+                <h1 className="text-xl font-semibold text-primary">Gestion des comptes</h1>
             ) : null}
 
             {usersSummary || talentsSummary ? (

@@ -31,7 +31,7 @@ function KpiCell({ value, label, tone = "neutral", pulse, hidden, onClick }: Kpi
         success: "bg-emerald-50 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-200",
         muted: "bg-ws-muted-surface text-ws-secondary",
         critical: "bg-red-50 text-red-800 dark:bg-red-950/40 dark:text-red-200",
-        info: "bg-sky-50 text-sky-800 dark:bg-sky-950/40 dark:text-sky-200",
+        info: "bg-primary-50 text-primary-800 dark:bg-primary-950/40 dark:text-primary-200",
     }[tone];
 
     const inner = (

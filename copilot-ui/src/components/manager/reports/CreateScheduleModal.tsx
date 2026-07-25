@@ -134,7 +134,7 @@ export function CreateScheduleModal({ open, onClose, onSubmit, saving }: CreateS
                                 format,
                             })
                         }
-                        className="rounded-xl bg-gradient-to-r from-indigo-600 to-violet-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
+                        className="rounded-xl bg-gradient-to-r from-primary-600 to-primary-700 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
                     >
                         {saving ? "Enregistrement…" : "Créer"}
                     </button>

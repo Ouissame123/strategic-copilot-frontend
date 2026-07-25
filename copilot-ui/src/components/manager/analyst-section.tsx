@@ -8,7 +8,7 @@ import {
     type NineBoxBackendLabel,
 } from "@/lib/nine-box-dashboard";
 import { MANAGER_DASHBOARD_SECTION_IDS } from "@/features/manager/lib/copilot-engines";
-import { SectionTitleWithCodename } from "@/features/manager/components/dashboard/SectionTitleWithCodename";
+import { SectionTitleWithCodename } from "@/components/manager/SectionTitleWithCodename";
 import { useManagerAnalystDashboard } from "@/hooks/use-manager-analyst";
 import { useAuth } from "@/providers/auth-provider";
 

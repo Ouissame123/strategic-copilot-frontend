@@ -2,7 +2,6 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { CheckCircle } from "lucide-react";
 import { useNavigate, useSearchParams } from "react-router";
 import { useTranslation } from "react-i18next";
-import { Button } from "@/components/base/buttons/button";
 import { ProjectsEmptyState } from "@/components/manager/projects/ProjectsEmptyState";
 import { TeamInsightBar } from "@/components/team/TeamInsightBar";
 import { TeamSegmentsBar } from "@/components/team/TeamSegmentsBar";
@@ -19,19 +18,12 @@ import {
     matchesTeamSegmentFilter,
     sortTeamTalents,
     type TeamSegmentFilter,
-    type TeamTableDensity,
     type TeamTableSortKey,
 } from "@/lib/manager-team-list-utils";
 import type { TalentListItem } from "@/types/api.types";
 import { managerProjectsOpenModalPath } from "@/utils/workspace-routes";
 
-const DENSITY_STORAGE_KEY = "team.density";
 const FILTER_STORAGE_KEY = "team.segmentFilter";
-
-function readInitialDensity(): TeamTableDensity {
-    if (typeof window === "undefined") return "comfortable";
-    return window.localStorage.getItem(DENSITY_STORAGE_KEY) === "compact" ? "compact" : "comfortable";
-}
 
 function readInitialSegmentFilter(): TeamSegmentFilter {
     if (typeof window === "undefined") return "all";
@@ -56,7 +48,6 @@ export default function TeamPage() {
         return fromUrl ?? readInitialSegmentFilter();
     });
     const [searchQuery, setSearchQuery] = useState("");
-    const [density, setDensity] = useState<TeamTableDensity>(() => readInitialDensity());
     const [sortKey, setSortKey] = useState<TeamTableSortKey>("charge_pct");
     const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
     const [selectedTalentId, setSelectedTalentId] = useState<string | null>(null);
@@ -68,10 +59,6 @@ export default function TeamPage() {
 
     const talents = team.data?.talents ?? [];
     const counts = team.data?.counts;
-
-    useEffect(() => {
-        window.localStorage.setItem(DENSITY_STORAGE_KEY, density);
-    }, [density]);
 
     useEffect(() => {
         window.localStorage.setItem(FILTER_STORAGE_KEY, segmentFilter);
@@ -93,7 +80,11 @@ export default function TeamPage() {
     }, [searchParams, setSearchParams]);
 
     useCopilotPage();
-    useWorkspaceTopbarMeta(t("managerWorkspace.teamPageHero.title"), undefined, null);
+    useWorkspaceTopbarMeta(
+        t("managerWorkspace.teamPageHero.title"),
+        t("managerWorkspace.teamPageHero.subtitle"),
+        null,
+    );
 
     const openTalentDrawer = useCallback((talentId: string) => {
         setSelectedTalentId(talentId);
@@ -161,8 +152,6 @@ export default function TeamPage() {
         });
     }, []);
 
-    const toggleDensity = () => setDensity((d) => (d === "comfortable" ? "compact" : "comfortable"));
-
     const showEmptyOverloaded = !team.isLoading && sortedTalents.length === 0 && segmentFilter === "overloaded";
     const showEmptySearch = !team.isLoading && sortedTalents.length === 0 && Boolean(searchQuery.trim());
 
@@ -170,18 +159,6 @@ export default function TeamPage() {
         <WorkspacePageShell role="manager" eyebrow="" title="" omitHeader>
             <div className="mx-auto max-w-7xl space-y-3 px-4 py-4 sm:px-6 lg:px-8">
                 <header className="space-y-2 border-b border-slate-100 pb-3 dark:border-slate-800">
-                    <div className="flex flex-wrap items-baseline justify-between gap-3">
-                        <h1 className="text-xl font-semibold text-slate-900 dark:text-slate-100">
-                            Mon équipe
-                            {typeof counts?.total === "number" ? (
-                                <span className="ml-2 text-base font-normal text-slate-400 tabular-nums">{counts.total}</span>
-                            ) : null}
-                        </h1>
-                        <Button type="button" color="tertiary" size="sm" onClick={toggleDensity}>
-                            {density === "comfortable" ? "Dense" : "Confort"}
-                        </Button>
-                    </div>
-
                     <TeamInsightBar counts={counts} onFilterClick={handleSegmentChange} />
 
                     <TeamSegmentsBar
@@ -228,7 +205,6 @@ export default function TeamPage() {
                             rows={sortedTalents}
                             sort={{ key: sortKey, dir: sortDir }}
                             onSort={onHeaderSort}
-                            density={density}
                             isLoading={team.isLoading}
                             onOpenDrawer={openTalentDrawer}
                             onGoDetail={goToTalentDetail}
@@ -237,7 +213,6 @@ export default function TeamPage() {
 
                         <TalentMobileCards
                             rows={sortedTalents}
-                            density={density}
                             isLoading={team.isLoading}
                             onOpenDrawer={openTalentDrawer}
                             onGoDetail={goToTalentDetail}

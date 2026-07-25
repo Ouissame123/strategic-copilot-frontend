@@ -17,7 +17,7 @@ export function helperV3CitationPath(citation: Citation, projectId?: string | nu
         case "project":
             return managerProjectMissionControlPath(citation.id);
         case "skill":
-            return pid ? `${managerProjectMissionControlPath(pid)}?tab=requirements` : null;
+            return pid ? `${managerProjectMissionControlPath(pid, "competences")}` : null;
         case "arbitrage":
             return pid
                 ? `${managerProjectMissionControlPath(pid)}?tab=overview&arbitrage=${encodeURIComponent(citation.id)}`

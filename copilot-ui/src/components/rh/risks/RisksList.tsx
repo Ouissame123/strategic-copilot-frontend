@@ -2,14 +2,12 @@ import { useMemo } from "react";
 import { CheckCircle } from "lucide-react";
 import type { Risk } from "@/api/rh-risks.api";
 import { RiskCard } from "@/components/rh/risks/RiskCard";
-import type { RhRisksDensity } from "@/components/rh/risks/use-rh-risks-density";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { SEVERITY_ORDER, SEVERITY_SECTION_LABELS } from "@/lib/rh-risks-display";
 
 type RisksListProps = {
     risks: Risk[];
     isLoading: boolean;
-    density: RhRisksDensity;
     onTalentClick: (talentId: string) => void;
 };
 
@@ -26,7 +24,7 @@ function RisksListSkeleton() {
     );
 }
 
-export function RisksList({ risks, isLoading, density, onTalentClick }: RisksListProps) {
+export function RisksList({ risks, isLoading, onTalentClick }: RisksListProps) {
     const grouped = useMemo(() => {
         const groups: Record<string, Risk[]> = { critical: [], high: [], medium: [], low: [] };
         for (const r of risks) {
@@ -65,7 +63,7 @@ export function RisksList({ risks, isLoading, density, onTalentClick }: RisksLis
                         </h3>
                         <div className="space-y-1.5">
                             {list.map((r) => (
-                                <RiskCard key={r.id} risk={r} density={density} onTalentClick={onTalentClick} />
+                                <RiskCard key={r.id} risk={r} onTalentClick={onTalentClick} />
                             ))}
                         </div>
                     </section>

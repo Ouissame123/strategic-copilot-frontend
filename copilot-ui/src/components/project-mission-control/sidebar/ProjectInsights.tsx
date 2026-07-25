@@ -25,7 +25,7 @@ export function ProjectInsights({ projectId, insights, assignments, onRunMatchma
     return (
         <section className="rounded-xl border border-secondary bg-primary p-4 shadow-sm">
             <h2 className="flex items-center gap-2 text-sm font-semibold text-fg-primary">
-                <Sparkles className="size-4 text-violet-600" aria-hidden />
+                <Sparkles className="size-4 text-primary-600" aria-hidden />
                 {tm("sidebarInsightsTitle")}
             </h2>
             {insights.length === 0 ? (

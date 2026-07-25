@@ -65,6 +65,16 @@ function normalizeStringArray(raw: unknown): string[] | null {
     return items.length > 0 ? items : null;
 }
 
+function normalizeDecisionValue(raw: unknown): AiRecommendation["decision"] {
+    const s = pickOptionalString(raw);
+    if (!s) return null;
+    const k = s.toLowerCase();
+    if (k === "continue" || k === "proceed" || k === "go") return "Continue";
+    if (k === "adjust" || k === "conditional") return "Adjust";
+    if (k === "stop" || k === "reject" || k === "no_go") return "Stop";
+    return s;
+}
+
 /** Pass-through des champs `ai_recommendation` renvoyés par n8n — aucun calcul métier. */
 export function normalizeAiRecommendation(raw: unknown): AiRecommendation | null {
     if (raw == null) return null;
@@ -82,16 +92,19 @@ export function normalizeAiRecommendation(raw: unknown): AiRecommendation | null
         : null;
 
     return {
-        decision: r.decision === null ? null : pickOptionalString(r.decision),
+        decision: r.decision === null ? null : normalizeDecisionValue(r.decision),
         decision_label: pickOptionalString(r.decision_label),
         decision_color: pickOptionalString(r.decision_color),
         decision_icon: pickOptionalString(r.decision_icon),
         viability_score: pickOptionalNumber(r.viability_score),
-        reason: pickOptionalString(r.reason),
+        reason: pickOptionalString(r.reason ?? r.reason_code),
+        reason_code: pickOptionalString(r.reason_code ?? r.reason),
         reason_label: pickOptionalString(r.reason_label),
         source_agent: pickOptionalString(r.source_agent),
         confidence: pickOptionalNumber(r.confidence),
         explanation: pickOptionalString(r.explanation),
+        explanation_clean: pickOptionalString(r.explanation_clean),
+        computed_at: pickOptionalString(r.computed_at),
         top_action: normalizeTopAction(r.top_action),
         arbitrages_pending: pickOptionalNumber(r.arbitrages_pending),
         risks_count: pickOptionalNumber(r.risks_count),

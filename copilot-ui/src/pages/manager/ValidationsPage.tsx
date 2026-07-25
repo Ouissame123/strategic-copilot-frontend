@@ -1,227 +1,228 @@
 import { useCallback, useMemo, useState } from "react";
-import { useSearchParams } from "react-router";
-import { ValidationDedupDrawer } from "@/components/manager/validations/ValidationDedupDrawer";
-import { PaginationFooter } from "@/components/common/PaginationFooter";
-import { ManagerPageLayout } from "@/components/layout/ManagerPageLayout";
+import { useQueryClient } from "@tanstack/react-query";
+import { decideTalentRequest } from "@/api/manager-talent-requests.api";
+import { PendingValidationCard } from "@/components/validations/PendingValidationCard";
+import { ValidationSkeleton } from "@/components/validations/ValidationSkeleton";
 import {
-    AgentStatsCard,
-    BucketDistributionBar,
-    TopImpactedProjectsCard,
-    ValidationBucket,
-    ValidationEmptyState,
-    ValidationSkeleton,
-    ValidationsFiltersBar,
-    ValidationsHeader,
-    ValidationsKpiRow,
-    buildKpiStats,
-    buildProcessedValidations,
-    topImpactedProjects,
-    type ValidationsPageFilters,
-    type ValidationsUrlTimeFilter,
-} from "@/components/validations";
-import { validationCardClass } from "@/components/validations/validation-ui";
+    ValidationTierPills,
+    type ValidationTierFilter,
+} from "@/components/validations/ValidationTierPills";
 import { WorkspacePageShell } from "@/components/workspace/workspace-page-shell";
-import type { DecisionLogDensity } from "@/components/decision-log/DensityToggle";
 import { useCopilotPage } from "@/hooks/use-copilot-page";
 import { useValidations } from "@/hooks/useValidations";
-import { buildManagerListSearchParams, readUrlPagination } from "@/lib/manager-url-pagination";
-import type { ValidationCategory, ValidationType } from "@/services/validations.api";
-import type { ValidationDedupEntry } from "@/lib/manager-validations-list-utils";
-import { RH_ALERT_ERROR } from "@/utils/rh-workspace-theme";
+import { useAuth } from "@/hooks/useAuth";
+import { useWorkspaceTopbarMeta } from "@/layouts/workspace-topbar-meta";
+import { queryKeys } from "@/lib/query-keys";
+import { useToast } from "@/providers/toast-provider";
+import type { PendingValidation, PendingValidationsResponse } from "@/services/validations.api";
 import { cx } from "@/utils/cx";
 
-const DENSITY_STORAGE_KEY = "validationsDensity";
-
-function readDensity(): DecisionLogDensity {
-    try {
-        const v = localStorage.getItem(DENSITY_STORAGE_KEY);
-        return v === "compact" ? "compact" : "comfortable";
-    } catch {
-        return "comfortable";
-    }
-}
-
-function readFilters(searchParams: URLSearchParams): ValidationsPageFilters {
-    const { page, limit } = readUrlPagination(searchParams);
-    const time = (searchParams.get("time_filter") as ValidationsUrlTimeFilter) || "all";
-    return {
-        page,
-        limit,
-        time_filter: time === "today" || time === "7d" || time === "30d" ? time : "all",
-        type: searchParams.get("type") ?? undefined,
-        bucket: (searchParams.get("bucket") as ValidationCategory) || undefined,
-        search: searchParams.get("search") ?? undefined,
-    };
-}
+type RhScope = "mine" | "enterprise";
 
 export default function ValidationsPage() {
-    const [searchParams, setSearchParams] = useSearchParams();
-    const filters = useMemo(() => readFilters(searchParams), [searchParams]);
-    const [density, setDensity] = useState<DecisionLogDensity>(readDensity);
-    const [dedupDrawerEntry, setDedupDrawerEntry] = useState<ValidationDedupEntry | null>(null);
+    const { user } = useAuth();
+    const isRh = user?.role === "rh";
+    const isManager = user?.role === "manager";
+    const enterpriseId = user?.enterpriseId?.trim() ?? "";
+    const currentUserId = user?.id?.trim() ?? "";
+    const { push } = useToast();
 
-    const typesParam = filters.type ? ([filters.type] as ValidationType[]) : undefined;
-    const { data, isLoading, isFetching, refetch, error } = useValidations("mine", {
-        limit: 200,
-        types: typesParam,
-    });
+    const [rhScope, setRhScope] = useState<RhScope>("mine");
+    const [tierFilter, setTierFilter] = useState<ValidationTierFilter>("all");
+    const [actioningId, setActioningId] = useState<string | null>(null);
 
+    const managerUserId = useMemo(() => {
+        if (isManager) return currentUserId || null;
+        if (isRh) return rhScope === "enterprise" ? null : currentUserId || null;
+        return currentUserId || null;
+    }, [isManager, isRh, rhScope, currentUserId]);
+
+    const requestBody = useMemo(
+        () =>
+            enterpriseId
+                ? { enterprise_id: enterpriseId, manager_user_id: managerUserId }
+                : null,
+        [enterpriseId, managerUserId],
+    );
+
+    const { data, isLoading, isFetching, refetch, error } = useValidations(requestBody);
+    const qc = useQueryClient();
+
+    const total = data?.total ?? 0;
+    const counts = data?.counts ?? { conflict: 0, missing_justification: 0, standard: 0 };
     const items = data?.pending_validations ?? [];
-    const summary = data?.summary;
 
-    const kpiStats = useMemo(() => buildKpiStats(summary, items), [summary, items]);
-    const processed = useMemo(() => buildProcessedValidations(items, filters), [items, filters]);
-    const impacted = useMemo(() => topImpactedProjects(items), [items]);
+    /** Filtre exclusif — ordre backend STRICT (jamais retrier). */
+    const visibleItems = useMemo(() => {
+        if (tierFilter === "all") return items;
+        return items.filter((item) => item.tier === tierFilter);
+    }, [items, tierFilter]);
 
-    const hasNoResults =
-        !isLoading &&
-        processed.conflicts.length + processed.missing_justif.length + processed.standard_queue.length === 0;
-    const isGloballyEmpty = !isLoading && (summary?.total_pending ?? items.length) === 0;
+    const subtitle = `Ce que vous devez valider, classé par priorité — ${total} demande(s) en attente.`;
 
     useCopilotPage();
+    useWorkspaceTopbarMeta("Validations Copilot", subtitle);
 
-    const updateFilters = useCallback(
-        (next: Partial<ValidationsPageFilters>) => {
-            const merged = { ...filters, ...next };
-            if (
-                next.type !== undefined ||
-                next.bucket !== undefined ||
-                next.time_filter !== undefined ||
-                next.search !== undefined
-            ) {
-                merged.page = next.page ?? 1;
-            }
-            const params = buildManagerListSearchParams(
-                {
-                    time_filter: merged.time_filter !== "all" ? merged.time_filter : undefined,
-                    type: merged.type,
-                    search: merged.search,
+    const removeItemLocally = useCallback(
+        (item: PendingValidation) => {
+            if (!enterpriseId) return;
+            qc.setQueryData<PendingValidationsResponse>(
+                queryKeys.manager.validations(enterpriseId, managerUserId),
+                (prev) => {
+                    if (!prev) return prev;
+                    const pending_validations = prev.pending_validations.filter((row) => row.id !== item.id);
+                    const nextCounts = { ...prev.counts };
+                    nextCounts[item.tier] = Math.max(0, (nextCounts[item.tier] ?? 0) - 1);
+                    return {
+                        ...prev,
+                        pending_validations,
+                        counts: nextCounts,
+                        total: Math.max(0, prev.total - 1),
+                    };
                 },
-                { page: merged.page, limit: merged.limit },
             );
-            if (merged.bucket) params.bucket = merged.bucket;
-            setSearchParams(params);
         },
-        [filters, setSearchParams],
+        [enterpriseId, managerUserId, qc],
     );
 
-    const handleDensityChange = useCallback((d: DecisionLogDensity) => {
-        setDensity(d);
-        try {
-            localStorage.setItem(DENSITY_STORAGE_KEY, d);
-        } catch {
-            /* ignore */
-        }
-    }, []);
-
-    const handleProjectSearch = useCallback(
-        (projectId: string) => {
-            const project = impacted.find((p) => p.project_id === projectId);
-            updateFilters({ search: project?.name ?? projectId, page: 1 });
+    const handleApprove = useCallback(
+        (item: PendingValidation) => {
+            if (actioningId) return;
+            setActioningId(item.id);
+            void decideTalentRequest(item.id, "accept")
+                .then(() => {
+                    removeItemLocally(item);
+                    push("Demande acceptée.", "success");
+                })
+                .catch((err: unknown) => {
+                    push(err instanceof Error ? err.message : "Erreur lors de la mise à jour", "error");
+                })
+                .finally(() => setActioningId(null));
         },
-        [impacted, updateFilters],
+        [actioningId, push, removeItemLocally],
     );
+
+    const handleReject = useCallback(
+        (item: PendingValidation) => {
+            if (actioningId) return;
+            const reason = window.prompt("Motif du rejet :")?.trim();
+            if (!reason) return;
+            setActioningId(item.id);
+            void decideTalentRequest(item.id, "refuse", reason)
+                .then(() => {
+                    removeItemLocally(item);
+                    push("Demande refusée.", "success");
+                })
+                .catch((err: unknown) => {
+                    push(err instanceof Error ? err.message : "Erreur lors de la mise à jour", "error");
+                })
+                .finally(() => setActioningId(null));
+        },
+        [actioningId, push, removeItemLocally],
+    );
+
+    const showEmpty = !isLoading && !error && total === 0;
 
     return (
         <WorkspacePageShell role="manager" eyebrow="" title="" omitHeader>
-            <ManagerPageLayout
-                header={
-                    <ValidationsHeader
-                        onRefresh={() => void refetch()}
-                        density={density}
-                        onDensityChange={handleDensityChange}
-                        loading={isFetching}
-                    />
-                }
-                kpi={isLoading ? <ValidationSkeleton variant="kpi" /> : <ValidationsKpiRow stats={kpiStats} />}
-                distribution={
-                    !isLoading ? (
-                        <BucketDistributionBar
-                            conflicts={processed.bucketCounts.conflict}
-                            missingJustif={processed.bucketCounts.missing_justification}
-                            standard={processed.bucketCounts.standard}
-                            onSelectBucket={(bucket) => updateFilters({ bucket, page: 1 })}
-                            activeBucket={filters.bucket}
-                        />
-                    ) : null
-                }
-                filters={
-                    <ValidationsFiltersBar
-                        filters={filters}
-                        onChange={updateFilters}
-                    />
-                }
-                main={
+            <div className="mx-auto max-w-[960px] space-y-5 px-4 py-5 sm:px-6">
+                {/* Toggle RH — sous le sous-titre topbar */}
+                {isRh ? (
+                    <div
+                        className="inline-flex rounded-lg border border-slate-200 bg-white p-0.5 dark:border-slate-700 dark:bg-slate-900"
+                        role="group"
+                        aria-label="Périmètre des validations"
+                    >
+                        {(
+                            [
+                                { id: "mine" as const, label: "Mon équipe" },
+                                { id: "enterprise" as const, label: "Toute l'entreprise" },
+                            ] as const
+                        ).map((opt) => (
+                            <button
+                                key={opt.id}
+                                type="button"
+                                onClick={() => {
+                                    setRhScope(opt.id);
+                                    setTierFilter("all");
+                                }}
+                                aria-pressed={rhScope === opt.id}
+                                className={cx(
+                                    "rounded-md px-3 py-1.5 text-sm font-medium transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-slate-400",
+                                    rhScope === opt.id
+                                        ? "bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900"
+                                        : "text-slate-600 hover:bg-slate-50 dark:text-slate-300 dark:hover:bg-slate-800",
+                                )}
+                            >
+                                {opt.label}
+                            </button>
+                        ))}
+                    </div>
+                ) : null}
+
+                {!enterpriseId ? (
+                    <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-6 text-center text-sm text-amber-900 dark:border-amber-900/40 dark:bg-amber-950/30 dark:text-amber-100">
+                        Identifiant entreprise manquant. Reconnectez-vous pour charger les validations.
+                    </div>
+                ) : null}
+
+                {error ? (
+                    <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-6 text-center dark:border-red-900/40 dark:bg-red-950/30">
+                        <p className="mb-3 text-sm text-red-800 dark:text-red-200">
+                            Impossible de charger les validations.
+                        </p>
+                        <button
+                            type="button"
+                            onClick={() => void refetch()}
+                            className="rounded-lg border border-red-300 bg-white px-4 py-2 text-sm font-medium text-red-800 hover:bg-red-100 dark:border-red-800 dark:bg-red-950 dark:text-red-100"
+                        >
+                            Réessayer
+                        </button>
+                    </div>
+                ) : null}
+
+                {isLoading ? <ValidationSkeleton /> : null}
+
+                {!isLoading && !error && enterpriseId && showEmpty ? (
+                    <p className="py-16 text-center text-sm text-tertiary">Aucune validation en attente.</p>
+                ) : null}
+
+                {!isLoading && !error && enterpriseId && !showEmpty ? (
                     <>
-                        {error ? (
-                            <div className={cx("rounded-xl p-3 text-sm", RH_ALERT_ERROR)}>
-                                Erreur de chargement.{" "}
-                                <button type="button" onClick={() => void refetch()} className="underline">
-                                    Réessayer
-                                </button>
-                            </div>
-                        ) : null}
+                        <ValidationTierPills
+                            total={total}
+                            conflict={counts.conflict}
+                            missingJustification={counts.missing_justification}
+                            standard={counts.standard}
+                            active={tierFilter}
+                            onChange={setTierFilter}
+                        />
 
-                        {isLoading ? (
-                            <ValidationSkeleton variant="list" />
-                        ) : hasNoResults ? (
-                            <ValidationEmptyState
-                                variant={isGloballyEmpty ? "empty" : "filtered"}
-                                onReset={() => setSearchParams({})}
-                            />
-                        ) : (
-                            <div className={validationCardClass + " overflow-hidden"}>
-                                <ValidationBucket
-                                    type="conflict"
-                                    items={processed.conflicts}
-                                    density={density}
-                                    defaultExpanded
-                                    onShowDuplicates={setDedupDrawerEntry}
+                        <div className={cx("space-y-3", isFetching && "opacity-90")}>
+                            {visibleItems.map((item) => (
+                                <PendingValidationCard
+                                    key={item.id}
+                                    item={item}
+                                    actioning={actioningId === item.id}
+                                    disabled={Boolean(actioningId)}
+                                    onApprove={() => handleApprove(item)}
+                                    onReject={() => handleReject(item)}
                                 />
-                                <ValidationBucket
-                                    type="missing_justification"
-                                    items={processed.missing_justif}
-                                    density={density}
-                                    defaultExpanded
-                                    onShowDuplicates={setDedupDrawerEntry}
-                                />
-                                <ValidationBucket
-                                    type="standard"
-                                    items={processed.standard_queue}
-                                    density={density}
-                                    defaultExpanded={!processed.conflicts.length && !processed.missing_justif.length}
-                                    onShowDuplicates={setDedupDrawerEntry}
-                                />
-                                {processed.pagination ? (
-                                    <PaginationFooter
-                                        pagination={processed.pagination}
-                                        onPageChange={(page) => updateFilters({ page })}
-                                        onPageSizeChange={(limit) => updateFilters({ limit, page: 1 })}
-                                        itemLabel="validations standard"
-                                        loading={isFetching}
-                                    />
-                                ) : null}
-                            </div>
-                        )}
+                            ))}
+                            {visibleItems.length === 0 ? (
+                                <p className="py-8 text-center text-sm text-tertiary">
+                                    Aucune validation pour ce filtre.
+                                </p>
+                            ) : null}
+                        </div>
+
+                        <p className="pt-2 text-center text-[11px] text-tertiary">
+                            Trié par le backend : conflit → justification manquante → standard, puis priorité et
+                            ancienneté
+                        </p>
                     </>
-                }
-                sidebar={
-                    isLoading ? (
-                        <ValidationSkeleton variant="sidebar" />
-                    ) : (
-                        <>
-                            <AgentStatsCard
-                                byType={summary?.by_type ?? {}}
-                                onTypeClick={(type) => updateFilters({ type, page: 1 })}
-                                activeType={filters.type}
-                            />
-                            <TopImpactedProjectsCard projects={impacted} onSelectProject={handleProjectSearch} />
-                        </>
-                    )
-                }
-            />
-
-            <ValidationDedupDrawer entry={dedupDrawerEntry} onClose={() => setDedupDrawerEntry(null)} />
+                ) : null}
+            </div>
         </WorkspacePageShell>
     );
 }

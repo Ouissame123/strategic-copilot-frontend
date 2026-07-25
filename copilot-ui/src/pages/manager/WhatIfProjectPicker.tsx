@@ -44,8 +44,8 @@ export default function WhatIfProjectPicker() {
         <WorkspacePageShell role="manager" eyebrow={t("workspaceRoles.manager")} title={t("managerWorkspace.missionControl.whatIfTitle")} description={false} omitHeader>
             <div className="mx-auto max-w-2xl space-y-6">
                 <div className="flex items-start gap-3">
-                    <div className="rounded-lg bg-violet-100 p-2 dark:bg-violet-950/50">
-                        <Beaker01 className="size-5 text-violet-600 dark:text-violet-300" aria-hidden />
+                    <div className="rounded-lg bg-primary-100 p-2 dark:bg-primary-950/50">
+                        <Beaker01 className="size-5 text-primary-600 dark:text-primary-300" aria-hidden />
                     </div>
                     <div>
                         <h1 className="text-xl font-semibold text-slate-900 dark:text-slate-100">{t("managerWorkspace.missionControl.whatIfTitle")}</h1>
@@ -75,7 +75,7 @@ export default function WhatIfProjectPicker() {
                                 <button
                                     type="button"
                                     onClick={() => openSimulation(project)}
-                                    className="flex w-full cursor-pointer items-center justify-between rounded-xl border border-slate-200 bg-white p-4 text-left shadow-sm transition-colors hover:border-violet-300 dark:border-slate-700 dark:bg-slate-950 dark:hover:border-violet-700"
+                                    className="flex w-full cursor-pointer items-center justify-between rounded-xl border border-slate-200 bg-white p-4 text-left shadow-sm transition-colors hover:border-primary-300 dark:border-slate-700 dark:bg-slate-950 dark:hover:border-primary-700"
                                 >
                                     <div className="min-w-0 pr-3">
                                         <h3 className="truncate font-medium text-slate-900 dark:text-slate-100">{project.name}</h3>

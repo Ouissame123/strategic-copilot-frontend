@@ -2,11 +2,20 @@ export const PROFILE_CARD =
     "rounded-2xl border border-slate-200/60 bg-white/90 shadow-sm dark:border-slate-800 dark:bg-slate-900/80";
 
 export const PROFILE_INPUT =
-    "w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-900 outline-none transition focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100";
+    "w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-900 outline-none transition focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100";
 
 export const PROFILE_LABEL = "text-xs font-medium text-slate-600 dark:text-slate-400";
 
-export type ProfileTabId = "account" | "security" | "notifications" | "ai";
+export type ProfileTabId = "account" | "security";
+
+const LEGACY_PROFILE_TAB_IDS = new Set(["notifications", "ai", "preferences-ia", "preferences_ia"]);
+
+/** Normalize a stored/legacy tab id to a valid profile tab (default: Compte). */
+export function resolveProfileTabId(value: unknown): ProfileTabId {
+    if (value === "account" || value === "security") return value;
+    if (typeof value === "string" && LEGACY_PROFILE_TAB_IDS.has(value)) return "account";
+    return "account";
+}
 
 export const MANAGER_ACTIVITY_STATS = {
     projectsManaged: 14,
@@ -40,34 +49,11 @@ export const PROFILE_TIMEZONES = [
     { value: "Asia/Dubai", label: "Asia/Dubai (UTC+4)" },
 ] as const;
 
-export const MANAGER_NOTIF_MATRIX_KEY = "manager-profile-notif-matrix-v1";
-export const MANAGER_AI_PREFS_KEY = "manager-profile-ai-prefs-v1";
 export const MANAGER_ACCOUNT_PREFS_KEY = "manager-profile-account-prefs-v1";
 
 export type ManagerAccountPrefs = {
     language: "fr" | "en" | "es";
     timezone: string;
-};
-
-export type ManagerAiPrefs = {
-    copilotEnabled: boolean;
-    proactiveMode: boolean;
-    responseLanguage: "fr" | "en" | "es";
-    detailLevel: "synthesis" | "detailed" | "expert";
-};
-
-export const DEFAULT_NOTIF_MATRIX_ROWS = [
-    { id: "critical", label: "Alertes critiques", email: true, inApp: true, slack: true },
-    { id: "ai-decisions", label: "Décisions IA", email: true, inApp: true, slack: false, slackDisabled: true },
-    { id: "rh", label: "Demandes RH", email: true, inApp: true, slack: false, slackDisabled: true },
-    { id: "weekly", label: "Rapports hebdo", email: true, inApp: false, slack: false, slackDisabled: true },
-] as const;
-
-export const DEFAULT_AI_PREFS: ManagerAiPrefs = {
-    copilotEnabled: true,
-    proactiveMode: false,
-    responseLanguage: "fr",
-    detailLevel: "detailed",
 };
 
 export function passwordStrengthUi(password: string): { score: number; label: string; barClass: string } {

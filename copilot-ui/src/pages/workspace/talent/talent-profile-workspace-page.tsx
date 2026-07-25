@@ -29,7 +29,7 @@ export function TalentProfileWorkspacePage() {
                 <p className="mt-2 text-sm text-secondary">Informations personnelles et professionnelles.</p>
             </header>
 
-            <section className="rounded-2xl bg-gradient-to-r from-[#7c6ef5] to-[#a855f7] p-5 text-white">
+            <section className="rounded-2xl bg-gradient-to-r from-primary-600 to-primary-400 p-5 text-white">
                 <p className="text-2xl font-semibold">{fullName}</p>
                 <p className="mt-1 text-sm text-white/85">{role}</p>
                 <p className="mt-1 text-xs text-white/75">{email}</p>

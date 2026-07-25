@@ -3,7 +3,6 @@ import { useNavigate } from "react-router";
 import type { Risk } from "@/api/rh-risks.api";
 import { Button } from "@/components/base/buttons/button";
 import { Dropdown } from "@/components/base/dropdown/dropdown";
-import type { RhRisksDensity } from "@/components/rh/risks/use-rh-risks-density";
 import { useCreateRiskAction } from "@/hooks/useRhRisks";
 import {
     formatRiskMetricDisplay,
@@ -14,7 +13,6 @@ import { cx } from "@/utils/cx";
 
 type RiskCardProps = {
     risk: Risk;
-    density: RhRisksDensity;
     onTalentClick: (talentId: string) => void;
 };
 
@@ -24,10 +22,9 @@ function metricBadgeClass(severity: Risk["severity"]): string {
         : "border-amber-200 bg-amber-50 text-amber-900";
 }
 
-export function RiskCard({ risk, density, onTalentClick }: RiskCardProps) {
+export function RiskCard({ risk, onTalentClick }: RiskCardProps) {
     const navigate = useNavigate();
     const createAction = useCreateRiskAction();
-    const isCompact = density === "compact";
     const metricLabel = formatRiskMetricDisplay(risk.risk_type, risk.metric_value);
 
     const handleCreateAction = () => {
@@ -54,9 +51,8 @@ export function RiskCard({ risk, density, onTalentClick }: RiskCardProps) {
             role="button"
             tabIndex={0}
             className={cx(
-                "cursor-pointer rounded-md border border-slate-200 bg-white transition hover:border-violet-300 dark:border-slate-700 dark:bg-slate-900 border-l-4",
+                "cursor-pointer rounded-md border border-slate-200 bg-white px-4 py-3 transition hover:border-primary-300 dark:border-slate-700 dark:bg-slate-900 border-l-4",
                 SEVERITY_BORDER[risk.severity],
-                isCompact ? "px-3 py-2" : "px-4 py-3",
             )}
         >
             <div className="flex items-center gap-3">
@@ -77,10 +73,8 @@ export function RiskCard({ risk, density, onTalentClick }: RiskCardProps) {
                 </div>
 
                 <div className="min-w-0 flex-1">
-                    <p className={cx("truncate font-medium text-primary", isCompact ? "text-sm" : "text-base")}>
-                        {risk.talent_name}
-                    </p>
-                    {!isCompact ? <p className="mt-0.5 text-xs text-slate-500">{risk.title}</p> : null}
+                    <p className="truncate text-base font-medium text-primary">{risk.talent_name}</p>
+                    <p className="mt-0.5 text-xs text-slate-500">{risk.title}</p>
                 </div>
 
                 <div className="flex shrink-0 items-center gap-1.5" onClick={(e) => e.stopPropagation()}>

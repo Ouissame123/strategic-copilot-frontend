@@ -37,14 +37,14 @@ export function AccountRowActions({
                 >
                     <span className="relative size-4" aria-hidden>
                         <KeyRound className="absolute inset-0 size-4 opacity-90" />
-                        <Pencil className="absolute -bottom-0.5 -right-0.5 size-2.5 text-violet-600 dark:text-violet-400" />
+                        <Pencil className="absolute -bottom-0.5 -right-0.5 size-2.5 text-primary-600 dark:text-primary-400" />
                     </span>
                 </button>
             ) : null}
 
             <div className="flex items-center gap-1.5 px-1" title={isActive ? "Désactiver" : "Activer"}>
                 {toggling ? (
-                    <Loader2 className="size-4 animate-spin text-violet-600" aria-hidden />
+                    <Loader2 className="size-4 animate-spin text-primary-600" aria-hidden />
                 ) : (
                     <Toggle
                         size="sm"

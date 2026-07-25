@@ -1,3 +1,5 @@
+import type { CopilotData } from "@/types/copilot-data.types";
+
 export type UserRole = "rh" | "manager" | "talent";
 export type UserStatus = "active" | "disabled";
 export type ProjectStatus = "planned" | "active" | "on_hold" | "completed" | "cancelled";
@@ -196,76 +198,74 @@ export interface DashboardResponse {
     };
 }
 
-/** Action principale renvoyée par `projects[].ai_recommendation.top_action`. */
+/** Action principale — fiche projet / Copilot uniquement (pas la liste v2.0). */
 export interface ProjectAiRecommendationTopAction {
-    id?: string | null;
-    label?: string | null;
-    rationale?: string | null;
-    type?: string | null;
-    confidence?: number | null;
+    id: string;
+    type: string;
+    rationale: string;
+    confidence: number;
 }
 
-/** Recommandation Strategist / Analyst sur une ligne projet (`GET /manager/projects`). */
+/** Recommandation IA — absente de `GET /manager/projects` v2.0 (fiche projet uniquement). */
 export interface ProjectAiRecommendation {
-    decision?: string | null;
-    decision_label?: string | null;
-    decision_color?: string | null;
-    decision_icon?: string | null;
-    viability_score?: number | null;
-    reason?: string | null;
-    reason_label?: string | null;
-    source_agent?: string | null;
-    confidence?: number | null;
-    explanation?: string | null;
-    top_action?: ProjectAiRecommendationTopAction | null;
-    arbitrages_pending?: number | null;
-    risks_count?: number | null;
-    arbitrage_options?: Array<{
-        id?: string | null;
-        type?: string | null;
-        label?: string | null;
-        rationale?: string | null;
-        confidence?: number | null;
-    }> | null;
-    risks_active?: Array<{
-        id?: string | null;
-        title?: string | null;
-        message?: string | null;
-        description?: string | null;
-        severity?: string | null;
-        risk_type?: string | null;
-        alert_code?: string | null;
-    }> | null;
-    warnings?: string[] | null;
+    viability_score: number;
+    decision: "Continue" | "Adjust" | "Stop";
+    confidence: number;
+    explanation: string;
+    explanation_clean: string;
+    computed_at: string;
+    decision_color: string;
+    decision_icon: string;
+    arbitrages_pending: number;
+    risks_count: number;
+    top_action: ProjectAiRecommendationTopAction | null;
 }
 
 /**
- * Ligne liste `GET /manager/projects` (Manager_Projects).
- * Champs optionnels (`fragility_score`, `top_insight`, `days_to_milestone`) : renvoyés par le backend list si disponibles — jamais dérivés côté React.
+ * Ligne exacte de `GET /manager/projects` (WF_Manager_Projects api_version v2.0).
+ * Lecture seule factuelle — aucun champ agent / score / décision.
  */
 export interface ProjectListItem {
     id: string;
     name: string;
     status: ProjectStatus;
+    status_label: string;
     priority: number;
     milestone_at: string | null;
+    start_date: string | null;
+    budget_rh_planned: number | null;
+    budget_rh_actual: number | null;
+    description: string | null;
+    created_at: string;
+    updated_at: string;
     team_size: number;
+    /** Somme des allocation_pct actives (peut dépasser 100). */
+    capacity_load_pct: number | null;
+    /** Calculé côté backend à partir de milestone_at. */
+    deadline_urgency: "overdue" | "urgent" | "warning" | "ok" | null;
+
+    /** @deprecated Absents du contrat liste v2.0 — ne plus lire ni afficher. */
     progress_pct?: number | null;
-    active_alerts_count: number;
-    latest_viability_score: number | null;
-    latest_decision: DecisionLabel | null;
-    /** Alias legacy */
-    decision?: DecisionLabel | null;
-    alerts_count?: number;
-    equipe_size?: number;
-    /** `project_risk_scores.fragility_score` — uniquement si renvoyé par GET list. */
+    /** @deprecated */
     fragility_score?: number | null;
-    /** Recommandation courte Strategist / alerte — uniquement si renvoyée par GET list. */
-    top_insight?: string | null;
-    /** Jours jusqu'au jalon — uniquement si calculé par le backend list. */
-    days_to_milestone?: number | null;
-    /** Recommandation IA portefeuille — renvoyée par GET list si disponible. */
+    /** @deprecated */
     ai_recommendation?: ProjectAiRecommendation | null;
+    /** @deprecated */
+    active_alerts_count?: number;
+    /** @deprecated */
+    latest_viability_score?: number | null;
+    /** @deprecated */
+    latest_decision?: DecisionLabel | null;
+    /** @deprecated */
+    decision?: DecisionLabel | null;
+    /** @deprecated */
+    alerts_count?: number;
+    /** @deprecated */
+    equipe_size?: number;
+    /** @deprecated */
+    top_insight?: string | null;
+    /** @deprecated */
+    days_to_milestone?: number | null;
 }
 
 /** Agrégats optionnels renvoyés par GET /webhook/manager/projects (si le workflow les expose). */
@@ -285,17 +285,19 @@ export interface ManagerProjectsListCounts {
 export interface ProjectsListResponse {
     items: ProjectListItem[];
     total: number;
-    counts?: ManagerProjectsListCounts;
+    enterprise_id: string;
+    filters_applied: { status: string | null; search: string | null; limit: number };
+    meta: { api_version: string; source_agent: string; computed_at: string };
 }
 export interface ManagerProjectsListResponse {
-    status: "success";
-    workflow?: string;
+    status: string;
+    workflow: string;
     operation: "list";
-    enterprise_id?: string;
+    enterprise_id: string;
     count: number;
     projects: ProjectListItem[];
-    counts?: ManagerProjectsListCounts;
-    filters_applied?: { status?: string | null; search?: string | null; limit?: number | null } | null;
+    filters_applied: { status: string | null; search: string | null; limit: number };
+    meta: { api_version: string; source_agent: string; computed_at: string };
 }
 export interface CreateProjectRequest { name: string; status: ProjectStatus; priority: number; milestone_at?: string; start_date?: string; budget_rh_planned?: number; description?: string }
 export interface UpdateProjectRequest extends Partial<CreateProjectRequest> {}
@@ -306,7 +308,15 @@ export interface WmpUpdateProjectPatchBody {
     priority: number;
     milestone_at: string | null;
 }
-export interface ProjectCreatedResponse { project: ProjectListItem }
+export interface ProjectCreatedResponse {
+    status?: string;
+    workflow?: string;
+    operation?: "create" | string;
+    project_id?: string;
+    enterprise_id?: string;
+    project: ProjectListItem;
+    meta?: { api_version?: string; source_agent?: string; computed_at?: string };
+}
 export interface ProjectUpdatedResponse { project: ProjectListItem }
 export interface AssignmentItem {
     id?: string;
@@ -396,10 +406,25 @@ export interface ArbitrageOption {
     status?: ArbitrageOptionStatus;
     created_at?: string;
 }
-export interface ProjectFull extends ProjectListItem {
+/** Projet détaillé — contrat distinct de la ligne portefeuille. */
+export interface ProjectFull {
+    id: string;
+    name: string;
+    status: ProjectStatus;
+    priority: number;
+    milestone_at?: string | null;
+    progress_pct?: number | null;
     description?: string;
     start_date?: string;
     budget_rh_planned?: number;
+    budget_rh_actual?: number;
+    team_size?: number;
+    capacity_load_pct?: number | null;
+    fragility_score?: number | null;
+    ai_recommendation?: ProjectAiRecommendation | null;
+    latest_viability_score?: number | null;
+    latest_decision?: DecisionLabel | null;
+    active_alerts_count?: number;
     /** TODO backend : exposer via DETAIL projet (WF_Manager_Project). */
     requirements_count?: number;
 }
@@ -432,6 +457,19 @@ export interface AssignTalentRequest {
 }
 export interface AssignmentResponse { assignment: AssignmentItem }
 export interface UnassignmentResponse { success: boolean }
+export interface ProjectDeleteResponse {
+    status?: string;
+    workflow?: string;
+    action?: string;
+    success?: boolean;
+    deleted_project_id: string;
+    name?: string | null;
+    previous_status?: string | null;
+    deleted_by?: string | null;
+    deleted_at?: string | null;
+    cascade_note?: string | null;
+    meta?: { api_version?: string; source_agent?: string; computed_at?: string };
+}
 
 /** Projet où le talent a la plus forte allocation (CTE talent_top_project côté backend). */
 export interface TalentTopProject {
@@ -716,17 +754,79 @@ export interface ProposeRequest {
     project_id: string;
     use_ai?: boolean;
 }
-export interface ProposeResponse { options: ArbitrageOption[] }
+
+export interface StrategistTopRecommendation {
+    id: string;
+    option_type: ArbitrageOptionType;
+    rationale: string;
+    confidence: number;
+}
+
+export interface ProposeResponse {
+    status: "success";
+    enterprise_id?: string;
+    project_id?: string;
+    project_name?: string;
+    analysis_run_id?: string;
+    manager_summary?: string;
+    top_recommendation?: StrategistTopRecommendation | null;
+    options: ArbitrageOption[];
+    context_summary?: {
+        alerts_count?: number;
+        assignments_count?: number;
+        days_to_deadline?: number;
+        total_load_pct?: number;
+        requirements_count?: number;
+    };
+    ai?: {
+        llm_enriched?: boolean;
+        provider?: string;
+        model?: string;
+        confidence_global?: number;
+    };
+}
+
 export interface ExecuteRequest {
     enterprise_id: string;
     option_id: string;
     action: "execute" | "reject";
+    /** Utilisateur courant (auth). */
+    actor_user_id?: string;
+    /** `meta.analysis_run_id` de la réponse Orchestrateur si connu. */
+    orchestrator_run_id?: string;
 }
+
 export type StrategistExecuteActionTaken = "scope_reduced" | "project_paused" | "no_action_possible";
 
-/** Réponse structurée WF_Strategist_Accept (notamment Stop / Scope). */
+/** Réponse POST /api/strategist/execute */
 export interface ExecuteResponse {
     status?: string;
+    action?: "execute" | "reject";
+    option_id?: string;
+    option_type?: ArbitrageOptionType;
+    project_id?: string;
+    decision_executed?: {
+        action: string;
+        summary: string;
+        business_effect: string;
+        status: "executed" | "rejected" | "logged_only" | "failed";
+        impact: {
+            delay_days: number;
+            dropped_requirements_count: number;
+            project_paused: boolean;
+        };
+    };
+    ui?: {
+        badges?: Array<{ label: string; tone: string }>;
+        highlights?: string[];
+    };
+    db_result?: {
+        project_updated: { id: string; milestone_at: string | null } | null;
+        option_status?: string;
+        rh_action_id: string | null;
+        copilot_decision_id: string | null;
+        notification_id: string | null;
+    };
     workflow?: string;
     action_type?: string;
     action_taken?: StrategistExecuteActionTaken | string;
@@ -782,3 +882,222 @@ export interface RiskKpiResponse {
     >;
 }
 export interface TalentMatchingResponse { project_id: string; talents: Array<{ talent_id: string; score: number; rationale: string }> }
+
+// ── Mission Control — détail projet enrichi ─────────────────────────────────
+
+export type LifecycleStatus = "initiation" | "planned" | "active" | "on_hold" | "completed" | "cancelled";
+export type LifecycleStepState = "done" | "active" | "idle" | "blocked";
+
+export interface LifecycleStep {
+    id: LifecycleStatus;
+    label: string;
+    state: LifecycleStepState;
+    completedAt?: string;
+}
+
+export interface MissionControlProject {
+    id: string;
+    name: string;
+    status: ProjectStatus;
+    priority: number | null;
+    milestone_at: string | null;
+    start_date: string | null;
+    budget_rh_planned: number | null;
+    budget_rh_actual: number | null;
+    description: string | null;
+    created_at: string;
+    updated_at: string;
+    /** Somme des allocation_pct actives (GET detail v2.1) — peut dépasser 100. */
+    capacity_load_pct: number | null;
+}
+
+export interface MissionControlAssignment {
+    id: string;
+    talent_id: string;
+    talent_name: string | null;
+    talent_email: string | null;
+    allocation_pct: number;
+    role_on_project: string | null;
+    assignment_type: WmpAssignmentType;
+    start_date: string | null;
+    end_date: string | null;
+    status: string;
+}
+
+export interface MissionControlRequirement {
+    id: string;
+    skill_id: string;
+    skill_name: string | null;
+    level_required: number | null;
+    criticality: string | null;
+    is_mandatory: boolean;
+    weight: number | null;
+}
+
+export interface MissionControlRiskAlert {
+    id: string;
+    risk_type: string;
+    severity: "critical" | "high" | "medium" | "low";
+    message: string;
+    risk_score: number;
+    entity_type: string;
+    entity_id: string;
+    impact_area: string;
+    owner_role: string;
+    detected_at: string;
+    pdf_rule?: string;
+}
+
+export interface MissionControlLatestViability {
+    viability_score: number;
+    decision: DecisionLabel;
+    reason_code: string;
+    confidence: number;
+    score_skills_fit: number | null;
+    score_capacity: number | null;
+    score_budget: number | null;
+    score_risk: number | null;
+    explanation: string | null;
+    computed_at: string;
+}
+
+export interface MissionControlLatestKpi {
+    progress_pct: number | null;
+    delay_days: number | null;
+    capacity_load_pct: number | null;
+    time_to_impact_days: number | null;
+    strategic_alignment_score: number | null;
+    project_health_score: number | null;
+    computed_at: string;
+}
+
+export interface MissionControlRiskScores {
+    fragility_score: number | null;
+    anxiety_pulse: number | null;
+    key_talent_dependency_score: number | null;
+    chronic_overload_score: number | null;
+    critical_skills_gap_score: number | null;
+    conflict_score: number | null;
+    turnover_score: number | null;
+    computed_at: string | null;
+}
+
+export interface MissionControlArbitrageImpact {
+    expected_risk_reduction?: number;
+    expected_capacity_gain_pct?: number;
+    delta_days?: number;
+    current_milestone_at?: string;
+    proposed_milestone_at?: string;
+    proposed_hires?: number;
+    uncovered_skills?: string[];
+    uncovered_skills_count?: number;
+    critical_gap_count?: number;
+    candidates?: Array<{
+        talent_id: string;
+        talent_name: string;
+        current_load_pct: number;
+        matching_skills_count?: number;
+        proposed_allocation_pct: number;
+    }>;
+    business_cost?: string;
+    droppable_requirements?: Array<{
+        id?: string;
+        skill_id?: string;
+        skill_name?: string;
+        priority?: number | string;
+        weight?: number;
+    }>;
+    note?: string;
+}
+
+export interface MissionControlArbitrageOption {
+    id: string;
+    option_type: ArbitrageOptionType;
+    rationale: string;
+    confidence: number;
+    status: "proposed" | "executed" | "rejected";
+    created_at: string;
+    impact_json: MissionControlArbitrageImpact;
+    trade_off_label?: string;
+    user_confirmation_required?: boolean;
+    audit_logged?: boolean;
+}
+
+export interface MissionControlAiRecommendation {
+    decision: DecisionLabel | null;
+    decision_label: string;
+    decision_color: "green" | "orange" | "red" | "gray";
+    decision_icon: string;
+    viability_score: number | null;
+    reason_code: string;
+    reason_label: string;
+    source_agent: string;
+    confidence: number | null;
+    explanation: string | null;
+    scores: {
+        skills_fit: number | null;
+        capacity: number | null;
+        budget: number | null;
+        risk: number | null;
+    };
+    arbitrage_options: MissionControlArbitrageOption[];
+    risks_active: MissionControlRiskAlert[];
+    computed_at: string | null;
+}
+
+/** Synthèse viabilité exposée sur GET /manager/projects/:id (Overview). */
+export type ProjectViabilityDecision = "Proceed" | "Adjust" | "Reject";
+
+export interface ProjectViability {
+    score: number;
+    decision: ProjectViabilityDecision;
+    explanation: string;
+    computed_at: string;
+}
+
+export interface ProjectDetail {
+    status: string;
+    enterprise_id: string;
+    project: MissionControlProject;
+    assignments: MissionControlAssignment[];
+    requirements: MissionControlRequirement[];
+    active_alerts: MissionControlRiskAlert[];
+    latest_viability: MissionControlLatestViability | null;
+    /**
+     * Viabilité normalisée pour l’Overview (`null` = pas encore analysé).
+     * Dérivée du même GET détail — pas de requête dédiée.
+     */
+    viability: ProjectViability | null;
+    latest_kpi: MissionControlLatestKpi | null;
+    risk_scores: MissionControlRiskScores | null;
+    arbitrage_options: MissionControlArbitrageOption[];
+    ai_recommendation: MissionControlAiRecommendation | null;
+    /** Synthèse WF_Strategic_Orchestrator — pass-through API viability / wmp-detail. */
+    copilot_data: CopilotData | null;
+}
+
+export type PatchProjectPayload = WmpUpdateProjectPatchBody | { description: string };
+export type ManagerProjectPatchBody = PatchProjectPayload;
+
+export interface WhatIfRequest {
+    project_id: string;
+    enterprise_id: string;
+    modifications: {
+        allocation_pct?: number;
+        added_talent_id?: string | null;
+        training_skill_id?: string | null;
+    };
+}
+
+export interface ExecuteArbitrageRequest {
+    option_id: string;
+    enterprise_id: string;
+    action: "execute" | "reject";
+}
+
+export interface RecomputeRequest {
+    project_id: string;
+    enterprise_id: string;
+    force_refresh?: boolean;
+}
+

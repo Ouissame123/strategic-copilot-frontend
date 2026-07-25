@@ -1,12 +1,10 @@
-import { Bell, Shield, Sparkles, User } from "lucide-react";
+import { Shield, User } from "lucide-react";
 import { cx } from "@/utils/cx";
 import type { ProfileTabId } from "./profile-shared";
 
 const TABS: { id: ProfileTabId; label: string; icon: typeof User }[] = [
     { id: "account", label: "Compte", icon: User },
     { id: "security", label: "Sécurité", icon: Shield },
-    { id: "notifications", label: "Notifications", icon: Bell },
-    { id: "ai", label: "Préférences IA", icon: Sparkles },
 ];
 
 type ProfileTabsProps = {
@@ -28,7 +26,7 @@ export function ProfileTabs({ active, onChange }: ProfileTabsProps) {
                         className={cx(
                             "flex shrink-0 items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-medium transition-all duration-200",
                             isActive
-                                ? "bg-white text-indigo-700 shadow-sm dark:bg-slate-800 dark:text-indigo-300"
+                                ? "bg-white text-primary-700 shadow-sm dark:bg-slate-800 dark:text-primary-300"
                                 : "text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100",
                         )}
                     >

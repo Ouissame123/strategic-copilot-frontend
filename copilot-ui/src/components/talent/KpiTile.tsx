@@ -11,8 +11,8 @@ const PROGRESS_COLORS: Record<KpiProgressColor, string> = {
     yellow: "bg-amber-500",
     orange: "bg-orange-500",
     red: "bg-red-500",
-    violet: "bg-violet-500",
-    blue: "bg-blue-500",
+    violet: "bg-primary-500",
+    blue: "bg-primary-500",
 };
 
 type KpiTileProps = {

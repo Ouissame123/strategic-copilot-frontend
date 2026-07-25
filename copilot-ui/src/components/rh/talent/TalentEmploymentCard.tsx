@@ -140,7 +140,7 @@ export function TalentEmploymentCard({
         <section
             className={cx(
                 RH_CARD,
-                "overflow-hidden border-slate-200/80 bg-gradient-to-br from-white via-slate-50/80 to-sky-50/20 p-0 shadow-sm backdrop-blur-sm dark:border-slate-700/80 dark:from-slate-900 dark:via-slate-900 dark:to-sky-950/10",
+                "overflow-hidden border-slate-200/80 bg-gradient-to-br from-white via-slate-50/80 to-primary-50/20 p-0 shadow-sm backdrop-blur-sm dark:border-slate-700/80 dark:from-slate-900 dark:via-slate-900 dark:to-primary-950/10",
             )}
         >
             <div className="flex flex-wrap items-start justify-between gap-2 border-b border-slate-100/90 px-3 py-2.5 dark:border-slate-800">

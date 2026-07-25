@@ -39,7 +39,6 @@ import {
     RhMobilityPage,
     RhProfilePage,
     RhWorkforceArbitrationPage,
-    RhChatPage,
 } from "@/pages/workspace/rh";
 import AdminLayout from "@/layouts/admin-layout";
 import AdminUsersPage from "@/pages/admin/AdminUsersPage";
@@ -54,7 +53,7 @@ import RisksPage from "@/pages/manager/RisksPage";
 import ReportsPage from "@/pages/manager/ReportsPage";
 import ManagerDecisionLogPage from "@/pages/manager/DecisionLogPage";
 import ManagerProfilePage from "@/pages/manager/ProfilePage";
-import NotificationsPage from "@/pages/manager/NotificationsPage";
+import RisquesAlertesPage from "@/pages/manager/RisquesAlertesPage";
 import HelperChatPage from "@/pages/manager/HelperChatPage";
 import ValidationsPage from "@/pages/manager/ValidationsPage";
 import ManagerRhRequestsPage from "@/pages/workspace/manager/manager-rh-requests-page";
@@ -76,7 +75,7 @@ import TalentWorkspaceAppLayout from "@/layouts/talent-workspace-app-layout";
 
 createRoot(document.getElementById("root")!).render(
     <StrictMode>
-        <ThemeProvider>
+        <ThemeProvider defaultTheme="dark">
             <AuthProvider>
                 <QueryClientProviderWrapper>
                     <ToastProvider>
@@ -156,10 +155,10 @@ createRoot(document.getElementById("root")!).render(
                                         <Route index element={<Navigate to="dashboard" replace />} />
                                         <Route path="dashboard" element={<RhDashboardPage />} />
                                         <Route path="employees" element={<RhEmployeesPage />} />
-                                        <Route path="copilot" element={<Navigate to="/workspace/rh/chat" replace />} />
+                                        <Route path="copilot" element={<Navigate to="/workspace/rh/dashboard" replace />} />
+                                        <Route path="chat" element={<Navigate to="/workspace/rh/dashboard" replace />} />
                                         <Route path="mobility" element={<RhMobilityPage />} />
                                         <Route path="workforce-arbitration" element={<RhWorkforceArbitrationPage />} />
-                                        <Route path="chat" element={<RhChatPage />} />
                                         <Route path="profile" element={<RhProfilePage />} />
                                         <Route path="accounts/health" element={<AdminAccountsHealthLegacyRedirect />} />
                                         <Route path="accounts" element={<AdminAccountsLegacyRedirect />} />
@@ -199,7 +198,8 @@ createRoot(document.getElementById("root")!).render(
                                         <Route path="reports" element={<ReportsPage />} />
                                         <Route path="validations" element={<ValidationsPage />} />
                                         <Route path="decision-log" element={<ManagerDecisionLogPage />} />
-                                        <Route path="notifications" element={<NotificationsPage />} />
+                                        <Route path="risques-alertes" element={<RisquesAlertesPage />} />
+                                        <Route path="notifications" element={<Navigate to="/workspace/manager/risques-alertes" replace />} />
                                         <Route path="helper" element={<HelperChatPage />} />
                                         <Route path="profile" element={<ManagerProfilePage />} />
                                         <Route path="portfolio" element={<Navigate to="/workspace/manager/projects" replace />} />

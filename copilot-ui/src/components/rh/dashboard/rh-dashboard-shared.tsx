@@ -45,10 +45,10 @@ export const SEV_META: Record<
         border: "border-slate-200 dark:border-slate-700",
     },
     info: {
-        dot: "bg-sky-500",
-        text: "text-sky-700 dark:text-sky-300",
-        bg: "bg-sky-50/80 dark:bg-sky-950/30",
-        border: "border-sky-200/80 dark:border-sky-900/50",
+        dot: "bg-primary-500",
+        text: "text-primary-700 dark:text-primary-300",
+        bg: "bg-primary-50/80 dark:bg-primary-950/30",
+        border: "border-primary-200/80 dark:border-primary-900/50",
     },
 };
 
@@ -86,14 +86,14 @@ export function DashboardSection({
             className={cx(
                 RH_DASH_SECTION,
                 variant === "ai" &&
-                    "border-violet-200/70 bg-gradient-to-br from-white via-white to-violet-50/30 dark:border-violet-900/40 dark:from-slate-900 dark:via-slate-900 dark:to-violet-950/15",
+                    "border-primary-200/70 bg-gradient-to-br from-white via-white to-primary-50/30 dark:border-primary-900/40 dark:from-slate-900 dark:via-slate-900 dark:to-primary-950/15",
                 className,
             )}
         >
             <div className="flex flex-wrap items-start justify-between gap-3 border-b border-slate-100 px-4 py-3 dark:border-slate-800">
                 <div className="min-w-0">
                     {eyebrow ? (
-                        <p className="text-[10px] font-bold uppercase tracking-widest text-violet-600 dark:text-violet-400">
+                        <p className="text-[10px] font-bold uppercase tracking-widest text-primary-600 dark:text-primary-400">
                             {eyebrow}
                         </p>
                     ) : null}
@@ -122,20 +122,20 @@ export function CompactKpi({
 }) {
     const toneCls = {
         neutral: "from-slate-50/80 to-white dark:from-slate-800/50 dark:to-slate-900",
-        violet: "from-violet-50/90 to-white dark:from-violet-950/25 dark:to-slate-900",
+        violet: "from-primary-50/90 to-white dark:from-primary-950/25 dark:to-slate-900",
         amber: "from-amber-50/90 to-white dark:from-amber-950/20 dark:to-slate-900",
         emerald: "from-emerald-50/90 to-white dark:from-emerald-950/20 dark:to-slate-900",
         rose: "from-rose-50/90 to-white dark:from-rose-950/20 dark:to-slate-900",
-        sky: "from-sky-50/90 to-white dark:from-sky-950/20 dark:to-slate-900",
+        sky: "from-primary-50/90 to-white dark:from-primary-950/20 dark:to-slate-900",
     }[tone];
 
     const iconCls = {
         neutral: "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300",
-        violet: "bg-violet-100 text-violet-700 dark:bg-violet-950/50 dark:text-violet-300",
+        violet: "bg-primary-100 text-primary-700 dark:bg-primary-950/50 dark:text-primary-300",
         amber: "bg-amber-100 text-amber-700 dark:bg-amber-950/50 dark:text-amber-300",
         emerald: "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300",
         rose: "bg-rose-100 text-rose-700 dark:bg-rose-950/50 dark:text-rose-300",
-        sky: "bg-sky-100 text-sky-700 dark:bg-sky-950/50 dark:text-sky-300",
+        sky: "bg-primary-100 text-primary-700 dark:bg-primary-950/50 dark:text-primary-300",
     }[tone];
 
     return (
@@ -255,7 +255,7 @@ export function MiniDist({ title, data, hint }: { title: string; data: Record<st
                         </span>
                         <div className={cx("h-1.5 flex-1 overflow-hidden rounded-full", WS_MUTED_SURFACE)}>
                             <div
-                                className="h-full rounded-full bg-violet-400/80 dark:bg-violet-500/70"
+                                className="h-full rounded-full bg-primary-400/80 dark:bg-primary-500/70"
                                 style={{ width: `${(v / max) * 100}%` }}
                             />
                         </div>

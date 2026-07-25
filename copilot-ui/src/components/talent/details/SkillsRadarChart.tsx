@@ -18,7 +18,7 @@ function SkillLevelDots({ level }: { level: number }) {
             {[1, 2, 3, 4, 5].map((i) => (
                 <span
                     key={i}
-                    className={`inline-block h-2 w-2 rounded-full ${i <= n ? "bg-indigo-500" : "bg-slate-200 dark:bg-slate-700"}`}
+                    className={`inline-block h-2 w-2 rounded-full ${i <= n ? "bg-primary-500" : "bg-slate-200 dark:bg-slate-700"}`}
                 />
             ))}
         </span>
@@ -71,7 +71,7 @@ function PolarRadar({ categories, values }: { categories: string[]; values: numb
                 const [x, y] = point(i, radius);
                 return <line key={i} x1={cx} y1={cy} x2={x} y2={y} stroke="#cbd5e1" strokeWidth="0.5" />;
             })}
-            <polygon points={polygon} fill="#6366f1" fillOpacity="0.2" stroke="#6366f1" strokeWidth="1.5" />
+            <polygon points={polygon} fill="var(--color-primary-500)" fillOpacity="0.2" stroke="var(--color-primary-500)" strokeWidth="1.5" />
             {categories.map((label, i) => {
                 const [x, y] = point(i, radius + 18);
                 const short = label.length > 10 ? `${label.slice(0, 9)}…` : label;

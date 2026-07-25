@@ -5,7 +5,7 @@ import { Button } from "@/components/base/buttons/button";
 import { Label } from "@/components/base/input/label";
 import { NativeSelect } from "@/components/base/select/select-native";
 import { Slider } from "@/components/base/slider/slider";
-import type { WhatIfModifications } from "@/api/whatif.types";
+import type { WhatIfFieldErrors, WhatIfModifications } from "@/api/whatif.types";
 
 export type SimulationOption = { id: string; label: string };
 
@@ -14,6 +14,9 @@ type SimulationFormProps = {
     availableSkills: SimulationOption[];
     isLoading: boolean;
     isFrozen?: boolean;
+    initialTalentId?: string;
+    initialAllocPct?: number;
+    fieldErrors?: WhatIfFieldErrors;
     onRun: (mods: WhatIfModifications) => void;
 };
 
@@ -22,16 +25,19 @@ export function SimulationForm({
     availableSkills,
     isLoading,
     isFrozen = false,
+    initialTalentId = "",
+    initialAllocPct = 0,
+    fieldErrors,
     onRun,
 }: SimulationFormProps) {
     const { t } = useTranslation("common");
     const tm = (key: string) => t(`managerWorkspace.missionControl.${key}`);
 
-    const [allocPct, setAllocPct] = useState(0);
-    const [talentId, setTalentId] = useState("");
+    const [allocPct, setAllocPct] = useState(initialAllocPct);
+    const [talentId, setTalentId] = useState(initialTalentId);
     const [skillId, setSkillId] = useState("");
 
-    const hasAnyMod = allocPct > 0 || Boolean(talentId) || Boolean(skillId);
+    const hasAnyMod = allocPct !== 0 || Boolean(talentId) || Boolean(skillId);
     const disabled = !hasAnyMod || isLoading || isFrozen;
 
     return (
@@ -41,12 +47,10 @@ export function SimulationForm({
                     <Sliders className="size-5" aria-hidden />
                     {tm("whatIfParamsTitle")}
                 </h2>
-                <p className="mt-1 text-xs text-fg-tertiary">
-                    {tm("whatIfNoPersistence")}
-                </p>
+                <p className="mt-1 text-xs text-fg-tertiary">{tm("whatIfNoPersistence")}</p>
             </header>
 
-            <p className="mb-5 rounded-lg border border-violet-200 bg-violet-50/60 px-3 py-2 text-xs text-violet-900 dark:border-violet-800 dark:bg-violet-950/30 dark:text-violet-100">
+            <p className="mb-5 rounded-lg border border-primary-200 bg-primary-50/60 px-3 py-2 text-xs text-primary-900 dark:border-primary-800 dark:bg-primary-950/30 dark:text-primary-100">
                 {tm("whatIfHelpBanner")}
             </p>
 
@@ -60,7 +64,7 @@ export function SimulationForm({
                         aria-label={tm("whatIfAllocLabel")}
                         value={allocPct}
                         onChange={setAllocPct}
-                        minValue={0}
+                        minValue={-100}
                         maxValue={200}
                         step={5}
                         isDisabled={isFrozen}
@@ -68,10 +72,13 @@ export function SimulationForm({
                         labelFormatter={(v) => `${v}%`}
                     />
                     <div className="mt-1 flex justify-between text-xs text-fg-quaternary">
+                        <span>-100%</span>
                         <span>0%</span>
-                        <span>100%</span>
                         <span>200%</span>
                     </div>
+                    {fieldErrors?.allocation_pct ? (
+                        <p className="mt-1 text-xs text-rose-600">{fieldErrors.allocation_pct}</p>
+                    ) : null}
                 </div>
 
                 <div>
@@ -89,6 +96,9 @@ export function SimulationForm({
                             ...availableTalents.map((talent) => ({ label: talent.label, value: talent.id })),
                         ]}
                     />
+                    {fieldErrors?.added_talent_id ? (
+                        <p className="mt-1 text-xs text-rose-600">{fieldErrors.added_talent_id}</p>
+                    ) : null}
                 </div>
 
                 <div>
@@ -102,11 +112,16 @@ export function SimulationForm({
                         onChange={(e) => setSkillId(e.target.value)}
                         disabled={isFrozen}
                         options={[
-                            { label: tm("whatIfNoneOption"), value: "" },
+                            { label: tm("whatIfNoneSkillOption"), value: "" },
                             ...availableSkills.map((skill) => ({ label: skill.label, value: skill.id })),
                         ]}
                     />
+                    {fieldErrors?.training_skill_id ? (
+                        <p className="mt-1 text-xs text-rose-600">{fieldErrors.training_skill_id}</p>
+                    ) : null}
                 </div>
+
+                {fieldErrors?._form ? <p className="text-xs text-rose-600">{fieldErrors._form}</p> : null}
 
                 <Button
                     type="button"
@@ -132,5 +147,4 @@ export function SimulationForm({
     );
 }
 
-// Garde-fou CI : allocation_pct borné [0..200] côté UI
 export const SIMULATION_ALLOC_MAX = 200;

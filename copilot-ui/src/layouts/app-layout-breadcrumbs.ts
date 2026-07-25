@@ -108,14 +108,14 @@ export function resolveBreadcrumbs(pathname: string, t: Translate, options?: Bre
     if (matchPath({ path: "/workspace/rh/mobility", end: true }, pathname)) {
         return [hub(), { label: "Demandes & Actions RH" }];
     }
-    if (matchPath({ path: "/workspace/rh/chat", end: true }, pathname)) {
-        return [hub(), { label: "Assistant RH IA" }];
-    }
     if (matchPath({ path: "/workspace/rh/projects", end: true }, pathname)) {
         return [hub(), { label: t("nav:projects") }];
     }
     if (matchPath({ path: "/workspace/rh/profile", end: true }, pathname)) {
-        return [hub(), { label: t("nav:profile") }];
+        return [
+            { to: workspaceHubHref(pathname), label: t("common:rhPlaceholder.eyebrow") },
+            { label: t("nav:profile") },
+        ];
     }
     if (matchPath({ path: "/workspace/rh/decision-log", end: true }, pathname)) {
         return [hub(), { label: t("nav:decisionLog") }];
@@ -167,6 +167,9 @@ export function resolveBreadcrumbs(pathname: string, t: Translate, options?: Bre
     }
     if (matchPath({ path: "/workspace/manager/team", end: true }, pathname)) {
         return [hub(), { label: t("nav:managerNavTeam") }];
+    }
+    if (matchPath({ path: "/workspace/manager/risques-alertes", end: true }, pathname)) {
+        return [hub(), { label: t("nav:managerNavRisks") }];
     }
     if (matchPath({ path: "/workspace/manager/risks", end: true }, pathname)) {
         return [hub(), { label: t("nav:managerNavRisks") }];

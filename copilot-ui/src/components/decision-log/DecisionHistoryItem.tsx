@@ -9,14 +9,12 @@ import {
     timeAgo,
 } from "@/utils/decisionLogHelpers";
 import { decisionBadgeClass } from "./decision-log-ui";
-import type { DecisionLogDensity } from "./DensityToggle";
 import { cx } from "@/utils/cx";
 import i18n from "@/i18n";
 import { localeForDateFormatting } from "@/lib/ui-locale";
 
 type DecisionHistoryItemProps = {
     decision: DecisionLogDecision;
-    density: DecisionLogDensity;
     onOpenProject: () => void;
     onUpdateStatus: (action: DecisionStatusAction) => void;
     statusUpdating?: boolean;
@@ -26,7 +24,6 @@ type DecisionHistoryItemProps = {
 
 export function DecisionHistoryItem({
     decision,
-    density,
     onOpenProject,
     onUpdateStatus,
     statusUpdating,
@@ -37,7 +34,7 @@ export function DecisionHistoryItem({
     const kind = normalizeDecisionKind(decision.decision);
     const status = decisionLogStatus(decision);
     const badgeStyle = decisionBadgeClass[kind] ?? decisionBadgeClass.other;
-    const padding = density === "compact" ? "px-4 py-2.5" : "px-4 py-3.5";
+    const padding = "px-4 py-3.5";
     const score = Number(decision.score ?? 0);
     const confPct = confidencePercent(decision.confidence);
     const fullDate = new Date(decision.created_at).toLocaleString(localeForDateFormatting(i18n.language), {

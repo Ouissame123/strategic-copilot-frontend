@@ -14,12 +14,12 @@ function isDone(row: TrainingRow): boolean {
 function statusTone(status: string): string {
     const s = status.toLowerCase();
     if (s.includes("cert")) return "bg-[#eafaf3] text-[#15803d]";
-    if (s.includes("actif") || s.includes("active") || s.includes("progress")) return "bg-[#ede9ff] text-[#5a4de0]";
-    return "bg-[#eff6ff] text-[#1d4ed8]";
+    if (s.includes("actif") || s.includes("active") || s.includes("progress")) return "bg-primary-50 text-primary-700";
+    return "bg-primary-50 text-primary-700";
 }
 
 function progressColor(index: number): string {
-    const palette = ["#22c27a", "#7c6ef5", "#3b82f6", "#a0a3bd"];
+    const palette = ["#22c27a", "var(--color-primary-600)", "var(--color-primary-400)", "#a0a3bd"];
     return palette[index % palette.length]!;
 }
 
@@ -52,7 +52,7 @@ export function TalentTrainingPage() {
                         {activeCount} formations en cours · {availableCount} disponibles
                     </p>
                 </div>
-                <button type="button" className="rounded-lg bg-[#7c6ef5] px-3.5 py-2 text-sm font-medium text-white transition hover:bg-[#5a4de0]">
+                <button type="button" className="rounded-lg bg-primary-600 px-3.5 py-2 text-sm font-medium text-white transition hover:bg-primary-700">
                     Explorer le catalogue
                 </button>
             </header>

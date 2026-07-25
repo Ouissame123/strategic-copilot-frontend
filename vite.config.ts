@@ -49,9 +49,9 @@ export default defineConfig(({ mode }) => {
         changeOrigin: true,
         /** Vérification TLS stricte vers n8n (requis pour relayer correctement depuis HTTP local). */
         secure: true,
-        // PATCH/PUT lourds: délais plus permissifs pour éviter les faux 5xx proxy.
-        timeout: 60_000,
-        proxyTimeout: 60_000,
+        // PATCH/PUT lourds + WF_What_If (~50s+) : délais plus permissifs pour éviter les faux timeouts proxy.
+        timeout: 120_000,
+        proxyTimeout: 120_000,
         configure: attachProxyDebug,
     };
 

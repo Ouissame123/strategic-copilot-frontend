@@ -18,7 +18,7 @@ export function TalentWorkloadChart({ title = "Charge hebdomadaire", points }: T
                         return (
                             <div key={`${point.label}-${point.value}`} className="flex flex-1 flex-col items-center gap-2">
                                 <span className="text-xs font-semibold text-secondary">{value}%</span>
-                                <div className="w-full rounded-t-md bg-[#7c6ef5]/90" style={{ height: `${value}%` }} />
+                                <div className="w-full rounded-t-md bg-primary-600/90" style={{ height: `${value}%` }} />
                                 <span className="text-xs text-tertiary">{point.label}</span>
                             </div>
                         );

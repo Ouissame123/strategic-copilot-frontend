@@ -73,6 +73,16 @@ export function buildN8nUrl(path: string): string {
 }
 
 /**
+ * URLs pour `fetch()` navigateur — en dev, toujours chemins relatifs `/webhook/...` via proxy Vite.
+ * Ignore `VITE_N8N_DIRECT_IN_DEV` (réservé à axios) pour éviter les erreurs CORS cross-origin.
+ */
+export function buildBrowserFetchN8nUrl(path: string): string {
+    const cleanPath = path.startsWith("/") ? path : `/${path}`;
+    if (import.meta.env.DEV) return cleanPath;
+    return buildN8nUrl(cleanPath);
+}
+
+/**
  * Base utilisée **uniquement par axios** (`httpClient`). Permet en dev d’appeler n8n en direct pour les requêtes
  * axios tout en laissant `getN8nBaseUrl()` vide pour le login (`fetch` + `backendApi`) qui passe par le proxy Vite.
  *

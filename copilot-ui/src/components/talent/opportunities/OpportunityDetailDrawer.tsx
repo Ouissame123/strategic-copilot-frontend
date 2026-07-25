@@ -9,6 +9,7 @@ import { useExpressInterest, useTalentOpportunityDetail } from "@/hooks/useTalen
 import type { OpportunityListItem } from "@/types/talent-opportunities";
 import { formatViabilityScoreDisplay } from "@/utils/format";
 import { cx } from "@/utils/cx";
+import { parseMatchmakerNote } from "@/features/talent/opportunities";
 import {
     PRIORITY_TONES,
     RECO_TONES,
@@ -103,6 +104,7 @@ export function OpportunityDetailDrawer({ open, projectId, listRow, onClose }: O
         opportunity?.can_express_interest ??
         (listRow ? !listRow.already_interested : false);
     const alreadyInterested = opportunity?.already_interested ?? listRow?.already_interested ?? false;
+    const matchmakerNote = parseMatchmakerNote(opportunity?.match_summary ?? listRow?.match_summary).qualitativeNote;
 
     const handleExpress = () => {
         expressMutation.mutate(
@@ -186,12 +188,12 @@ export function OpportunityDetailDrawer({ open, projectId, listRow, onClose }: O
                                 </div>
                             </section>
 
-                            {opportunity.match_summary ? (
+                            {matchmakerNote ? (
                                 <section>
                                     <h3 className="text-xs font-semibold uppercase tracking-wide text-tertiary">
                                         Analyse Matchmaker
                                     </h3>
-                                    <p className="mt-2 text-sm text-secondary">{opportunity.match_summary}</p>
+                                    <p className="mt-2 text-xs italic text-tertiary">{matchmakerNote}</p>
                                 </section>
                             ) : null}
 

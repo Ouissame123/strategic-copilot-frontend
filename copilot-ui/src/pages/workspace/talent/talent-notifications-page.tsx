@@ -9,9 +9,9 @@ function badgeTone(label: string): string {
     const s = label.toLowerCase();
     if (s.includes("urgent")) return "bg-[#fef2f2] text-[#991b1b]";
     if (s.includes("tache")) return "bg-[#fffbeb] text-[#92400e]";
-    if (s.includes("badge")) return "bg-[#ede9ff] text-[#5a4de0]";
+    if (s.includes("badge")) return "bg-primary-50 text-primary-700";
     if (s.includes("formation")) return "bg-[#eafaf3] text-[#15803d]";
-    if (s.includes("projet")) return "bg-[#eff6ff] text-[#1d4ed8]";
+    if (s.includes("projet")) return "bg-primary-50 text-primary-700";
     return "bg-[#f3f4f6] text-[#6b7280]";
 }
 
@@ -29,9 +29,9 @@ function iconBgByLabel(label: string): string {
     const s = label.toLowerCase();
     if (s.includes("urgent")) return "bg-[#fef2f2]";
     if (s.includes("tache")) return "bg-[#fffbeb]";
-    if (s.includes("badge")) return "bg-[#ede9ff]";
+    if (s.includes("badge")) return "bg-primary-50";
     if (s.includes("formation")) return "bg-[#eafaf3]";
-    if (s.includes("projet")) return "bg-[#eff6ff]";
+    if (s.includes("projet")) return "bg-primary-50";
     return "bg-[#f7f6f3]";
 }
 
@@ -95,7 +95,7 @@ export function TalentNotificationsPage() {
                                 key={`notif-${i}`}
                                 className={`relative flex items-start gap-3 rounded-lg px-3 py-3 ${unread ? "bg-[#f8f7ff]" : "bg-white"} ${i < rows.length - 1 ? "border-b border-black/5" : ""}`}
                             >
-                                {unread ? <span className="absolute left-1.5 top-5 size-1.5 rounded-full bg-[#7c6ef5]" /> : null}
+                                {unread ? <span className="absolute left-1.5 top-5 size-1.5 rounded-full bg-primary-600" /> : null}
                                 <div className={`flex size-9 items-center justify-center rounded-md text-[17px] ${iconBg}`}>{icon}</div>
                                 <div className="min-w-0 flex-1">
                                     <p className="text-[13.5px] font-medium text-[#18171e]">{title}</p>

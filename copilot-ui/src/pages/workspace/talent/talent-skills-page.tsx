@@ -1,21 +1,21 @@
-import { useCallback, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router";
 import { EmptyState } from "@/components/application/empty-state/empty-state";
 import { Button } from "@/components/base/buttons/button";
 import { AddSkillModal } from "@/components/talent/skills/AddSkillModal";
-import { CatalogSearch } from "@/components/talent/skills/CatalogSearch";
-import { MySkillCard } from "@/components/talent/skills/MySkillCard";
 import { SkillEditDrawer } from "@/components/talent/skills/SkillEditDrawer";
 import { SkillGapCard } from "@/components/talent/skills/SkillGapCard";
-import { SkillsKpiBar } from "@/components/talent/skills/SkillsKpiBar";
-import { SkillsTabs } from "@/components/talent/skills/SkillsTabs";
-import { TalentSkillsDensityToggle } from "@/components/talent/skills/TalentSkillsDensityToggle";
 import {
+    CatalogList,
+    SKILLS_ADD_ANCHOR_ID,
+    SkillCard,
+    SkillsByCategory,
+    SkillsStatsBar,
+    SkillsToolbar,
+    filterSkillsByName,
     parseSkillsTabParam,
-    readTalentSkillsDensity,
-    writeTalentSkillsDensity,
-    type TalentSkillsDensity,
-} from "@/components/talent/skills/talent-skills-ui";
+    type SkillsViewMode,
+} from "@/features/talent/skills";
 import { TALENT_PAGE_STACK } from "@/components/talent/ui/talent-workspace-ui";
 import { ErrorState } from "@/components/ui/ErrorState";
 import { useCopilotPage } from "@/hooks/use-copilot-page";
@@ -27,7 +27,6 @@ import {
 } from "@/hooks/useTalentSkills";
 import { useWorkspaceTopbarMeta } from "@/layouts/workspace-topbar-meta";
 import type { CatalogSkill, MySkill, SkillGap, SkillsTab } from "@/types/talent-skills";
-import { cx } from "@/utils/cx";
 
 export function TalentSkillsPage() {
     useCopilotPage("none", "Mes compétences");
@@ -35,10 +34,11 @@ export function TalentSkillsPage() {
     const navigate = useNavigate();
     const [searchParams, setSearchParams] = useSearchParams();
     const tab = parseSkillsTabParam(searchParams.get("tab"));
-    const [density, setDensity] = useState<TalentSkillsDensity>(() => readTalentSkillsDensity());
     const [selectedSkill, setSelectedSkill] = useState<MySkill | null>(null);
     const [catalogSkill, setCatalogSkill] = useState<CatalogSkill | null>(null);
     const [addModalOpen, setAddModalOpen] = useState(false);
+    const [viewMode, setViewMode] = useState<SkillsViewMode>("grid");
+    const [searchQuery, setSearchQuery] = useState("");
 
     const summaryQuery = useTalentSkillsSummary();
     const listQuery = useTalentSkillsList({ limit: 100 });
@@ -65,12 +65,6 @@ export function TalentSkillsPage() {
         [setSearchParams],
     );
 
-    const toggleDensity = () => {
-        const next: TalentSkillsDensity = density === "compact" ? "comfortable" : "compact";
-        setDensity(next);
-        writeTalentSkillsDensity(next);
-    };
-
     const openEditDrawer = (skill: MySkill) => setSelectedSkill(skill);
     const closeEditDrawer = () => setSelectedSkill(null);
 
@@ -93,10 +87,26 @@ export function TalentSkillsPage() {
         navigate(`/workspace/talent/requests?type=formation&skill=${encodeURIComponent(gap.skill_name)}`);
     };
 
+    const scrollToAdd = useCallback(() => {
+        if (tab !== "mine") setTab("mine");
+        window.requestAnimationFrame(() => {
+            document.getElementById(SKILLS_ADD_ANCHOR_ID)?.scrollIntoView({ behavior: "smooth", block: "center" });
+        });
+    }, [tab, setTab]);
+
     const skills = listQuery.data ?? [];
+    const filteredSkills = useMemo(() => filterSkillsByName(skills, searchQuery), [skills, searchQuery]);
     const gaps = gapsQuery.data ?? [];
     const showGlobalEmpty =
         tab === "mine" && !summaryQuery.isLoading && !summaryQuery.isError && summaryQuery.data?.total === 0;
+    const searchTrimmed = searchQuery.trim();
+    const showSearchEmpty =
+        tab === "mine" &&
+        !listQuery.isLoading &&
+        !listQuery.isError &&
+        skills.length > 0 &&
+        filteredSkills.length === 0 &&
+        searchTrimmed.length > 0;
 
     return (
         <div className={TALENT_PAGE_STACK}>
@@ -110,37 +120,31 @@ export function TalentSkillsPage() {
                     onRetry={() => void summaryQuery.refetch()}
                 />
             ) : (
-                <SkillsKpiBar summary={summaryQuery.data} isLoading={summaryQuery.isLoading} />
+                <SkillsStatsBar
+                    summary={summaryQuery.data}
+                    isLoading={summaryQuery.isLoading}
+                    onAddCertifiedClick={scrollToAdd}
+                />
             )}
 
-            <div className="flex flex-wrap items-center justify-between gap-3">
-                <SkillsTabs
-                    tab={tab}
-                    mineCount={summaryQuery.data?.total}
-                    gapsCount={gapsQuery.data?.length}
-                    onTabChange={setTab}
-                />
-                <div className="flex flex-wrap items-center gap-3">
-                    {tab === "mine" ? (
-                        <Button type="button" color="secondary" size="sm" onClick={() => setTab("catalog")}>
-                            Ajouter une compétence
-                        </Button>
-                    ) : null}
-                    {tab !== "catalog" ? <TalentSkillsDensityToggle density={density} onToggle={toggleDensity} /> : null}
-                </div>
-            </div>
+            <SkillsToolbar
+                tab={tab}
+                mineCount={summaryQuery.data?.total}
+                gapsCount={gapsQuery.data?.length}
+                onTabChange={setTab}
+                viewMode={viewMode}
+                onViewModeChange={setViewMode}
+                searchQuery={searchQuery}
+                onSearchChange={setSearchQuery}
+                onAddClick={() => setTab("catalog")}
+            />
 
             {tab === "mine" ? (
                 <>
                     {listQuery.isLoading ? (
-                        <div
-                            className={cx(
-                                "grid gap-3",
-                                density === "compact" ? "sm:grid-cols-2 xl:grid-cols-3" : "sm:grid-cols-2",
-                            )}
-                        >
-                            {Array.from({ length: 6 }).map((_, i) => (
-                                <div key={i} className="h-36 animate-pulse rounded-2xl bg-secondary" />
+                        <div className="grid gap-2.5 md:grid-cols-2 xl:grid-cols-3">
+                            {Array.from({ length: 9 }).map((_, i) => (
+                                <div key={i} className="h-24 animate-pulse rounded-lg bg-secondary" />
                             ))}
                         </div>
                     ) : null}
@@ -172,22 +176,22 @@ export function TalentSkillsPage() {
                         </div>
                     ) : null}
 
-                    {!listQuery.isLoading && !listQuery.isError && skills.length > 0 ? (
-                        <div
-                            className={cx(
-                                "grid gap-3",
-                                density === "compact" ? "sm:grid-cols-2 xl:grid-cols-3" : "sm:grid-cols-2",
-                            )}
-                        >
-                            {skills.map((skill) => (
-                                <MySkillCard
-                                    key={skill.skill_id}
-                                    skill={skill}
-                                    density={density}
-                                    onClick={openEditDrawer}
-                                />
-                            ))}
-                        </div>
+                    {showSearchEmpty ? (
+                        <p className="text-sm text-tertiary">
+                            Aucune compétence ne correspond à « {searchTrimmed} »
+                        </p>
+                    ) : null}
+
+                    {!listQuery.isLoading && !listQuery.isError && filteredSkills.length > 0 ? (
+                        viewMode === "category" ? (
+                            <SkillsByCategory skills={filteredSkills} onSkillClick={openEditDrawer} />
+                        ) : (
+                            <div className="grid gap-2.5 md:grid-cols-2 xl:grid-cols-3">
+                                {filteredSkills.map((skill) => (
+                                    <SkillCard key={skill.skill_id} skill={skill} onClick={openEditDrawer} />
+                                ))}
+                            </div>
+                        )
                     ) : null}
                 </>
             ) : null}
@@ -195,12 +199,7 @@ export function TalentSkillsPage() {
             {tab === "gaps" ? (
                 <>
                     {gapsQuery.isLoading ? (
-                        <div
-                            className={cx(
-                                "grid gap-3",
-                                density === "compact" ? "sm:grid-cols-2 xl:grid-cols-3" : "sm:grid-cols-2",
-                            )}
-                        >
+                        <div className="grid gap-3 sm:grid-cols-2">
                             {Array.from({ length: 4 }).map((_, i) => (
                                 <div key={i} className="h-40 animate-pulse rounded-2xl bg-secondary" />
                             ))}
@@ -209,7 +208,7 @@ export function TalentSkillsPage() {
 
                     {gapsQuery.isError ? (
                         <ErrorState
-                            title="Gaps indisponibles"
+                            title="Lacunes indisponibles"
                             message="Impossible de charger les écarts de compétences."
                             detail={gapsQuery.error instanceof Error ? gapsQuery.error.message : String(gapsQuery.error)}
                             onRetry={() => void gapsQuery.refetch()}
@@ -219,7 +218,7 @@ export function TalentSkillsPage() {
                     {!gapsQuery.isLoading && !gapsQuery.isError && gaps.length === 0 ? (
                         <EmptyState>
                             <EmptyState.Content>
-                                <EmptyState.Title>Aucun gap identifié</EmptyState.Title>
+                                <EmptyState.Title>Aucune lacune identifiée</EmptyState.Title>
                                 <EmptyState.Description>
                                     Vos compétences couvrent les besoins de vos projets actuels.
                                 </EmptyState.Description>
@@ -228,17 +227,11 @@ export function TalentSkillsPage() {
                     ) : null}
 
                     {!gapsQuery.isLoading && !gapsQuery.isError && gaps.length > 0 ? (
-                        <div
-                            className={cx(
-                                "grid gap-3",
-                                density === "compact" ? "sm:grid-cols-2 xl:grid-cols-3" : "sm:grid-cols-2",
-                            )}
-                        >
+                        <div className="grid gap-3 sm:grid-cols-2">
                             {gaps.map((gap) => (
                                 <SkillGapCard
                                     key={gap.skill_id}
                                     gap={gap}
-                                    density={density}
                                     onRequestFormation={handleRequestFormation}
                                 />
                             ))}
@@ -249,7 +242,7 @@ export function TalentSkillsPage() {
 
             {tab === "catalog" ? (
                 <div className="rounded-lg border border-secondary/60 bg-primary p-4 shadow-sm">
-                    <CatalogSearch onAdd={openAddFromCatalog} />
+                    <CatalogList onAdd={openAddFromCatalog} />
                 </div>
             ) : null}
 

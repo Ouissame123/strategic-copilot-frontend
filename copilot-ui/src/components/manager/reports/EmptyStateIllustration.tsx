@@ -12,7 +12,7 @@ export function EmptyStateIllustration({ variant = "reports", className }: Empty
     return (
         <svg
             viewBox="0 0 200 140"
-            className={cx("mx-auto h-32 w-auto text-indigo-200 dark:text-indigo-900/60", className)}
+            className={cx("mx-auto h-32 w-auto text-primary-200 dark:text-primary-900/60", className)}
             aria-hidden
         >
             <rect x="40" y="20" width="120" height="100" rx="12" fill="currentColor" opacity="0.15" />
@@ -60,7 +60,7 @@ export function ReportsEmptyState({ title, description, actionLabel, onAction, v
                 <button
                     type="button"
                     onClick={onAction}
-                    className="mt-6 rounded-xl bg-gradient-to-r from-indigo-600 to-violet-600 px-5 py-2.5 text-sm font-semibold text-white shadow-md transition hover:opacity-95"
+                    className="mt-6 rounded-xl bg-gradient-to-r from-primary-600 to-primary-700 px-5 py-2.5 text-sm font-semibold text-white shadow-md transition hover:opacity-95"
                 >
                     {actionLabel}
                 </button>

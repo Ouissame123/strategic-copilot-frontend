@@ -25,7 +25,7 @@ export function AudienceFilters({ value, onChange }: AudienceFiltersProps) {
                     className={cx(
                         "inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-sm font-medium transition-all duration-200",
                         value === f.id
-                            ? "border-indigo-600 bg-indigo-50 text-indigo-700 shadow-sm dark:border-indigo-500 dark:bg-indigo-950/40 dark:text-indigo-300"
+                            ? "border-primary-600 bg-primary-50 text-primary-700 shadow-sm dark:border-primary-500 dark:bg-primary-950/40 dark:text-primary-300"
                             : "border-slate-200 bg-white text-slate-600 hover:border-slate-300 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-400",
                     )}
                 >

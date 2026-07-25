@@ -44,13 +44,13 @@ export function ReportsHistoryCard({
             <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                 <div className="flex min-w-0 gap-3">
                     <span className="flex size-10 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-slate-50 dark:border-slate-700 dark:bg-slate-800">
-                        <Icon className="size-5 text-indigo-600" aria-hidden />
+                        <Icon className="size-5 text-primary-600" aria-hidden />
                     </span>
                     <div className="min-w-0">
                         <h3 className="font-semibold text-slate-900 dark:text-slate-50">{report.title}</h3>
                         <p className="mt-1 text-xs text-slate-500">{formatDateTime(report.generatedAt)}</p>
                         <div className="mt-2 flex flex-wrap gap-2 text-xs">
-                            <span className="rounded-md bg-indigo-50 px-2 py-0.5 font-medium text-indigo-800 ring-1 ring-indigo-200 dark:bg-indigo-950/50 dark:text-indigo-200 dark:ring-indigo-900">
+                            <span className="rounded-md bg-primary-50 px-2 py-0.5 font-medium text-primary-800 ring-1 ring-primary-200 dark:bg-primary-950/50 dark:text-primary-200 dark:ring-primary-900">
                                 {labelReportType(report.type)}
                             </span>
                             <span className="rounded-md bg-slate-100 px-2 py-0.5 font-medium text-slate-700 dark:bg-slate-800 dark:text-slate-300">
@@ -122,7 +122,7 @@ function HistoryAction({
                 "inline-flex items-center gap-1 rounded-lg border px-2 py-1 text-xs font-medium transition disabled:cursor-not-allowed disabled:opacity-50",
                 destructive
                     ? "border-rose-200 text-rose-600 hover:border-rose-300 hover:bg-rose-50 dark:border-rose-900 dark:text-rose-400 dark:hover:bg-rose-950/40"
-                    : "border-slate-200 text-slate-600 hover:border-indigo-200 hover:text-indigo-700 dark:border-slate-700 dark:text-slate-400",
+                    : "border-slate-200 text-slate-600 hover:border-primary-200 hover:text-primary-700 dark:border-slate-700 dark:text-slate-400",
             )}
         >
             <Icon className={cx("size-3.5", iconClassName)} />

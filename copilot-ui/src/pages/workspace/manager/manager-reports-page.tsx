@@ -19,7 +19,7 @@ export function ManagerReportsPage() {
             <div className="grid gap-3 sm:grid-cols-2">
                 <div className="rounded-lg border border-secondary p-4">
                     {t("managerWorkspace.shell.reportsEnterpriseCount", {
-                        count: dashboard.data?.kpi_cards.projects.total ?? 0,
+                        count: dashboard.data?.portfolio.total_projects ?? 0,
                     })}
                 </div>
                 <div className="rounded-lg border border-secondary p-4">

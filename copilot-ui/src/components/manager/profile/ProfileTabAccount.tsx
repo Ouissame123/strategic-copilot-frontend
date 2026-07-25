@@ -144,7 +144,7 @@ export function ProfileTabAccount({
                                     className={cx(
                                         "rounded-xl border px-4 py-2 text-sm font-medium transition",
                                         theme === t.value
-                                            ? "border-indigo-600 bg-indigo-50 text-indigo-700 dark:border-indigo-500 dark:bg-indigo-950/40 dark:text-indigo-300"
+                                            ? "border-primary-600 bg-primary-50 text-primary-700 dark:border-primary-500 dark:bg-primary-950/40 dark:text-primary-300"
                                             : "border-slate-200 text-slate-600 hover:border-slate-300 dark:border-slate-700 dark:text-slate-400",
                                     )}
                                 >
@@ -159,7 +159,7 @@ export function ProfileTabAccount({
                     <button
                         type="submit"
                         disabled={!canSave || saving}
-                        className="inline-flex items-center gap-2 rounded-xl bg-indigo-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-50"
+                        className="inline-flex items-center gap-2 rounded-xl bg-primary-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-primary-700 disabled:cursor-not-allowed disabled:opacity-50"
                     >
                         {saving ? <Loader2 className="size-4 animate-spin" aria-hidden /> : null}
                         {saving ? "Enregistrement…" : "Enregistrer"}

@@ -48,7 +48,7 @@ export function AutomationOverview({
                     return (
                         <div key={kpi.label} className={REPORT_CARD + " p-4"}>
                             <div className="flex items-center gap-2 text-slate-500">
-                                <Icon className="size-4 text-indigo-600" />
+                                <Icon className="size-4 text-primary-600" />
                                 <span className="text-xs font-medium uppercase tracking-wide">{kpi.label}</span>
                             </div>
                             <p
@@ -69,7 +69,7 @@ export function AutomationOverview({
 
             <section className={REPORT_CARD + " p-5 sm:p-6"}>
                 <h2 className="flex items-center gap-2 text-base font-semibold text-slate-900 dark:text-slate-50">
-                    <Mail className="size-4 text-indigo-600" />
+                    <Mail className="size-4 text-primary-600" />
                     Partager par e-mail
                 </h2>
                 <div className="mt-4">{emailSection}</div>
@@ -84,7 +84,7 @@ export function AutomationOverview({
                     <button
                         type="button"
                         onClick={onCreateSchedule}
-                        className="inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-indigo-600 to-violet-600 px-4 py-2.5 text-sm font-semibold text-white shadow-md transition hover:opacity-95"
+                        className="inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-primary-600 to-primary-700 px-4 py-2.5 text-sm font-semibold text-white shadow-md transition hover:opacity-95"
                     >
                         <CalendarPlus className="size-4" />
                         Créer une planification

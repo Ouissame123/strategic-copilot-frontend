@@ -1,11 +1,12 @@
-import type { DashboardResponse } from "@/types/api.types";
+import type { ManagerDashboardV3Response } from "@/features/manager/types/dashboard-v3";
+import type { ManagerDashboardV4Response } from "@/features/manager/types/dashboard-v4";
 import type { RisksSummary } from "@/api/project-risks.api";
 import type { DisplayAlert } from "@/components/risks/risks-shared";
 import { kanbanColumnForAlert, severityRank } from "@/components/risks/risks-shared";
+import { asRecord } from "@/utils/unwrap-api-payload";
 
 export type RisksSegmentFilter = "all" | "critical" | "high" | "today";
 export type RisksStatusFilter = "open" | "acknowledged" | "resolved" | "all";
-export type RisksDensity = "comfortable" | "compact";
 export type RisksTimeBucket = "now" | "today" | "yesterday" | "week" | "older";
 
 export interface ManagerRisksCounts {
@@ -20,9 +21,9 @@ export interface ManagerRisksCounts {
 
 export const RISKS_SEGMENT_FILTERS: { id: RisksSegmentFilter; label: string; tone: string }[] = [
     { id: "all", label: "Toutes", tone: "slate" },
-    { id: "critical", label: "🔴 Critiques", tone: "red" },
-    { id: "high", label: "🟠 High", tone: "orange" },
-    { id: "today", label: "⏱ Aujourd'hui", tone: "violet" },
+    { id: "critical", label: "Critiques", tone: "red" },
+    { id: "high", label: "High", tone: "orange" },
+    { id: "today", label: "Aujourd'hui", tone: "violet" },
 ];
 
 export const RISKS_STATUS_FILTERS: { id: RisksStatusFilter; label: string }[] = [
@@ -33,7 +34,7 @@ export const RISKS_STATUS_FILTERS: { id: RisksStatusFilter; label: string }[] = 
 ];
 
 export const RISKS_BUCKET_LABELS: Record<RisksTimeBucket, string> = {
-    now: "🔥 Moins de 4h",
+    now: "Moins de 4h",
     today: "Aujourd'hui",
     yesterday: "Hier",
     week: "7 derniers jours",
@@ -50,18 +51,26 @@ export type RiskAlertDedupEntry = {
 };
 
 export function buildManagerRisksCounts(
-    dashboard: DashboardResponse | undefined,
+    dashboard: ManagerDashboardV3Response | ManagerDashboardV4Response | undefined,
     summary: RisksSummary | undefined,
 ): ManagerRisksCounts | undefined {
     const counts: ManagerRisksCounts = {};
-    const kpi = dashboard?.kpi_cards;
+    const root = asRecord(dashboard);
+    const riskAlerts = asRecord(root.risk_alerts);
+    const ra = asRecord(riskAlerts.summary);
+    const team = asRecord(root.team);
+    const validationQueue = asRecord(asRecord(root.validation_queue).summary);
 
-    if (typeof kpi?.alerts?.total_open === "number") counts.alerts_open = kpi.alerts.total_open;
+    if (typeof ra.total_open === "number") counts.alerts_open = ra.total_open;
     if (typeof summary?.critical === "number") counts.critical = summary.critical;
-    else if (typeof kpi?.alerts?.critical_or_high === "number") counts.critical = kpi.alerts.critical_or_high;
+    else if (typeof ra.critical === "number") counts.critical = ra.critical;
     if (typeof summary?.high === "number") counts.high = summary.high;
-    if (typeof kpi?.team?.overloaded === "number") counts.overloaded_talents = kpi.team.overloaded;
-    if (typeof kpi?.pending_rh_actions === "number") counts.rh_pending = kpi.pending_rh_actions;
+    else if (typeof ra.high === "number") counts.high = ra.high;
+    if (typeof ra.new_24h === "number") counts.today = ra.new_24h;
+    if (typeof team.overloaded === "number") counts.overloaded_talents = team.overloaded;
+    if (typeof validationQueue.total_pending === "number") {
+        counts.rh_pending = validationQueue.total_pending;
+    }
 
     return Object.keys(counts).length > 0 ? counts : undefined;
 }

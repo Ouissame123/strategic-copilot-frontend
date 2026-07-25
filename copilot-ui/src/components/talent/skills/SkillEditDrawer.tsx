@@ -6,7 +6,7 @@ import { Toggle } from "@/components/base/toggle/toggle";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { useDeleteSkill, useUpdateSkill } from "@/hooks/useTalentSkills";
 import type { MySkill, UpdateSkillPayload } from "@/types/talent-skills";
-import { LEVEL_TONES, badgeToneClass } from "./talent-skills-ui";
+import { badgeToneClass, levelBadgeTone } from "@/features/talent/skills";
 
 type SkillEditDrawerProps = {
     open: boolean;
@@ -44,7 +44,7 @@ export function SkillEditDrawer({ open, skill, onClose }: SkillEditDrawerProps) 
 
     if (!open || !skill) return null;
 
-    const levelTone = LEVEL_TONES[skill.level_label] ?? "slate";
+    const levelTone = levelBadgeTone(skill.level_label);
 
     const handleSave = () => {
         const payload: UpdateSkillPayload = {

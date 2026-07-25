@@ -37,14 +37,14 @@ export const TALENT_KPI_TONE_CELL: Record<TalentKpiTone, string> = {
     emerald: "bg-emerald-50/60 dark:bg-emerald-950/25",
     red: "bg-red-50/60 dark:bg-red-950/25",
     brand: "bg-brand-primary/5",
-    violet: "bg-violet-50/60 dark:bg-violet-950/25",
+    violet: "bg-primary-50/60 dark:bg-primary-950/25",
 };
 
 export type TalentSurfaceAccent = "default" | "ai" | "action" | "alert";
 
 export const TALENT_SURFACE_ACCENT: Record<TalentSurfaceAccent, string> = {
     default: "",
-    ai: "border-l-[3px] border-l-violet-500",
+    ai: "border-l-[3px] border-l-primary-500",
     action: "border-l-[3px] border-l-brand-secondary",
     alert: "border-l-[3px] border-l-amber-500",
 };

@@ -67,7 +67,7 @@ export function NineBoxCard({
         <div className={shell(variant)}>
             <div className="mb-2 flex items-center justify-between">
                 <h4 className="text-sm font-semibold text-slate-700 dark:text-slate-200">9-Box</h4>
-                <span className="rounded bg-violet-100 px-2 py-0.5 text-[10px] font-semibold uppercase text-violet-700 dark:bg-violet-950/50 dark:text-violet-200">
+                <span className="rounded bg-primary-100 px-2 py-0.5 text-[10px] font-semibold uppercase text-primary-700 dark:bg-primary-950/50 dark:text-primary-200">
                     {nineBox.box_label}
                 </span>
             </div>
@@ -89,7 +89,7 @@ export function NineBoxCard({
                                     width={cellSize - 2}
                                     height={cellSize - 2}
                                     fill={fill}
-                                    stroke={isTarget ? "#5b21b6" : "#cbd5e1"}
+                                    stroke={isTarget ? "var(--color-primary-700)" : "#cbd5e1"}
                                     strokeWidth={isTarget ? 2 : 1}
                                     rx="4"
                                 />
@@ -209,8 +209,8 @@ export function MobilityCard({
                 label: "Mobilité stable",
             },
             mobile: {
-                bg: "border-indigo-200 bg-indigo-50 dark:border-indigo-800 dark:bg-indigo-950/30",
-                text: "text-indigo-700 dark:text-indigo-200",
+                bg: "border-primary-200 bg-primary-50 dark:border-primary-800 dark:bg-primary-950/30",
+                text: "text-primary-700 dark:text-primary-200",
                 label: "Mobile",
             },
             at_risk: {

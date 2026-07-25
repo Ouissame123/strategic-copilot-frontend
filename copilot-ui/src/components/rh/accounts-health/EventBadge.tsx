@@ -14,7 +14,7 @@ const EVENT_CONFIG: Record<
     updated: {
         label: "Modifié",
         icon: Edit,
-        cls: "border-sky-200 bg-sky-50 text-sky-700 dark:border-sky-900/50 dark:bg-sky-950/40 dark:text-sky-300",
+        cls: "border-primary-200 bg-primary-50 text-primary-700 dark:border-primary-900/50 dark:bg-primary-950/40 dark:text-primary-300",
     },
     disabled: {
         label: "Désactivé",

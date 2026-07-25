@@ -1,5 +1,6 @@
 import type { RisksResponse, RiskAlertItem, RisksSummary } from "@/api/project-risks.api";
-import type { DashboardResponse, TopAlert } from "@/types/api.types";
+import type { DashboardRiskAlert, ManagerDashboardV3Response } from "@/features/manager/types/dashboard-v3";
+import type { ManagerDashboardV4Response } from "@/features/manager/types/dashboard-v4";
 import { parsePaginationMeta, type PaginationMeta } from "@/lib/pagination-utils";
 import { asRecord } from "@/utils/unwrap-api-payload";
 
@@ -14,27 +15,39 @@ export type ManagerRisksQueryResult = RisksResponse & {
     };
 };
 
-function topAlertToRiskItem(alert: TopAlert): RiskAlertItem {
-    const alertId = String(alert.alert_id ?? alert.risk_alert_id ?? alert.id ?? "").trim();
+function emptySummary(): RisksSummary {
     return {
-        alert_id: alertId,
-        project_id: String(alert.project_id ?? "").trim(),
-        project_name: alert.project_name ?? null,
-        project_status: null,
-        severity: (alert.severity as RiskAlertItem["severity"]) ?? null,
-        category: alert.category ?? alert.risk_type ?? null,
-        title: alert.title ?? null,
-        message: alert.message ?? alert.description ?? alert.rationale ?? null,
-        status: alert.status ?? null,
-        detected_at: alert.created_at ?? null,
-        resolved_at: null,
-        created_at: alert.created_at ?? null,
-        risk_score: typeof alert.risk_score === "number" ? alert.risk_score : null,
-        source_agent: null,
+        total_alerts: 0,
+        critical: 0,
+        high: 0,
+        medium: 0,
+        low: 0,
+        projects_tracked: 0,
+        avg_risk_score: null,
+        at_risk_projects: 0,
     };
 }
 
-function buildSummaryFromItems(items: RiskAlertItem[], dashboard: DashboardResponse): RisksSummary {
+function v3AlertToRiskItem(alert: DashboardRiskAlert): RiskAlertItem {
+    return {
+        alert_id: alert.id,
+        project_id: alert.project_id,
+        project_name: alert.project_name || null,
+        project_status: null,
+        severity: alert.severity,
+        category: alert.risk_type || null,
+        title: alert.pdf_rule || null,
+        message: alert.message || null,
+        status: "open",
+        detected_at: alert.detected_at || null,
+        resolved_at: null,
+        created_at: alert.detected_at || null,
+        risk_score: Number.isFinite(alert.risk_score) ? alert.risk_score : null,
+        source_agent: "watchdog",
+    };
+}
+
+function buildSummaryFromV3(items: RiskAlertItem[], dashboard: ManagerDashboardV3Response): RisksSummary {
     let critical = 0;
     let high = 0;
     let medium = 0;
@@ -43,47 +56,72 @@ function buildSummaryFromItems(items: RiskAlertItem[], dashboard: DashboardRespo
     for (const item of items) {
         const s = String(item.severity ?? "").toLowerCase();
         if (s === "critical" || s === "critique") critical += 1;
-        else if (s === "high" || s === "élevé" || s === "eleve") high += 1;
+        else if (s === "high" || s === "Ã©levÃ©" || s === "eleve") high += 1;
         else if (s === "medium" || s === "moyen") medium += 1;
         else low += 1;
     }
 
-    const kpi = dashboard.kpi_cards?.alerts;
+    const s = dashboard.risk_alerts.summary;
 
     return {
-        total_alerts: items.length || kpi?.total_open || 0,
-        critical: critical || (typeof kpi?.critical_or_high === "number" ? kpi.critical_or_high : 0),
-        high,
-        medium,
+        total_alerts: items.length || s.total_open || 0,
+        critical: critical || s.critical || 0,
+        high: high || s.high || 0,
+        medium: medium || s.medium || 0,
         low,
         projects_tracked: new Set(items.map((i) => i.project_id).filter(Boolean)).size,
-        avg_risk_score: dashboard.health?.avg_viability ?? null,
-        at_risk_projects: 0,
+        avg_risk_score: s.avg_risk_score || dashboard.health.avg_viability || null,
+        at_risk_projects: dashboard.risk_alerts.project_fragility.length,
     };
 }
 
-/** Mappe `GET /webhook/manager/dashboard` → forme RisksResponse (lecture seule, PDF §7.6). */
+function isV3Dashboard(dashboard: unknown): dashboard is ManagerDashboardV3Response {
+    const row = asRecord(dashboard);
+    return Boolean(row.risk_alerts && typeof row.risk_alerts === "object");
+}
+
+/**
+ * Mappe une rÃ©ponse dashboard â†’ RisksResponse (lecture seule).
+ * Sur v4_factual (plus dâ€™alertes dans cet endpoint) â†’ liste vide.
+ */
 export function mapDashboardToRisksResponse(
-    dashboard: DashboardResponse,
+    dashboard: ManagerDashboardV3Response | ManagerDashboardV4Response | unknown,
     projectId: string | null,
 ): RisksResponse {
-    let alerts = dashboard.widgets?.top_alerts ?? [];
+    if (!isV3Dashboard(dashboard)) {
+        return {
+            status: "success",
+            scope: "manager",
+            page_label: "dashboard",
+            enterprise_id: strId(dashboard),
+            filter: { project_id: projectId },
+            summary: emptySummary(),
+            projects: [],
+            items: [],
+        };
+    }
+
+    let alerts = dashboard.risk_alerts.alerts;
     if (projectId) {
         alerts = alerts.filter((a) => String(a.project_id ?? "").trim() === projectId);
     }
 
-    const items = alerts.map(topAlertToRiskItem).filter((i) => i.alert_id);
+    const items = alerts.map(v3AlertToRiskItem).filter((i) => i.alert_id);
 
     return {
         status: "success",
         scope: "manager",
         page_label: "dashboard",
-        enterprise_id: String((dashboard.meta as Record<string, unknown> | undefined)?.enterprise_id ?? ""),
+        enterprise_id: dashboard.enterprise_id,
         filter: { project_id: projectId },
-        summary: buildSummaryFromItems(items, dashboard),
+        summary: buildSummaryFromV3(items, dashboard),
         projects: [],
         items,
     };
+}
+
+function strId(dashboard: unknown): string {
+    return String(asRecord(dashboard).enterprise_id ?? "");
 }
 
 function apiRowToRiskItem(row: unknown): RiskAlertItem | null {
@@ -99,77 +137,51 @@ function apiRowToRiskItem(row: unknown): RiskAlertItem | null {
         severity: (r.severity as RiskAlertItem["severity"]) ?? null,
         category: r.category != null ? String(r.category) : r.risk_type != null ? String(r.risk_type) : null,
         title: r.title != null ? String(r.title) : null,
-        message:
-            r.message != null
-                ? String(r.message)
-                : r.description != null
-                  ? String(r.description)
-                  : r.rationale != null
-                    ? String(r.rationale)
-                    : null,
-        status: r.status != null ? String(r.status) : null,
-        detected_at: r.detected_at != null ? String(r.detected_at) : r.created_at != null ? String(r.created_at) : null,
+        message: r.message != null ? String(r.message) : r.description != null ? String(r.description) : null,
+        status: r.status != null ? String(r.status) : "open",
+        detected_at: r.detected_at != null ? String(r.detected_at) : null,
         resolved_at: r.resolved_at != null ? String(r.resolved_at) : null,
-        created_at: r.created_at != null ? String(r.created_at) : null,
-        risk_score: typeof r.risk_score === "number" && Number.isFinite(r.risk_score) ? r.risk_score : null,
+        created_at: r.created_at != null ? String(r.created_at) : r.detected_at != null ? String(r.detected_at) : null,
+        risk_score: r.risk_score != null && Number.isFinite(Number(r.risk_score)) ? Number(r.risk_score) : null,
         source_agent: r.source_agent != null ? String(r.source_agent) : null,
     };
 }
 
-function buildSummaryFromStats(
-    items: RiskAlertItem[],
-    stats?: { total?: number; critical?: number; high?: number; medium?: number; low?: number },
-): RisksSummary {
-    let critical = 0;
-    let high = 0;
-    let medium = 0;
-    let low = 0;
-    for (const item of items) {
-        const s = String(item.severity ?? "").toLowerCase();
-        if (s === "critical" || s === "critique") critical += 1;
-        else if (s === "high" || s === "élevé" || s === "eleve") high += 1;
-        else if (s === "medium" || s === "moyen") medium += 1;
-        else low += 1;
-    }
-    return {
-        total_alerts: stats?.total ?? items.length,
-        critical: stats?.critical ?? critical,
-        high: stats?.high ?? high,
-        medium: stats?.medium ?? medium,
-        low: stats?.low ?? low,
-        projects_tracked: new Set(items.map((i) => i.project_id).filter(Boolean)).size,
-        avg_risk_score: null,
-        at_risk_projects: 0,
-    };
-}
-
-/** Mappe `GET /webhook/manager/risks` → RisksResponse + pagination. */
-export function mapManagerRisksApiResponse(raw: unknown, projectId?: string | null): ManagerRisksQueryResult {
+/** Parse une rÃ©ponse risks API brute (hors dashboard). */
+export function parseRisksApiPayload(raw: unknown): RisksResponse {
     const root = asRecord(raw);
-    const list = root.items ?? root.risk_alerts ?? root.alerts;
-    const items = (Array.isArray(list) ? list : []).map(apiRowToRiskItem).filter((i): i is RiskAlertItem => i != null);
-    const statsRaw = asRecord(root.stats);
-    const stats = {
-        total: Number(statsRaw.total) || Number(root.pagination && asRecord(root.pagination).total) || items.length,
-        critical: Number(statsRaw.critical) || 0,
-        high: Number(statsRaw.high) || 0,
-        medium: Number(statsRaw.medium) || 0,
-        low: Number(statsRaw.low) || 0,
-    };
-    const pageSize = Number(asRecord(root.pagination).page_size) || items.length || 20;
-    const pagination = parsePaginationMeta(root.pagination, stats.total, pageSize);
-    const pid = projectId?.trim() || null;
-
+    const itemsRaw = Array.isArray(root.items)
+        ? root.items
+        : Array.isArray(root.alerts)
+          ? root.alerts
+          : [];
+    const items = itemsRaw.map(apiRowToRiskItem).filter((i): i is RiskAlertItem => i != null);
+    const summaryRaw = asRecord(root.summary);
     return {
         status: "success",
         scope: "manager",
-        page_label: "risks",
+        page_label: String(root.page_label ?? "risks"),
         enterprise_id: String(root.enterprise_id ?? ""),
-        filter: { project_id: pid },
-        summary: buildSummaryFromStats(items, stats),
-        projects: [],
+        filter: asRecord(root.filter) as RisksResponse["filter"],
+        summary: {
+            total_alerts: Number(summaryRaw.total_alerts) || items.length,
+            critical: Number(summaryRaw.critical) || 0,
+            high: Number(summaryRaw.high) || 0,
+            medium: Number(summaryRaw.medium) || 0,
+            low: Number(summaryRaw.low) || 0,
+            projects_tracked: Number(summaryRaw.projects_tracked) || 0,
+            avg_risk_score:
+                summaryRaw.avg_risk_score != null && Number.isFinite(Number(summaryRaw.avg_risk_score))
+                    ? Number(summaryRaw.avg_risk_score)
+                    : null,
+            at_risk_projects: Number(summaryRaw.at_risk_projects) || 0,
+        },
+        projects: Array.isArray(root.projects) ? (root.projects as RisksResponse["projects"]) : [],
         items,
-        pagination,
-        stats,
     };
+}
+
+export function attachPaginationFromRaw(raw: unknown, result: RisksResponse): ManagerRisksQueryResult {
+    const pagination = parsePaginationMeta(raw);
+    return pagination ? { ...result, pagination } : result;
 }

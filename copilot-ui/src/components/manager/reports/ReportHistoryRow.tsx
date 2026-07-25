@@ -27,7 +27,7 @@ export function ReportHistoryRow({ report, compact = false, projectNameById, onS
                     "inline-flex shrink-0 items-center gap-1 rounded-md px-2 py-0.5 text-xs font-medium",
                     isBoardPack
                         ? "bg-violet-100 text-violet-700 dark:bg-violet-950/50 dark:text-violet-200"
-                        : "bg-blue-100 text-blue-700 dark:bg-blue-950/50 dark:text-blue-200",
+                        : "bg-primary-100 text-primary-700 dark:bg-primary-950/50 dark:text-primary-200",
                 )}
             >
                 {isBoardPack ? "Board pack" : "Dossier projet"}

@@ -12,7 +12,7 @@ const CONFIG: Record<
 > = {
     talent: {
         Icon: User01,
-        color: "border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100 dark:border-blue-800 dark:bg-blue-950/40 dark:text-blue-200",
+        color: "border-primary-200 bg-primary-50 text-primary-700 hover:bg-primary-100 dark:border-primary-800 dark:bg-primary-950/40 dark:text-primary-200",
         label: "Talent",
     },
     alert: {

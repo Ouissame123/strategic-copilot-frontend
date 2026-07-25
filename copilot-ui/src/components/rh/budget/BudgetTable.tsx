@@ -3,14 +3,12 @@ import type { BudgetProject } from "@/api/rh-budget.api";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { formatCurrency } from "@/utils/format";
 import { cx } from "@/utils/cx";
-import type { RhBudgetDensity } from "./use-rh-budget-density";
 import { BORDER_BY_STATUS } from "./budget-utils";
 import { BudgetStatusBadge } from "./BudgetStatusBadge";
 
 type BudgetTableProps = {
     projects: BudgetProject[];
     isLoading: boolean;
-    density: RhBudgetDensity;
     onRowClick: (project: BudgetProject) => void;
 };
 
@@ -24,7 +22,7 @@ function BudgetTableSkeleton({ count }: { count: number }) {
     );
 }
 
-export function BudgetTable({ projects, isLoading, density, onRowClick }: BudgetTableProps) {
+export function BudgetTable({ projects, isLoading, onRowClick }: BudgetTableProps) {
     if (isLoading) return <BudgetTableSkeleton count={6} />;
     if (projects.length === 0) {
         return (
@@ -35,8 +33,6 @@ export function BudgetTable({ projects, isLoading, density, onRowClick }: Budget
             </EmptyState>
         );
     }
-
-    const isCompact = density === "compact";
 
     return (
         <div className="overflow-hidden rounded-md border border-slate-200 dark:border-slate-700">
@@ -58,9 +54,8 @@ export function BudgetTable({ projects, isLoading, density, onRowClick }: Budget
                             key={p.project_id}
                             onClick={() => onRowClick(p)}
                             className={cx(
-                                "cursor-pointer border-b border-slate-100 border-l-4 transition hover:bg-slate-50 dark:border-slate-800 dark:hover:bg-slate-800/50",
+                                "h-14 cursor-pointer border-b border-slate-100 border-l-4 transition hover:bg-slate-50 dark:border-slate-800 dark:hover:bg-slate-800/50",
                                 BORDER_BY_STATUS[p.budget_status],
-                                isCompact ? "h-10" : "h-14",
                             )}
                         >
                             <td className="px-4">

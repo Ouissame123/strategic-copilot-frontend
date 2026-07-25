@@ -100,7 +100,7 @@ function PreviewBody({
                         {volumeBars.map((b) => (
                             <div key={b.label} className="flex flex-1 flex-col items-center gap-0.5">
                                 <div
-                                    className="w-full max-w-[2rem] rounded-t bg-indigo-500/80"
+                                    className="w-full max-w-[2rem] rounded-t bg-primary-500/80"
                                     style={{ height: `${Math.max(8, b.hPct)}%` }}
                                     title={`${b.label}: ${b.count}`}
                                 />
@@ -111,8 +111,8 @@ function PreviewBody({
             ) : null}
 
             {showAi ? (
-                <div className="mt-4 rounded-xl border border-indigo-200/50 bg-indigo-50/50 p-3 dark:border-indigo-900/40 dark:bg-indigo-950/30">
-                    <p className="flex items-center gap-1 text-[11px] font-semibold uppercase text-indigo-700 dark:text-indigo-300">
+                <div className="mt-4 rounded-xl border border-primary-200/50 bg-primary-50/50 p-3 dark:border-primary-900/40 dark:bg-primary-950/30">
+                    <p className="flex items-center gap-1 text-[11px] font-semibold uppercase text-primary-700 dark:text-primary-300">
                         <Sparkles className="size-3.5" /> Recommandations IA
                     </p>
                     <ul className="mt-2 list-inside list-disc space-y-1 text-[11px] text-slate-600 dark:text-slate-400">
@@ -138,7 +138,7 @@ function GenerateButton({
             type="button"
             disabled={generateDisabled || generating}
             onClick={onGenerate}
-            className="flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-indigo-600 to-violet-600 py-3 text-sm font-semibold text-white shadow-md transition hover:opacity-95 disabled:opacity-50"
+            className="flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-primary-600 to-primary-700 py-3 text-sm font-semibold text-white shadow-md transition hover:opacity-95 disabled:opacity-50"
         >
             {generating ? <Loader2 className="size-4 animate-spin" /> : null}
             {generating ? "Génération…" : "Générer maintenant"}
@@ -151,7 +151,7 @@ function EmbeddedPreviewCard(props: ReportPreviewPanelProps) {
     return (
         <div className={REPORT_CARD + " p-5"} id="executive-report-preview">
             <h2 className="text-base font-semibold text-slate-900 dark:text-slate-50">Aperçu du rapport</h2>
-            <p className="mt-1 text-sm font-medium text-indigo-600 dark:text-indigo-400">{templateTitle}</p>
+            <p className="mt-1 text-sm font-medium text-primary-600 dark:text-primary-400">{templateTitle}</p>
             <div className="mt-4">
                 <PreviewBody {...body} dataReady={dataReady} />
             </div>
@@ -184,7 +184,7 @@ function MobilePreviewBar(props: ReportPreviewPanelProps) {
                         className="flex w-full items-center justify-between rounded-xl border border-slate-200/80 px-4 py-3 text-sm font-medium text-slate-800 dark:border-slate-700 dark:text-slate-100"
                     >
                         <span className="truncate">Aperçu · {templateTitle}</span>
-                        <ChevronUp className="size-4 shrink-0 text-indigo-600" />
+                        <ChevronUp className="size-4 shrink-0 text-primary-600" />
                     </button>
                 ) : (
                     <>
@@ -198,7 +198,7 @@ function MobilePreviewBar(props: ReportPreviewPanelProps) {
                             <div className="mb-3 flex items-center justify-between">
                                 <div>
                                     <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-50">Aperçu du rapport</h2>
-                                    <p className="text-xs font-medium text-indigo-600 dark:text-indigo-400">{templateTitle}</p>
+                                    <p className="text-xs font-medium text-primary-600 dark:text-primary-400">{templateTitle}</p>
                                 </div>
                                 <button
                                     type="button"

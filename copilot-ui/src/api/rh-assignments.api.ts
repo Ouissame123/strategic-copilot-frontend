@@ -10,6 +10,7 @@ import type {
     RhAssignmentsListParams,
     RhAssignmentsListResponse,
     RhAvailableManager,
+    UpdateRhAssignmentPayload,
 } from "@/types/rh-assignments.types";
 import type { ApiClientOptions } from "@/utils/apiClient";
 import { asRecord, unwrapN8nRoot } from "@/utils/unwrap-api-payload";
@@ -35,6 +36,9 @@ export const RH_ASSIGNMENTS_OVERLOAD_CODE = "OVERLOAD_PREVENTED";
 
 /** Slug workflow n8n DELETE — WF_RH_Assignments_Delete_v2. */
 export const RH_ASSIGNMENTS_DELETE_WORKFLOW_SLUG = "wf-rh-assignments-delete-v2";
+
+/** Slug workflow n8n PATCH — WF_RH_Assignments_Update_v2. */
+export const RH_ASSIGNMENTS_UPDATE_WORKFLOW_SLUG = "wf-rh-assignments-update-v2";
 
 function str(v: unknown): string {
     return v != null ? String(v).trim() : "";
@@ -78,19 +82,24 @@ function buildRhAssignmentsAuthHeaders(token?: string | null): Record<string, st
 const TALENT_UUID_RE =
     /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
-/** WF_RH_Assignments DELETE — path param = `talent_id` (UUID), jamais un id numérique d'affectation. */
-function resolveDeleteTalentId(raw: string): string {
-    const talentId = raw.trim();
-    if (!talentId) {
-        throw new RhAssignmentsApiError("Identifiant talent manquant pour la suppression.", { httpStatus: 400 });
+/** WF_RH_Assignments path param — `talent_id` (UUID) attendu par les workflows v2. */
+function resolveAssignmentPathId(raw: string): string {
+    const id = raw.trim();
+    if (!id) {
+        throw new RhAssignmentsApiError("Identifiant affectation manquant.", { httpStatus: 400 });
     }
-    if (!TALENT_UUID_RE.test(talentId)) {
+    if (!TALENT_UUID_RE.test(id)) {
         throw new RhAssignmentsApiError(
-            "Identifiant talent invalide — la suppression utilise le talent_id (UUID), pas un id numérique.",
+            "Identifiant invalide — PATCH/DELETE utilisent le talent_id (UUID), pas un id numérique.",
             { httpStatus: 400 },
         );
     }
-    return talentId;
+    return id;
+}
+
+/** @deprecated alias — même identifiant que PATCH update v2. */
+function resolveDeleteTalentId(raw: string): string {
+    return resolveAssignmentPathId(raw);
 }
 
 function parseAssignmentRow(raw: unknown): RhAssignmentRow | null {
@@ -199,12 +208,29 @@ export function rhAssignmentsCollectionUrl(apiBase?: string, params?: RhAssignme
 }
 
 export function rhAssignmentItemUrl(talentId: string, apiBase?: string): string {
-    const base = resolveRhWebhookBase(apiBase);
-    return `${base}/rh/assignments/${encodeURIComponent(talentId.trim())}`;
+    return buildRhAssignmentUpdateUrl(talentId, apiBase);
 }
 
 /**
- * DELETE WF_RH_Assignments_Delete_v2 — `{base}/wf-rh-assignments-delete-v2/rh/assignments/{talent_id}`.
+ * PATCH WF_RH_Assignments_Update_v2 — `{base}/wf-rh-assignments-update-v2/rh/assignments/{id}`.
+ * Surcharge : `VITE_RH_ASSIGNMENTS_UPDATE_URL` ou `VITE_RH_ASSIGNMENTS_UPDATE_WEBHOOK_PREFIX`.
+ */
+export function buildRhAssignmentUpdateUrl(assignmentId: string, apiBase?: string): string {
+    const id = encodeURIComponent(assignmentId.trim());
+    const explicitUrl = (import.meta.env.VITE_RH_ASSIGNMENTS_UPDATE_URL as string | undefined)?.trim();
+    if (explicitUrl) {
+        return explicitUrl.replace(/\{id\}/g, id).replace(/:id\b/g, id);
+    }
+    const customPrefix = (import.meta.env.VITE_RH_ASSIGNMENTS_UPDATE_WEBHOOK_PREFIX as string | undefined)?.trim();
+    if (customPrefix) {
+        return `${customPrefix.replace(/\/$/, "")}/${id}`;
+    }
+    const base = resolveRhWebhookBase(apiBase).replace(/\/$/, "");
+    return `${base}/${RH_ASSIGNMENTS_UPDATE_WORKFLOW_SLUG}/rh/assignments/${id}`;
+}
+
+/**
+ * DELETE WF_RH_Assignments_Delete_v2 — `{base}/wf-rh-assignments-delete-v2/rh/assignments/{id}`.
  * Surcharge : `VITE_RH_ASSIGNMENTS_DELETE_URL` ou `VITE_RH_ASSIGNMENTS_DELETE_WEBHOOK_PREFIX`.
  */
 export function buildRhAssignmentDeleteUrl(talentId: string, apiBase?: string): string {
@@ -304,6 +330,38 @@ export async function createRhAssignment(
     if (!res.ok) {
         const code = codeFromBody(json);
         throw new RhAssignmentsApiError(messageFromBody(json, `Création affectation : HTTP ${res.status}`), {
+            code,
+            httpStatus: res.status,
+        });
+    }
+    return normalizeMutation(json);
+}
+
+export async function updateRhAssignment(
+    assignmentId: string,
+    body: UpdateRhAssignmentPayload,
+    options?: RhAssignmentsFetchOptions,
+): Promise<RhAssignmentMutationResponse> {
+    const id = resolveAssignmentPathId(assignmentId);
+    const url = buildRhAssignmentUpdateUrl(id, options?.apiBase);
+    if (import.meta.env.DEV) {
+        console.log("[RH API] PATCH assignment (JWT)", url);
+    }
+    const res = await fetch(url, {
+        method: "PATCH",
+        headers: buildRhAssignmentsAuthHeaders(options?.token),
+        credentials: "omit",
+        signal: options?.signal,
+        body: JSON.stringify({
+            manager_user_id: body.manager_user_id.trim(),
+            ...(body.note != null && body.note !== "" ? { note: body.note } : {}),
+        }),
+    });
+
+    const json = await parseJsonResponse(res);
+    if (!res.ok) {
+        const code = codeFromBody(json);
+        throw new RhAssignmentsApiError(messageFromBody(json, `Mise à jour affectation : HTTP ${res.status}`), {
             code,
             httpStatus: res.status,
         });

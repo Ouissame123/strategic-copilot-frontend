@@ -7,12 +7,10 @@ import {
     type DateBucketKey,
 } from "@/utils/decisionLogHelpers";
 import { DecisionHistoryItem } from "./DecisionHistoryItem";
-import type { DecisionLogDensity } from "./DensityToggle";
 import { decisionLogCardClass } from "./decision-log-ui";
 
 type DecisionHistoryListProps = {
     items: DecisionLogDecision[];
-    density: DecisionLogDensity;
     title: string;
     onOpenProject: (projectId: string) => void;
     onUpdateStatus: (decisionId: string, action: DecisionStatusAction) => void;
@@ -24,7 +22,6 @@ type DecisionHistoryListProps = {
 
 export function DecisionHistoryList({
     items,
-    density,
     title,
     onOpenProject,
     onUpdateStatus,
@@ -64,7 +61,6 @@ export function DecisionHistoryList({
                                 <DecisionHistoryItem
                                     key={d.decision_id}
                                     decision={d}
-                                    density={density}
                                     onOpenProject={() => onOpenProject(d.project_id)}
                                     onUpdateStatus={(action) => onUpdateStatus(d.decision_id, action)}
                                     statusUpdating={statusUpdatingDecisionId === d.decision_id}

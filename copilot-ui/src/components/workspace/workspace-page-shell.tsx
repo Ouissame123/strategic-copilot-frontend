@@ -15,12 +15,14 @@ type WorkspacePageShellProps = {
     description?: ReactNode;
     /** Masque le bandeau titre par défaut (ex. page avec hero custom). */
     omitHeader?: boolean;
+    /** @deprecated Prefer window scroll — kept for API compat, no longer locks viewport height. */
+    fillHeight?: boolean;
     tabs?: WorkspaceTab[];
     actions?: ReactNode;
     children: ReactNode;
 };
 
-export function WorkspacePageShell({ role, eyebrow, title, description, omitHeader = false, tabs, actions, children }: WorkspacePageShellProps) {
+export function WorkspacePageShell({ role, eyebrow, title, description, omitHeader = false, fillHeight: _fillHeight = false, tabs, actions, children }: WorkspacePageShellProps) {
     const { t } = useTranslation("common");
     const isRh = role === "rh";
 

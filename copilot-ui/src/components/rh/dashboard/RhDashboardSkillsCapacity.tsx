@@ -35,7 +35,7 @@ export function RhDashboardSkillsCapacity({ kpis, onOpenTalents }: Props) {
                             key={`${s.skill_name}-${i}`}
                             className="flex items-center gap-3 rounded-lg border border-slate-100 bg-slate-50/50 px-3 py-2 dark:border-slate-800 dark:bg-slate-800/40"
                         >
-                            <div className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-white text-violet-600 shadow-sm dark:bg-slate-900 dark:text-violet-400">
+                            <div className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-white text-primary-600 shadow-sm dark:bg-slate-900 dark:text-primary-400">
                                 <Layers size={14} aria-hidden />
                             </div>
                             <div className="min-w-0 flex-1">

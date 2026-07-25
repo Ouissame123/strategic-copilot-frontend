@@ -31,7 +31,7 @@ export function TalentNotificationsBell() {
                         className={cx(
                             "absolute -top-0.5 -right-0.5 flex h-[18px] min-w-[18px] items-center justify-center rounded-full px-1",
                             "text-[10px] font-semibold text-white",
-                            hasUrgent ? "bg-red-600" : "bg-violet-600",
+                            hasUrgent ? "bg-red-600" : "bg-primary-600",
                         )}
                     >
                         {badge}

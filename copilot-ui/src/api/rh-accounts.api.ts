@@ -40,15 +40,12 @@ function rhAccountsWebhookUrl(path: string): string {
     return host ? `${host}${webhookPath}` : webhookPath;
 }
 
-/** Workflow n8n `wf-rh-patch-user-v1` — PATCH change_password / toggle_status. */
-const RH_STAFF_PATCH_WEBHOOK_PATH = "/wf-rh-patch-user-v1/rh/users";
-
 function readRhAccountsEnv(name: string): string | undefined {
     const v = (import.meta.env as Record<string, string | undefined>)[name];
     return typeof v === "string" && v.trim() ? v.trim() : undefined;
 }
 
-/** PATCH manager/RH — `…/webhook/wf-rh-patch-user-v1/rh/users/:id` */
+/** PATCH manager/RH — `…/webhook/wf-rh-users-patch-v1/rh/users/:id` */
 function rhAccountsUsersPatchItemUrl(id: string): string {
     const explicit = readRhAccountsEnv("VITE_API_RH_USERS_PATCH_BASE");
     if (explicit) {
@@ -59,13 +56,10 @@ function rhAccountsUsersPatchItemUrl(id: string): string {
         const path = base.startsWith("/") ? base : `/${base}`;
         return rhAccountsWebhookUrl(`${path}/${encodeURIComponent(id)}`);
     }
-    return rhAccountsWebhookUrl(`${RH_STAFF_PATCH_WEBHOOK_PATH}/${encodeURIComponent(id)}`);
+    return rhAccountsWebhookUrl(`/wf-rh-users-patch-v1/rh/users/${encodeURIComponent(id)}`);
 }
 
-/** Workflow n8n `wf-rh-patch-talent-v1` — PATCH toggle_status talent. */
-const RH_TALENT_PATCH_WEBHOOK_PATH = "/wf-rh-patch-talent-v1/rh/accounts/talent";
-
-/** PATCH talent — `…/webhook/wf-rh-patch-talent-v1/rh/accounts/talent/:id` */
+/** PATCH talent — `…/webhook/wf-rh-talent-patch-v1/rh/accounts/talent/:id` */
 function rhAccountsTalentPatchItemUrl(id: string): string {
     const explicit = readRhAccountsEnv("VITE_API_RH_TALENT_PATCH_BASE");
     if (explicit) {
@@ -76,13 +70,10 @@ function rhAccountsTalentPatchItemUrl(id: string): string {
         const path = base.startsWith("/") ? base : `/${base}`;
         return rhAccountsWebhookUrl(`${path}/${encodeURIComponent(id)}`);
     }
-    return rhAccountsWebhookUrl(`${RH_TALENT_PATCH_WEBHOOK_PATH}/${encodeURIComponent(id)}`);
+    return rhAccountsWebhookUrl(`/wf-rh-talent-patch-v1/rh/accounts/talent/${encodeURIComponent(id)}`);
 }
 
-/** Workflow n8n `wf-rh-delete-user-v1` — DELETE soft delete manager/RH. */
-const RH_USER_DELETE_WEBHOOK_PATH = "/wf-rh-delete-user-v1/rh/users";
-
-/** DELETE manager/RH — `…/webhook/wf-rh-delete-user-v1/rh/users/:id` */
+/** DELETE manager/RH — `…/webhook/wf-rh-users-delete-v1/rh/users/:id` */
 function rhAccountsUsersDeleteItemUrl(id: string): string {
     const explicit = readRhAccountsEnv("VITE_API_RH_USER_DELETE_BASE");
     if (explicit) {
@@ -93,13 +84,10 @@ function rhAccountsUsersDeleteItemUrl(id: string): string {
         const path = base.startsWith("/") ? base : `/${base}`;
         return rhAccountsWebhookUrl(`${path}/${encodeURIComponent(id)}`);
     }
-    return rhAccountsWebhookUrl(`${RH_USER_DELETE_WEBHOOK_PATH}/${encodeURIComponent(id)}`);
+    return rhAccountsWebhookUrl(`/wf-rh-users-delete-v1/rh/users/${encodeURIComponent(id)}`);
 }
 
-/** Workflow n8n `wf-rh-delete-talent-v1` — DELETE soft delete talent. */
-const RH_TALENT_DELETE_WEBHOOK_PATH = "/wf-rh-delete-talent-v1/rh/accounts/talent";
-
-/** DELETE talent — `…/webhook/wf-rh-delete-talent-v1/rh/accounts/talent/:id` */
+/** DELETE talent — `…/webhook/wf-rh-talent-delete-v1/rh/accounts/talent/:id` */
 function rhAccountsTalentDeleteItemUrl(id: string): string {
     const explicit = readRhAccountsEnv("VITE_API_RH_TALENT_DELETE_BASE");
     if (explicit) {
@@ -110,7 +98,7 @@ function rhAccountsTalentDeleteItemUrl(id: string): string {
         const path = base.startsWith("/") ? base : `/${base}`;
         return rhAccountsWebhookUrl(`${path}/${encodeURIComponent(id)}`);
     }
-    return rhAccountsWebhookUrl(`${RH_TALENT_DELETE_WEBHOOK_PATH}/${encodeURIComponent(id)}`);
+    return rhAccountsWebhookUrl(`/wf-rh-talent-delete-v1/rh/accounts/talent/${encodeURIComponent(id)}`);
 }
 
 /** Workflow n8n `wf-rh-list-talents-v1` — liste talents pour modal « existant ». */
@@ -309,6 +297,19 @@ function parseStaffAccount(raw: unknown): RhStaffAccount | null {
     };
 }
 
+function parseHasPortalAccess(r: Record<string, unknown>): boolean {
+    const explicit = r.has_portal_access ?? r.hasPortalAccess ?? r.portal_access ?? r.portalAccess;
+    if (explicit === true) return true;
+    if (explicit === false) return false;
+    if (typeof explicit === "string") {
+        const s = explicit.trim().toLowerCase();
+        if (s === "true" || s === "1" || s === "yes") return true;
+        if (s === "false" || s === "0" || s === "no") return false;
+    }
+    const userId = str(r.user_id ?? r.userId ?? r.portal_user_id ?? r.portalUserId);
+    return Boolean(userId);
+}
+
 function parseTalentAccount(raw: unknown): RhTalentAccount | null {
     const r = asRecord(raw);
     const id = str(r.talent_id ?? r.id ?? r.talentId);
@@ -319,19 +320,27 @@ function parseTalentAccount(raw: unknown): RhTalentAccount | null {
     const manager_name = str(r.manager_name ?? r.managerName);
     const manager_user_id = str(r.manager_user_id ?? r.managerUserId);
     const has_manager = r.has_manager === true || r.hasManager === true || Boolean(manager_user_id && manager_name);
+    const user_id = str(r.user_id ?? r.userId ?? r.portal_user_id ?? r.portalUserId) || undefined;
     return {
         id,
+        talent_id: id,
         name: name || email,
         email,
         job_title: job_title || "—",
         department: str(r.department) || undefined,
         seniority: str(r.seniority ?? r.seniority_level) || undefined,
+        seniority_level: str(r.seniority_level ?? r.seniority) || undefined,
         contract_type: str(r.contract_type ?? r.contractType) || undefined,
         manager_user_id: manager_user_id || undefined,
         manager_name: manager_name || undefined,
+        manager_email: str(r.manager_email ?? r.managerEmail) || undefined,
         has_manager,
         phone: str(r.phone) || undefined,
+        user_id,
+        has_portal_access: parseHasPortalAccess(r),
         status: str(r.status) || undefined,
+        created_at: str(r.created_at ?? r.createdAt) || undefined,
+        updated_at: str(r.updated_at ?? r.updatedAt) || undefined,
     };
 }
 

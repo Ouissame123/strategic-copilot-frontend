@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Résumé disponibilité — carte liste talents RH.
  */
 import { Briefcase } from "lucide-react";
@@ -17,7 +17,7 @@ export type TalentAvailabilitySummaryProps = {
     fallbackLoadPct?: number;
     fallbackAvailablePct?: number | null;
     fallbackProjectsCount?: number;
-    /** Mode dense pour cartes liste */
+    /** Mode compact pour cartes liste */
     compact?: boolean;
 };
 

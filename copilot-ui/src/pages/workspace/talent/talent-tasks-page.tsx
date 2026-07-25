@@ -19,9 +19,9 @@ function badgeTone(label: string): string {
     const v = label.toLowerCase();
     if (v.includes("urgent")) return "bg-[#fef2f2] text-[#991b1b]";
     if (v.includes("moyen") || v.includes("medium")) return "bg-[#fffbeb] text-[#92400e]";
-    if (v.includes("formation")) return "bg-[#ede9ff] text-[#5a4de0]";
+    if (v.includes("formation")) return "bg-primary-50 text-primary-700";
     if (v.includes("fait") || v.includes("done")) return "bg-[#eafaf3] text-[#15803d]";
-    return "bg-[#eff6ff] text-[#1d4ed8]";
+    return "bg-primary-50 text-primary-700";
 }
 
 function TaskLine({ row }: { row: TaskRow }) {
@@ -69,7 +69,7 @@ export function TalentTasksPage() {
                     <h1 className="text-[33px] font-semibold leading-none tracking-[-0.03em] text-[#18171e]">Mes taches</h1>
                     <p className="mt-2 text-sm text-[#6b6880]">{activeRows.length + urgentRows.length} taches actives · {urgentRows.length} prioritaires</p>
                 </div>
-                <button type="button" className="rounded-lg bg-[#7c6ef5] px-3.5 py-2 text-sm font-medium text-white transition hover:bg-[#5a4de0]">
+                <button type="button" className="rounded-lg bg-primary-600 px-3.5 py-2 text-sm font-medium text-white transition hover:bg-primary-700">
                     + Nouvelle tache
                 </button>
             </header>

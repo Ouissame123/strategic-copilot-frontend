@@ -206,7 +206,11 @@ export default function ReportsPage() {
     const lastReports = useMemo(() => historyQuery.data?.display ?? historyReports, [historyQuery.data, historyReports]);
 
     useCopilotPage();
-    useWorkspaceTopbarMeta(t("managerWorkspace.reportsPage.pageHeroTitle"), undefined, null);
+    useWorkspaceTopbarMeta(
+        t("managerWorkspace.reportsPage.pageHeroTitle"),
+        t("managerWorkspace.reportsPage.pageHeroSubtitle"),
+        null,
+    );
 
     const tabButtonClass = (active: boolean) =>
         cx(
@@ -219,10 +223,8 @@ export default function ReportsPage() {
     return (
         <WorkspacePageShell role="manager" eyebrow="" title="" omitHeader>
             <div className="mx-auto max-w-5xl space-y-4 px-4 py-4 sm:px-6 lg:px-8">
-                <header className="space-y-1.5 border-b border-slate-100 pb-3 dark:border-slate-800">
-                    <div className="flex flex-wrap items-baseline justify-between gap-3">
-                        <h1 className="text-xl font-semibold text-slate-900 dark:text-slate-100">Rapports</h1>
-                        <div className="flex flex-wrap items-center gap-1.5" role="tablist">
+                <header className="border-b border-slate-100 pb-3 dark:border-slate-800">
+                    <div className="flex flex-wrap items-center justify-end gap-1.5" role="tablist">
                             <button type="button" role="tab" className={tabButtonClass(tab === "generate")} onClick={() => setTab("generate")}>
                                 Génération
                             </button>
@@ -235,7 +237,6 @@ export default function ReportsPage() {
                             <button type="button" role="tab" className={tabButtonClass(tab === "automation")} onClick={() => setTab("automation")}>
                                 Automatisation
                             </button>
-                        </div>
                     </div>
                 </header>
 

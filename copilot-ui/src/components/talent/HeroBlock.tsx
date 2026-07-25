@@ -45,7 +45,7 @@ export function HeroBlock({
 
     return (
         <section
-            className="rounded-xl border border-secondary/60 bg-gradient-to-br from-violet-50/80 to-blue-50/80 p-5 shadow-sm sm:p-6 dark:from-violet-950/30 dark:to-blue-950/30"
+            className="rounded-xl border border-secondary/60 bg-gradient-to-br from-primary-50/80 to-primary-50/80 p-5 shadow-sm sm:p-6 dark:from-primary-950/30 dark:to-primary-950/30"
             aria-labelledby="talent-dashboard-greeting"
         >
             <div className="flex flex-wrap items-start justify-between gap-6">

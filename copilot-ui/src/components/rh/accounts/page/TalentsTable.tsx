@@ -3,12 +3,10 @@ import type { RhTalentAccount } from "@/types/rh-accounts.types";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { isTalentActive } from "@/lib/rh-accounts-display";
 import { cx } from "@/utils/cx";
-import type { RhAccountsDensity } from "./use-rh-accounts-density";
 
 type TalentsTableProps = {
     talents: RhTalentAccount[];
     isLoading: boolean;
-    density: RhAccountsDensity;
     onRowClick: (talent: RhTalentAccount) => void;
 };
 
@@ -22,9 +20,7 @@ function TableSkeleton() {
     );
 }
 
-export function TalentsTable({ talents, isLoading, density, onRowClick }: TalentsTableProps) {
-    const isCompact = density === "compact";
-
+export function TalentsTable({ talents, isLoading, onRowClick }: TalentsTableProps) {
     if (isLoading) return <TableSkeleton />;
 
     if (talents.length === 0) {
@@ -61,14 +57,13 @@ export function TalentsTable({ talents, isLoading, density, onRowClick }: Talent
                                 key={t.id}
                                 onClick={() => onRowClick(t)}
                                 className={cx(
-                                    "cursor-pointer border-l-4 transition hover:bg-slate-50 dark:hover:bg-slate-800/50",
+                                    "h-14 cursor-pointer border-l-4 transition hover:bg-slate-50 dark:hover:bg-slate-800/50",
                                     active ? "border-l-emerald-500" : "border-l-slate-300 opacity-60",
-                                    isCompact ? "h-10" : "h-14",
                                 )}
                             >
                                 <td className="px-4">
                                     <p className="truncate font-medium">{t.name}</p>
-                                    {!isCompact ? <p className="truncate text-xs text-slate-500">{t.email}</p> : null}
+                                    <p className="truncate text-xs text-slate-500">{t.email}</p>
                                 </td>
                                 <td className="truncate px-4 text-slate-700">{t.job_title}</td>
                                 <td className="px-4">

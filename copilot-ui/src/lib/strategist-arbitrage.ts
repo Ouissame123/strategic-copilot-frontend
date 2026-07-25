@@ -1,5 +1,6 @@
 import type { QueryClient } from "@tanstack/react-query";
 import { isAxiosError } from "axios";
+import { normalizeExecuteResponse, StrategistApiError } from "@/api/strategist.api";
 import { queryKeys } from "@/lib/query-keys";
 import {
     readMissionControlHttpErrorMessage,
@@ -149,27 +150,10 @@ export function parseStrategistExecuteResponse(data: unknown): ExecuteResponse {
             ? (nested as Record<string, unknown>)
             : bag;
 
+    const normalized = normalizeExecuteResponse(payload);
     const action_taken = readExecuteActionTaken(payload.action_taken);
-    const user_message = typeof payload.user_message === "string" ? payload.user_message.trim() : undefined;
-
-    return {
-        status: typeof payload.status === "string" ? payload.status : undefined,
-        workflow: typeof payload.workflow === "string" ? payload.workflow : undefined,
-        action_type: typeof payload.action_type === "string" ? payload.action_type : undefined,
-        action_taken,
-        user_message: user_message || undefined,
-        decision_id: typeof payload.decision_id === "string" ? payload.decision_id : undefined,
-        dropped_requirements_count:
-            typeof payload.dropped_requirements_count === "number"
-                ? payload.dropped_requirements_count
-                : undefined,
-        project_paused: Boolean(payload.project_paused),
-        success: payload.success === undefined ? undefined : Boolean(payload.success),
-        meta:
-            typeof payload.meta === "object" && payload.meta !== null
-                ? (payload.meta as ExecuteResponse["meta"])
-                : undefined,
-    };
+    if (action_taken) normalized.action_taken = action_taken;
+    return normalized;
 }
 
 export type StrategistStopScopeToastLabels = {
@@ -274,6 +258,27 @@ export function buildStrategistFragileSignalsFromDetail(
     });
 }
 
+export function hasExecutedStrategistOption(options: ArbitrageOption[]): boolean {
+    return options.some((o) => (o.status ?? "proposed") === "executed");
+}
+
+/** Tri confidence DESC ; top_recommendation en premier si fourni. */
+export function sortStrategistDisplayOptions(
+    options: ArbitrageOption[],
+    topRecommendationId?: string | null,
+): ArbitrageOption[] {
+    const sorted = [...options].sort((a, b) => (b.confidence ?? 0) - (a.confidence ?? 0));
+    if (!topRecommendationId?.trim()) return sorted;
+
+    const topId = topRecommendationId.trim();
+    const topIndex = sorted.findIndex((o) => o.id === topId);
+    if (topIndex <= 0) return sorted;
+
+    const top = sorted[topIndex];
+    const rest = sorted.filter((_, i) => i !== topIndex);
+    return [top, ...rest];
+}
+
 export function hasProposedArbitrageOptions(options: ArbitrageOption[]): boolean {
     return options.some((o) => (o.status ?? "proposed") === "proposed");
 }
@@ -310,6 +315,11 @@ export function arbitrageOptionsFromMap(map: Record<string, ArbitrageOption>): A
 }
 
 export function readStrategistArbitrageErrorMessage(error: unknown): string {
+    if (error instanceof StrategistApiError) {
+        if (error.httpStatus === 403) return "Accès refusé";
+        if (error.httpStatus === 404) return "Option déjà traitée ou introuvable.";
+        return error.message;
+    }
     if (isAxiosError(error)) {
         const st = error.response?.status;
         if (st === 404) {

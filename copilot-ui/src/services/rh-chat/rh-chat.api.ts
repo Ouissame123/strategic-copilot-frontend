@@ -1,10 +1,11 @@
 /**
- * WF_RH_Conversations + WF_RH_Chat — client HTTP (Authorization: Bearer via apiClient).
+ * WF_RH_Conversations + WF_RH_Helper_Chat_v2 — client HTTP (Authorization: Bearer via apiClient).
  */
+import { createRhChatSession, sendRhMessage } from "@/api/rh-copilot.api";
 import { buildRhChatUrl, RH_CHAT_ENDPOINTS } from "@/services/rh-chat/rh-chat.constants";
 import type { RhChatConversationsListParams, RhChatPostBody } from "@/types/rh-chat";
 import type { ApiClientOptions } from "@/utils/apiClient";
-import { apiGet, apiPatch, apiPost } from "@/utils/apiClient";
+import { apiGet, apiPatch } from "@/utils/apiClient";
 
 export { RH_CHAT_ENDPOINTS, buildRhChatUrl } from "@/services/rh-chat/rh-chat.constants";
 
@@ -41,17 +42,42 @@ export async function patchRhChatConversationArchive(
     restore: boolean,
     options?: ApiClientOptions,
 ): Promise<unknown> {
-    return apiPatch<unknown>(buildRhChatUrl("archive", conversationId), { restore: Boolean(restore) }, options);
-}
-
-/** POST WF_RH_Chat — envoi message */
-export async function postRhChatMessage(body: RhChatPostBody, options?: ApiClientOptions): Promise<unknown> {
-    return apiPost<unknown>(
-        buildRhChatUrl("chat"),
-        {
-            message: body.message.trim(),
-            conversation_id: body.conversation_id?.trim() || null,
-        },
+    return apiPatch<unknown>(
+        buildRhChatUrl("archive", conversationId),
+        restore ? { restore: true } : {},
         options,
     );
+}
+
+/** POST WF_RH_Helper_Chat_v2 — création session si besoin, puis envoi message */
+export async function postRhChatMessage(body: RhChatPostBody, _options?: ApiClientOptions): Promise<unknown> {
+    const res = await sendRhMessage({
+        message: body.message,
+        conversation_id: body.conversation_id?.trim() || undefined,
+    });
+
+    return {
+        status: "success",
+        operation: "send_message",
+        session_id: res.conversation_id,
+        conversation_id: res.conversation_id,
+        user_message: res.user_message,
+        assistant_message: res.assistant_message,
+        reply: res.reply,
+        intent: res.intent,
+        suggested_actions: res.suggested_actions,
+        sources: res.sources,
+        confidence: res.confidence,
+        quick_replies: res.quick_replies,
+        details: res.analyse ? [{ label: res.analyse }] : undefined,
+    };
+}
+
+/** POST /rh/chat/sessions — nouvelle conversation */
+export async function postRhChatSession(
+    title?: string,
+    _options?: ApiClientOptions,
+): Promise<unknown> {
+    const res = await createRhChatSession(title?.trim() ? { title: title.trim() } : {});
+    return res;
 }

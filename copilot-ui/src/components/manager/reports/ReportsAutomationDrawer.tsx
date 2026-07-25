@@ -110,7 +110,7 @@ export function ReportsAutomationDrawer({ open, editing, onClose, onSave, saving
             >
                 <header className="flex items-center justify-between border-b border-slate-200/60 px-5 py-4 dark:border-slate-800">
                     <div>
-                        <p className="text-[10px] font-semibold uppercase tracking-wide text-indigo-600">Automatisation</p>
+                        <p className="text-[10px] font-semibold uppercase tracking-wide text-primary-600">Automatisation</p>
                         <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-50">
                             {editing ? "Modifier" : "Nouvelle automatisation"}
                         </h2>
@@ -254,7 +254,7 @@ export function ReportsAutomationDrawer({ open, editing, onClose, onSave, saving
                         type="button"
                         disabled={saving}
                         onClick={() => onSave(form, editing?.id ?? null)}
-                        className="flex w-full items-center justify-center rounded-xl bg-gradient-to-r from-indigo-600 to-violet-600 py-3 text-sm font-semibold text-white shadow-md transition hover:opacity-95 disabled:opacity-50"
+                        className="flex w-full items-center justify-center rounded-xl bg-gradient-to-r from-primary-600 to-primary-700 py-3 text-sm font-semibold text-white shadow-md transition hover:opacity-95 disabled:opacity-50"
                     >
                         {saving ? "Enregistrement…" : "Enregistrer"}
                     </button>

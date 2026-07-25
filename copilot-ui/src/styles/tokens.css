@@ -1,0 +1,347 @@
+/**
+ * Deep Ops — design tokens Mission Control
+ * Thème sombre = vitrine ; clair = équivalent AA.
+ * Compatible toggle existant (html.dark-mode) + [data-theme].
+ */
+
+/* ─── Light (défaut HTML / data-theme=light) ─── */
+:root,
+[data-theme="light"] {
+    /* Surfaces */
+    --surface-0: oklch(0.97 0.01 165); /* fond de page global */
+    --surface-1: oklch(1 0 0); /* cartes, panels — blanc pur */
+    --bg: var(--surface-0);
+    --surface-2: #eef0f7;
+    --border: rgba(70, 85, 140, 0.12);
+    --border-strong: rgba(70, 85, 140, 0.28);
+
+    /* Texte */
+    --text: #12152a;
+    --text-muted: #5c6488;
+
+    /* Accent IA — primary teal */
+    --accent: #0e9384;
+    --accent-hover: #0f766e;
+    --accent-muted: rgba(14, 147, 132, 0.12);
+    --accent-glow: rgba(14, 147, 132, 0.22);
+
+    /* Sémantique */
+    --ok: #059669;
+    --warn: #c47d1a;
+    --critical: #d93a4e;
+
+    /* Identité agents (légèrement assombrie pour contraste AA sur fond clair) */
+    --agent-observer: #0891b2;
+    --agent-watchdog: #c47d1a;
+    --agent-strategist: #7c5cbf;
+    --agent-matchmaker: #059669;
+    --agent-analyst: #c45a86;
+    --agent-helper: #3b6fd9;
+    --agent-orchestrator: #5b4fe0;
+
+    /* Typo */
+    --font-display: "Space Grotesk", "Inter", system-ui, sans-serif;
+    --font-body: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+    --font-data: "JetBrains Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+
+    /* Échelle type (px) */
+    --text-11: 0.6875rem;
+    --text-12: 0.75rem;
+    --text-13: 0.8125rem;
+    --text-15: 0.9375rem;
+    --text-20: 1.25rem;
+    --text-28: 1.75rem;
+    --text-40: 2.5rem;
+    --tracking-section: 0.08em;
+
+    /* Forme */
+    --radius-card: 10px;
+    --radius-chip: 9999px;
+    --focus-ring: 0 0 0 2px var(--bg), 0 0 0 4px var(--accent);
+
+    /* Motion */
+    --motion-fast: 100ms;
+    --motion-ui: 120ms;
+    --motion-breathe: 4s;
+    --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+
+    /* Scrollbar */
+    --scrollbar-size: 6px;
+    --scrollbar-thumb: var(--border-strong);
+
+    /* Pont tokens workspace existants (--ws-*) → Deep Ops */
+    --ws-canvas: var(--bg);
+    --ws-card: var(--surface-1);
+    --ws-sidebar: var(--surface-1);
+    --ws-sidebar-border: var(--border);
+    --ws-border: var(--border);
+    --ws-border-subtle: var(--border);
+    --ws-subtle: var(--surface-2);
+    --ws-muted-surface: var(--surface-2);
+    --ws-text-primary: var(--text);
+    --ws-text-secondary: var(--text-muted);
+    --ws-text-muted: var(--text-muted);
+    --ws-text-faint: var(--text-muted);
+    --ws-nav-text: var(--text-muted);
+    --ws-nav-text-active: var(--text);
+    --ws-nav-bg-active: var(--surface-2);
+    --ws-accent: var(--accent);
+    --ws-accent-hover: var(--accent-hover);
+    --ws-accent-muted: var(--accent-muted);
+    --ws-accent-ring: var(--accent-glow);
+    --ws-overlay: rgba(18, 21, 42, 0.45);
+    --ws-input-bg: var(--surface-1);
+    --ws-shadow-card: none;
+    --ws-radius-card: var(--radius-card);
+}
+
+/* ─── Dark (vitrine) — toggle html.dark-mode ─── */
+.dark-mode,
+[data-theme="dark"] {
+    /* surface-0 : légèrement plus clair que l’ancien fond #0b0d16 */
+    --surface-0: #10131f;
+    --surface-1: #111527; /* panels existants */
+    --bg: var(--surface-0);
+    --surface-2: #171c33;
+    --border: rgba(148, 163, 216, 0.1);
+    --border-strong: rgba(148, 163, 216, 0.22);
+
+    --text: #e8ebf8;
+    --text-muted: #8b93b5;
+
+    --accent: #2dd4bf;
+    --accent-hover: #5eead4;
+    --accent-muted: rgba(45, 212, 191, 0.16);
+    --accent-glow: rgba(45, 212, 191, 0.28);
+
+    --ok: #34d399;
+    --warn: #f5b04c;
+    --critical: #f0596b;
+
+    --agent-observer: #4cc3f5;
+    --agent-watchdog: #f5b04c;
+    --agent-strategist: #b48cff;
+    --agent-matchmaker: #34d399;
+    --agent-analyst: #f58cb4;
+    --agent-helper: #6c9cff;
+    --agent-orchestrator: #7c6cff;
+
+    --ws-overlay: rgba(2, 6, 23, 0.62);
+    --ws-input-bg: var(--surface-2);
+}
+
+/* ─── Tailwind v4 @theme — utilitaires ─── */
+@theme {
+    --color-surface-0: var(--surface-0);
+    --color-surface-1: var(--surface-1);
+    --color-ops-bg: var(--bg);
+    --color-ops-surface-1: var(--surface-1);
+    --color-ops-surface-2: var(--surface-2);
+    --color-ops-border: var(--border);
+    --color-ops-border-strong: var(--border-strong);
+    --color-ops-text: var(--text);
+    --color-ops-muted: var(--text-muted);
+    --color-ops-accent: var(--accent);
+    --color-ops-accent-hover: var(--accent-hover);
+    --color-ops-accent-muted: var(--accent-muted);
+    --color-ops-ok: var(--ok);
+    --color-ops-warn: var(--warn);
+    --color-ops-critical: var(--critical);
+
+    --color-agent-observer: var(--agent-observer);
+    --color-agent-watchdog: var(--agent-watchdog);
+    --color-agent-strategist: var(--agent-strategist);
+    --color-agent-matchmaker: var(--agent-matchmaker);
+    --color-agent-analyst: var(--agent-analyst);
+    --color-agent-helper: var(--agent-helper);
+    --color-agent-orchestrator: var(--agent-orchestrator);
+
+    --font-ops-display: var(--font-display);
+    --font-ops-body: var(--font-body);
+    --font-ops-data: var(--font-data);
+
+    --radius-ops-card: var(--radius-card);
+}
+
+/* Identité agent via data-attribute (aucune couleur en dur dans les composants) */
+[data-agent="observer"] {
+    --agent-color: var(--agent-observer);
+}
+[data-agent="watchdog"] {
+    --agent-color: var(--agent-watchdog);
+}
+[data-agent="strategist"] {
+    --agent-color: var(--agent-strategist);
+}
+[data-agent="matchmaker"] {
+    --agent-color: var(--agent-matchmaker);
+}
+[data-agent="analyst"] {
+    --agent-color: var(--agent-analyst);
+}
+[data-agent="helper"] {
+    --agent-color: var(--agent-helper);
+}
+[data-agent="orchestrator"] {
+    --agent-color: var(--agent-orchestrator);
+}
+
+/* ─── Utilitaires Mission Control ─── */
+.font-ops-display {
+    font-family: var(--font-display);
+    letter-spacing: -0.02em;
+}
+
+.font-ops-body {
+    font-family: var(--font-body);
+}
+
+.font-ops-data {
+    font-family: var(--font-data);
+    font-variant-numeric: tabular-nums;
+}
+
+.text-ops-section {
+    font-size: var(--text-11);
+    font-weight: 600;
+    letter-spacing: var(--tracking-section);
+    text-transform: uppercase;
+    color: var(--text-muted);
+}
+
+.ops-card {
+    background: var(--surface-1);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-card);
+    box-shadow: none;
+}
+
+.ops-card-interactive {
+    transition: border-color var(--motion-ui) var(--ease-out), transform var(--motion-ui) var(--ease-out);
+}
+
+.ops-card-interactive:hover {
+    border-color: var(--border-strong);
+    transform: translateY(-1px);
+}
+
+.ops-focus-ring:focus-visible {
+    outline: none;
+    box-shadow: var(--focus-ring);
+}
+
+/* Filet agent en tête de section */
+.ops-agent-rail {
+    border-top: 2px solid var(--agent-color, var(--accent));
+}
+
+.ops-agent-rail-left {
+    border-left: 3px solid var(--agent-color, var(--accent));
+}
+
+/* Respiration point agent */
+@keyframes ops-breathe {
+    0%,
+    100% {
+        opacity: 1;
+        transform: scale(1);
+        box-shadow: 0 0 8px var(--agent-color, var(--accent));
+    }
+    50% {
+        opacity: 0.75;
+        transform: scale(1.15);
+        box-shadow: 0 0 12px var(--agent-color, var(--accent));
+    }
+}
+
+.ops-agent-dot {
+    box-shadow: 0 0 8px var(--agent-color, var(--accent));
+    animation: ops-breathe var(--motion-breathe) ease-in-out infinite;
+}
+
+@keyframes ops-pulse-halo {
+    0%,
+    100% {
+        transform: scale(1);
+        opacity: 0.55;
+    }
+    50% {
+        transform: scale(1.03);
+        opacity: 0.85;
+    }
+}
+
+.ops-pulse-halo {
+    animation: ops-pulse-halo var(--motion-breathe) ease-in-out infinite;
+}
+
+@keyframes ops-shimmer {
+    0% {
+        background-position: 200% 0;
+    }
+    100% {
+        background-position: -200% 0;
+    }
+}
+
+.ops-skeleton {
+    background: linear-gradient(90deg, var(--surface-1) 0%, var(--surface-2) 50%, var(--surface-1) 100%);
+    background-size: 200% 100%;
+    animation: ops-shimmer 1.4s ease-in-out infinite;
+    border-radius: 6px;
+}
+
+@keyframes ops-enter {
+    from {
+        opacity: 0;
+        transform: translateY(8px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.ops-enter {
+    animation: ops-enter 220ms var(--ease-out) both;
+}
+
+.ops-tab-fade {
+    animation: ops-enter var(--motion-fast) var(--ease-out) both;
+}
+
+/* Scrollbars internes */
+.ops-scroll {
+    scrollbar-width: thin;
+    scrollbar-color: var(--scrollbar-thumb) transparent;
+}
+
+.ops-scroll::-webkit-scrollbar {
+    width: var(--scrollbar-size);
+    height: var(--scrollbar-size);
+}
+
+.ops-scroll::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.ops-scroll::-webkit-scrollbar-thumb {
+    background: var(--scrollbar-thumb);
+    border-radius: 9999px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .ops-agent-dot,
+    .ops-pulse-halo,
+    .ops-skeleton,
+    .ops-enter,
+    .ops-tab-fade,
+    .ops-card-interactive {
+        animation: none !important;
+        transition: none !important;
+    }
+
+    .ops-card-interactive:hover {
+        transform: none;
+    }
+}

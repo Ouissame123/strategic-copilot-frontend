@@ -120,18 +120,19 @@
     --color-white: rgb(255 255 255);
     --color-black: rgb(0 0 0);
 
-    --color-brand-25: rgb(252 250 255);
-    --color-brand-50: rgb(249 245 255);
-    --color-brand-100: rgb(244 235 255);
-    --color-brand-200: rgb(233 215 254);
-    --color-brand-300: rgb(214 187 251);
-    --color-brand-400: rgb(182 146 246);
-    --color-brand-500: rgb(158 119 237);
-    --color-brand-600: rgb(127 86 217);
-    --color-brand-700: rgb(105 65 198);
-    --color-brand-800: rgb(83 56 158);
-    --color-brand-900: rgb(66 48 125);
-    --color-brand-950: rgb(44 28 95);
+    /* Brand = primary accent (vert/teal) */
+    --color-brand-25: rgb(246 254 252);
+    --color-brand-50: rgb(240 253 249);
+    --color-brand-100: rgb(204 251 239);
+    --color-brand-200: rgb(153 246 224);
+    --color-brand-300: rgb(95 233 208);
+    --color-brand-400: rgb(46 211 183);
+    --color-brand-500: rgb(21 183 158);
+    --color-brand-600: rgb(14 147 132);
+    --color-brand-700: rgb(16 117 105);
+    --color-brand-800: rgb(18 93 86);
+    --color-brand-900: rgb(19 78 72);
+    --color-brand-950: rgb(10 41 38);
 
     --color-error-25: rgb(255 251 250);
     --color-error-50: rgb(254 243 242);
@@ -327,6 +328,20 @@
     --color-teal-800: rgb(18 93 86);
     --color-teal-900: rgb(19 78 72);
     --color-teal-950: rgb(10 41 38);
+
+    /* Primary accent scale (vert/teal) — bg-primary-*, text-primary-*, etc. */
+    --color-primary-25: var(--color-teal-25);
+    --color-primary-50: var(--color-teal-50);
+    --color-primary-100: var(--color-teal-100);
+    --color-primary-200: var(--color-teal-200);
+    --color-primary-300: var(--color-teal-300);
+    --color-primary-400: var(--color-teal-400);
+    --color-primary-500: var(--color-teal-500);
+    --color-primary-600: var(--color-teal-600);
+    --color-primary-700: var(--color-teal-700);
+    --color-primary-800: var(--color-teal-800);
+    --color-primary-900: var(--color-teal-900);
+    --color-primary-950: var(--color-teal-950);
 
     --color-cyan-25: rgb(245 254 255);
     --color-cyan-50: rgb(236 253 255);

@@ -6,7 +6,7 @@ import { cx } from "@/utils/cx";
 const DOT_CLS: Record<StaffingInsight["tone"], string> = {
     danger: "bg-rose-500",
     warn: "bg-amber-400",
-    info: "bg-violet-400",
+    info: "bg-primary-400",
     success: "bg-emerald-500",
 };
 

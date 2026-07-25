@@ -123,8 +123,9 @@ export const queryKeys = {
             ["analyst-mobility", ctx] as const,
         projectDetail: (id: string) => queryKeys.projectDetail(id),
         projectRisks: (projectId: string | null) => [...queryKeys.manager.all, "project-risks", projectId ?? "all"] as const,
-        validations: (scope: string, params?: { types?: string[]; limit?: number }) =>
-            [...queryKeys.manager.all, "validations", scope, params?.types?.join(",") ?? "", params?.limit ?? 100] as const,
+        validations: (enterpriseId: string, managerUserId: string | null) =>
+            [...queryKeys.manager.all, "validations", enterpriseId, managerUserId ?? "enterprise"] as const,
+        validationsRoot: () => [...queryKeys.manager.all, "validations"] as const,
         talentRequestsRoot: () => [...queryKeys.manager.all, "talent-requests"] as const,
         talentRequestsList: (filters?: Record<string, unknown>) =>
             [...queryKeys.manager.talentRequestsRoot(), "list", filters ?? {}] as const,

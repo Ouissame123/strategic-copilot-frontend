@@ -15,15 +15,44 @@ export const TYPE_TONES: Record<TalentRequestType, BadgeTone> = {
     autre: "slate",
 };
 
-export const STATUS_TONES: Record<TalentRequestStatus, BadgeTone> = {
+export const STATUS_TONES: Record<string, BadgeTone> = {
     pending: "amber",
     accepted: "emerald",
     rejected: "red",
+    refused: "red",
+    transferred_to_hr: "blue",
+    transferred_rh: "blue",
     in_progress: "blue",
     done: "emerald",
     closed: "slate",
     cancelled: "slate",
 };
+
+export function normalizeRequestStatusKey(raw: string | null | undefined): string {
+    return String(raw ?? "pending")
+        .trim()
+        .toLowerCase() || "pending";
+}
+
+export function isPendingStatus(s: string): boolean {
+    return normalizeRequestStatusKey(s) === "pending";
+}
+
+export function isAcceptedStatus(s: string): boolean {
+    return normalizeRequestStatusKey(s) === "accepted";
+}
+
+export function isRejectedStatus(s: string): boolean {
+    return ["rejected", "refused"].includes(normalizeRequestStatusKey(s));
+}
+
+export function isTransferredStatus(s: string): boolean {
+    return ["transferred_rh", "transferred_to_hr", "in_progress"].includes(normalizeRequestStatusKey(s));
+}
+
+export function isDoneStatus(s: string): boolean {
+    return ["done", "closed", "cancelled"].includes(normalizeRequestStatusKey(s));
+}
 
 export const PRIORITY_TONES: Record<TalentRequestPriority, BadgeTone> = {
     urgent: "red",
@@ -33,8 +62,8 @@ export const PRIORITY_TONES: Record<TalentRequestPriority, BadgeTone> = {
 };
 
 const TONE_CLASS: Record<BadgeTone, string> = {
-    blue: "bg-blue-50 text-blue-700 ring-blue-200",
-    violet: "bg-violet-50 text-violet-700 ring-violet-200",
+    blue: "bg-primary-50 text-primary-700 ring-primary-200",
+    violet: "bg-primary-50 text-primary-700 ring-primary-200",
     amber: "bg-amber-50 text-amber-800 ring-amber-200",
     slate: "bg-slate-100 text-slate-700 ring-slate-200",
     emerald: "bg-emerald-50 text-emerald-700 ring-emerald-200",
@@ -81,27 +110,6 @@ export const REQUEST_TYPE_OPTIONS: { value: TalentRequestType | "all"; label: st
     { value: "autre", label: "Autre" },
 ];
 
-export type TalentRequestsDensity = "compact" | "comfortable";
-
-export const TALENT_REQUESTS_DENSITY_KEY = "talent_requests_density";
-
-export function readTalentRequestsDensity(): TalentRequestsDensity {
-    try {
-        const raw = localStorage.getItem(TALENT_REQUESTS_DENSITY_KEY);
-        return raw === "compact" ? "compact" : "comfortable";
-    } catch {
-        return "comfortable";
-    }
-}
-
-export function writeTalentRequestsDensity(density: TalentRequestsDensity): void {
-    try {
-        localStorage.setItem(TALENT_REQUESTS_DENSITY_KEY, density);
-    } catch {
-        /* ignore */
-    }
-}
-
 export function formatPayloadEntries(payload: Record<string, unknown>): { key: string; value: string }[] {
     return Object.entries(payload)
         .filter(([, v]) => v !== null && v !== undefined && v !== "")
@@ -111,6 +119,7 @@ export function formatPayloadEntries(payload: Record<string, unknown>): { key: s
         }));
 }
 
-export function isDecidedStatus(status: TalentRequestStatus): boolean {
-    return ["accepted", "rejected", "done", "closed", "cancelled"].includes(status);
+export function isDecidedStatus(status: TalentRequestStatus | string): boolean {
+    const s = normalizeRequestStatusKey(status);
+    return ["accepted", "rejected", "refused", "done", "closed", "cancelled"].includes(s);
 }

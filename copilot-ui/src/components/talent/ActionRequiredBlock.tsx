@@ -47,13 +47,13 @@ export function ActionRequiredBlock({
             <section
                 className={cx(
                     TALENT_SURFACE,
-                    "border-violet-200 bg-gradient-to-r from-violet-50/80 to-purple-50/80 p-5 dark:border-violet-800 dark:from-violet-950/30 dark:to-purple-950/30",
+                    "border-primary-200 bg-gradient-to-r from-primary-50/80 to-primary-50/80 p-5 dark:border-primary-800 dark:from-primary-950/30 dark:to-primary-950/30",
                 )}
                 aria-labelledby="talent-action-required-title"
             >
                 <div className="flex flex-wrap items-center justify-between gap-4">
                     <div className="flex min-w-[min(100%,18rem)] flex-1 items-start gap-3">
-                        <div className="mt-1 rounded-lg bg-violet-600 p-2 text-white" aria-hidden>
+                        <div className="mt-1 rounded-lg bg-primary-600 p-2 text-white" aria-hidden>
                             <Sparkles className="size-5" />
                         </div>
                         <div className="min-w-0">
@@ -74,7 +74,7 @@ export function ActionRequiredBlock({
                     </div>
                     <div className="flex shrink-0 items-center gap-3">
                         <span
-                            className="rounded-lg bg-violet-600 px-3 py-2 text-2xl font-bold tabular-nums text-white"
+                            className="rounded-lg bg-primary-600 px-3 py-2 text-2xl font-bold tabular-nums text-white"
                             aria-label={`Score ${topRecommendation.overall_score} sur 10`}
                         >
                             {topRecommendation.overall_score.toFixed(0)}

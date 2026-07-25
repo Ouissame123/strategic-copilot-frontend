@@ -3,22 +3,25 @@ import { API_ROUTES } from "@/lib/api-routes";
 
 const silent: HttpClientRequestConfig = { skipGlobalHttpErrorToast: true };
 
-export type DecisionLogStatus = "open" | "handled" | "dismissed";
+export type DecisionLogPeriod = "7d" | "30d" | "90d" | "all";
+
+export type DecisionLogStatus = "open" | "handled" | "dismissed" | "deleted";
 
 export type DecisionStatusAction = "handled" | "dismissed" | "reopen";
 
 export type DecisionLogDecision = {
     decision_id: string;
-    decision: string;
-    project_id: string;
-    project_name: string;
+    decision: "continue" | "adjust" | "stop" | "other" | string;
+    project_id: string | null;
+    project_name: string | null;
     score: number;
     confidence: number;
     reason_code: string;
     scope: string;
     created_at: string;
+    status: DecisionLogStatus;
+    handled_at: string | null;
     synthesis: string;
-    status?: DecisionLogStatus;
 };
 
 export type DecisionLogKpis = {
@@ -27,15 +30,25 @@ export type DecisionLogKpis = {
     adjust: number;
     stop: number;
     other: number;
-    avg_confidence?: number | null;
-    avg_confidence_pct?: number | null;
+    avg_confidence_pct: number;
     avg_score: number;
+    watch_count: number;
+    handled_count: number;
 };
 
 export type DecisionLogReasonTop = { code: string; label: string; count: number };
 export type DecisionLogProjectTop = { project_id: string; name: string; count: number };
+export type DecisionLogTimeSeriesPoint = { day: string; avg_confidence: number | null; count: number };
 
 export type DecisionLogHeatmapRow = { low: number; medium: number; high: number };
+
+export type ManagerDecisionLogQueryParams = {
+    period?: DecisionLogPeriod;
+    type?: string;
+    project_id?: string;
+    /** Legacy — le backend identifie le manager via JWT si absent. */
+    enterprise_id?: string;
+};
 
 export type ManagerDecisionLogResponse = {
     success: boolean;
@@ -44,7 +57,10 @@ export type ManagerDecisionLogResponse = {
     kpis: DecisionLogKpis;
     reasons_top: DecisionLogReasonTop[];
     projects_top: DecisionLogProjectTop[];
-    heatmap: Record<string, DecisionLogHeatmapRow>;
+    time_series: DecisionLogTimeSeriesPoint[];
+    watch_decision: DecisionLogDecision | null;
+    /** Legacy — certains workflows renvoient encore heatmap. */
+    heatmap?: Record<string, DecisionLogHeatmapRow>;
 };
 
 export interface CopilotDecision {
@@ -73,7 +89,7 @@ export function decisionLogToCopilot(d: DecisionLogDecision, enterpriseId: strin
         enterprise_id: enterpriseId,
         manager_id: null,
         project_id: d.project_id,
-        project_name: d.project_name,
+        project_name: d.project_name ?? undefined,
         scope: d.scope,
         decision: decisionLabel,
         reason: d.synthesis ?? "",
@@ -85,6 +101,16 @@ export function decisionLogToCopilot(d: DecisionLogDecision, enterpriseId: strin
     };
 }
 
+function buildLogQueryParams(params?: ManagerDecisionLogQueryParams): Record<string, string> {
+    const query: Record<string, string> = {
+        period: params?.period ?? "30d",
+    };
+    if (params?.type && params.type !== "all") query.type = params.type;
+    if (params?.project_id?.trim()) query.project_id = params.project_id.trim();
+    if (params?.enterprise_id?.trim()) query.enterprise_id = params.enterprise_id.trim();
+    return query;
+}
+
 export const decisionsApi = {
     list: (params?: { project_id?: string; scope?: string; limit?: number }) =>
         httpClient.get<{
@@ -94,37 +120,31 @@ export const decisionsApi = {
             by_decision: Record<string, number>;
         }>(API_ROUTES.copilotDecisions(), { params }),
 
-    /** GET /webhook/manager/decisions/log (proxy Vite `/webhook` ou base n8n + chemin webhook). */
-    getManagerLog: (enterpriseId: string, params?: { limit?: number }) =>
-        httpClient.get<ManagerDecisionLogResponse>("/webhook/manager/decisions/log", {
-            params: { enterprise_id: enterpriseId.trim(), limit: params?.limit ?? 100 },
-            ...silent,
-        }),
+    /** GET `/webhook/manager/decisions/log?period=&type=&project_id=` */
+    getManagerLog: (params?: ManagerDecisionLogQueryParams) =>
+        httpClient
+            .get<ManagerDecisionLogResponse>("/webhook/manager/decisions/log", {
+                params: buildLogQueryParams(params),
+                ...silent,
+            })
+            .then((r) => r.data),
 
-    /** POST /webhook/manager/decisions/delete */
-    deleteManagerDecision: (enterpriseId: string, decisionId: string, mode: "soft" | "hard" = "soft") =>
+    /** POST `/webhook/manager/decisions/delete` */
+    deleteManagerDecision: (decisionId: string, mode: "soft" | "hard" = "soft") =>
         httpClient
             .post<DeleteManagerDecisionResponse>(
                 "/webhook/manager/decisions/delete",
-                {
-                    enterprise_id: enterpriseId.trim(),
-                    decision_id: decisionId.trim(),
-                    mode,
-                },
+                { decision_id: decisionId.trim(), mode },
                 { ...silent },
             )
             .then((r) => r.data),
 
-    /** POST /webhook/manager/decisions/mark-handled */
-    markManagerDecisionHandled: (enterpriseId: string, decisionId: string, action: DecisionStatusAction) =>
+    /** POST `/webhook/manager/decisions/mark-handled` */
+    markManagerDecisionHandled: (decisionId: string, action: DecisionStatusAction) =>
         httpClient
             .post<MarkManagerDecisionHandledResponse>(
                 "/webhook/manager/decisions/mark-handled",
-                {
-                    enterprise_id: enterpriseId.trim(),
-                    decision_id: decisionId.trim(),
-                    action,
-                },
+                { decision_id: decisionId.trim(), action },
                 { ...silent },
             )
             .then((r) => r.data),

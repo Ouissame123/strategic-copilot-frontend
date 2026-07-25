@@ -14,7 +14,7 @@ import {
     formatMatchmakerStatDisplay,
 } from "@/lib/manager-dashboard-display";
 import { MANAGER_DASHBOARD_SECTION_IDS } from "@/features/manager/lib/copilot-engines";
-import { SectionTitleWithCodename } from "@/features/manager/components/dashboard/SectionTitleWithCodename";
+import { SectionTitleWithCodename } from "@/components/manager/SectionTitleWithCodename";
 import { useManagerMatchmaker } from "@/hooks/use-manager-matchmaker";
 import { useAuth } from "@/providers/auth-provider";
 
@@ -508,7 +508,7 @@ function MatchmakerTalentsByProjectBlock({
                         return (
                             <li
                                 key={g.key}
-                                className="rounded-xl border border-secondary/70 border-l-[3px] border-l-indigo-600 bg-primary_alt/70 py-3 pl-4 pr-3 dark:bg-secondary_subtle/25"
+                                className="rounded-xl border border-secondary/70 border-l-[3px] border-l-primary-600 bg-primary_alt/70 py-3 pl-4 pr-3 dark:bg-secondary_subtle/25"
                             >
                                 <p
                                     className="min-w-0 break-words text-sm font-semibold leading-snug text-primary line-clamp-2"

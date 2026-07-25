@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
+import { useEffect } from "react";
 import { Outlet, useLocation } from "react-router";
-import { RhAssistantFloating } from "@/components/rh/assistant/RhAssistantFloating";
 import { CopilotTriggerButton } from "@/components/copilot";
 import { AppGlobalShortcuts } from "@/components/app/app-global-shortcuts";
 import { AppLayoutHeaderActions } from "@/components/app/app-layout-header-actions";
@@ -17,10 +17,8 @@ import type { NavItemType } from "@/components/application/app-navigation/config
 import { WorkspaceTopbarMetaProvider, useWorkspaceTopbarMetaState } from "@/layouts/workspace-topbar-meta";
 import type { WorkspaceRole } from "@/types/workspace-role";
 import {
-    RH_SHELL_ROOT,
     RH_SIDEBAR,
     RH_SIDEBAR_NAV_ACTIVE,
-    RH_SURFACE,
     RH_TEXT_MUTED,
     RH_TEXT_PRIMARY,
     RH_TOPBAR,
@@ -86,7 +84,11 @@ function WorkspaceShellHeaderLeading({ rhTone }: { rhTone?: boolean }) {
  * En-tête + barre latérale pour un seul rôle workspace.
  * Aucune branche sur `role` : le parent fournit les items de navigation.
  */
-const FULL_WIDTH_MAIN_PATHS = ["/workspace/manager/rh-requests", "/workspace/manager/notifications"];
+const FULL_WIDTH_MAIN_PATHS = [
+    "/workspace/manager/rh-requests",
+    "/workspace/manager/risques-alertes",
+    "/workspace/manager/notifications",
+];
 
 function isManagerMissionControlPage(pathname: string): boolean {
     return /^\/workspace\/manager\/projects\/[^/]+$/.test(pathname);
@@ -97,10 +99,6 @@ function isFullWidthWorkspaceMain(pathname: string): boolean {
     return FULL_WIDTH_MAIN_PATHS.some((segment) => pathname === segment || pathname.startsWith(`${segment}/`));
 }
 
-function isRhChatFullscreenPage(pathname: string): boolean {
-    return pathname === "/workspace/rh/chat" || pathname.startsWith("/workspace/rh/chat/");
-}
-
 export function WorkspaceShellLayout({
     workspaceRole,
     navItems,
@@ -108,27 +106,34 @@ export function WorkspaceShellLayout({
     sidebarBelowLogo,
     children,
 }: WorkspaceShellLayoutProps) {
-    const { pathname } = useLocation();
+    const location = useLocation();
+    const { pathname } = location;
     const fullWidthMain = isFullWidthWorkspaceMain(pathname);
-    const missionControlPage = isManagerMissionControlPage(pathname);
     const isRh = workspaceRole === "rh";
-    const showRhAssistant = isRh && !isRhChatFullscreenPage(pathname);
+
+    useEffect(() => {
+        window.scrollTo(0, 0);
+    }, [pathname]);
 
     return (
         <WorkspaceTopbarMetaProvider>
-            <div className={cx("min-h-screen lg:flex", isRh ? RH_SHELL_ROOT : "bg-primary")}>
+            <div className="min-h-dvh bg-surface-0 lg:flex lg:items-start">
                 <SidebarNavigationSimple
                     activeUrl={pathname}
                     items={navItems}
                     footerItems={navFooterItems}
                     belowLogo={sidebarBelowLogo}
-                    className={isRh ? cx(RH_SIDEBAR, RH_SIDEBAR_NAV_ACTIVE) : undefined}
+                    className={
+                        isRh
+                            ? cx(RH_SIDEBAR, RH_SIDEBAR_NAV_ACTIVE)
+                            : "!bg-surface-1 [&_.bg-secondary]:!bg-surface-1"
+                    }
                 />
-                <div className={cx("flex min-h-screen flex-1 flex-col", isRh ? RH_SURFACE : "bg-secondary_subtle", missionControlPage && "min-h-0 overflow-hidden")}>
+                <div className="flex w-full min-w-0 flex-1 flex-col bg-surface-0">
                     <header
                         className={cx(
-                            "flex min-h-12 shrink-0 flex-col items-stretch border-b md:px-6 md:py-0",
-                            isRh ? cx("border-b", RH_TOPBAR) : "border-secondary/80 bg-primary shadow-sm",
+                            "sticky top-0 z-30 flex min-h-12 shrink-0 flex-col items-stretch border-b md:px-6 md:py-0",
+                            isRh ? cx("border-b", RH_TOPBAR) : "border-secondary/80 bg-surface-1 shadow-sm",
                         )}
                     >
                         <div className="flex items-center justify-between gap-3 px-4 py-2.5 md:px-0 md:py-2.5">
@@ -163,26 +168,21 @@ export function WorkspaceShellLayout({
                     </header>
                     <main
                         className={cx(
-                            "flex-1",
+                            "w-full",
                             fullWidthMain ? "p-0" : isRh ? "p-4 md:p-6" : "p-5 md:p-8",
-                            missionControlPage && "flex min-h-0 flex-col overflow-hidden",
                         )}
                     >
                         <div
                             className={cx(
                                 "w-full",
                                 !fullWidthMain && "mx-auto max-w-container",
-                                missionControlPage && "flex min-h-0 flex-1 flex-col overflow-hidden",
                             )}
                         >
-                            <div
-                                className={cx("w-full", missionControlPage && "flex min-h-0 flex-1 flex-col overflow-hidden")}
-                            >
-                                {children ?? <Outlet />}
+                            <div className="w-full">
+                                {children ?? <Outlet key={pathname} />}
                             </div>
                         </div>
                     </main>
-                    {showRhAssistant ? <RhAssistantFloating /> : null}
                 </div>
             </div>
         </WorkspaceTopbarMetaProvider>

@@ -244,7 +244,7 @@ export function sentAgoLabel(request: RhRequest): string {
 export function typeBadgeClass(type?: string): string {
     const t = String(type ?? "").toLowerCase();
     if (t.includes("recruit") || t.includes("recrut")) {
-        return "bg-indigo-50 text-indigo-800 ring-indigo-200 dark:bg-indigo-950/50 dark:text-indigo-100 dark:ring-indigo-800";
+        return "bg-primary-50 text-primary-800 ring-primary-200 dark:bg-primary-950/50 dark:text-primary-100 dark:ring-primary-800";
     }
     if (t.includes("realloc") || t.includes("réaffect")) {
         return "bg-fuchsia-50 text-fuchsia-800 ring-fuchsia-200 dark:bg-fuchsia-950/50 dark:text-fuchsia-100 dark:ring-fuchsia-800";
@@ -256,7 +256,7 @@ export function typeBadgeClass(type?: string): string {
         return "bg-amber-50 text-amber-900 ring-amber-200 dark:bg-amber-950/50 dark:text-amber-100 dark:ring-amber-800";
     }
     if (t.includes("skill") || t.includes("compét") || t.includes("compet")) {
-        return "bg-violet-50 text-violet-800 ring-violet-200 dark:bg-violet-950/50 dark:text-violet-100 dark:ring-violet-800";
+        return "bg-primary-50 text-primary-800 ring-primary-200 dark:bg-primary-950/50 dark:text-primary-100 dark:ring-primary-800";
     }
     return "bg-slate-100 text-slate-700 ring-slate-200 dark:bg-slate-800 dark:text-slate-200 dark:ring-slate-600";
 }
@@ -279,10 +279,10 @@ export function statusBadgeClass(bucket: KpiBucket): string {
         return "bg-emerald-50 text-emerald-900 ring-emerald-200 dark:bg-emerald-950/50 dark:text-emerald-100 dark:ring-emerald-900";
     }
     if (bucket === "in_progress") {
-        return "bg-sky-50 text-sky-900 ring-sky-200 dark:bg-sky-950/50 dark:text-sky-100 dark:ring-sky-900";
+        return "bg-primary-50 text-primary-900 ring-primary-200 dark:bg-primary-950/50 dark:text-primary-100 dark:ring-primary-900";
     }
     if (bucket === "done") {
-        return "bg-violet-50 text-violet-900 ring-violet-200 dark:bg-violet-950/50 dark:text-violet-100 dark:ring-violet-900";
+        return "bg-primary-50 text-primary-900 ring-primary-200 dark:bg-primary-950/50 dark:text-primary-100 dark:ring-primary-900";
     }
     if (bucket === "cancelled") {
         return "bg-slate-100 text-slate-600 ring-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:ring-slate-600";

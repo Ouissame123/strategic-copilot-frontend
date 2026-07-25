@@ -1,7 +1,6 @@
 import { ArrowRight, MoreVertical } from "lucide-react";
 import { Button } from "@/components/base/buttons/button";
 import { Dropdown } from "@/components/base/dropdown/dropdown";
-import type { ManagerRequestsDensity } from "@/components/rh-requests/manager-requests/use-manager-requests-density";
 import {
     formatProjectDisplay,
     formatRelativeTimeFr,
@@ -25,7 +24,6 @@ export type RhRequestRow = Record<string, unknown> & { id: string };
 
 type RequestCardProps = {
     request: RhRequestRow;
-    density: ManagerRequestsDensity;
     onOpenDrawer: (request: RhRequestRow, tab?: "detail" | "history") => void;
     onQuickTreat: (request: RhRequestRow) => void;
     onDelete: (request: RhRequestRow) => void;
@@ -46,8 +44,7 @@ function formatManagerLabel(row: RhRequestRow): string {
     return id ? "Manager" : "Manager inconnu";
 }
 
-export function RequestCard({ request, density, onOpenDrawer, onQuickTreat, onDelete }: RequestCardProps) {
-    const isCompact = density === "compact";
+export function RequestCard({ request, onOpenDrawer, onQuickTreat, onDelete }: RequestCardProps) {
     const priority = String(request.priority ?? "normal").toLowerCase();
     const bucket = rhRequestStatusToBucket(request.status ?? request.state);
     const isPending = bucket === "pending";
@@ -76,9 +73,8 @@ export function RequestCard({ request, density, onOpenDrawer, onQuickTreat, onDe
             tabIndex={0}
             aria-labelledby={`req-${request.id}-title`}
             className={cx(
-                "group cursor-pointer rounded-lg border border-border bg-card transition hover:border-primary/40 hover:shadow-sm dark:border-slate-700 dark:bg-slate-900 border-l-4",
+                "group cursor-pointer rounded-lg border border-border bg-card p-4 transition hover:border-primary/40 hover:shadow-sm dark:border-slate-700 dark:bg-slate-900 border-l-4",
                 PRIORITY_BORDER[priority] ?? "border-l-transparent",
-                isCompact ? "p-3" : "p-4",
             )}
         >
             <div className="flex flex-wrap items-center gap-2">
@@ -101,10 +97,7 @@ export function RequestCard({ request, density, onOpenDrawer, onQuickTreat, onDe
                 ) : null}
             </div>
 
-            <h3
-                id={`req-${request.id}-title`}
-                className={cx("mt-2 font-medium text-foreground", isCompact ? "text-sm" : "text-base")}
-            >
+            <h3 id={`req-${request.id}-title`} className="mt-2 text-base font-medium text-foreground">
                 {title}
             </h3>
 
@@ -120,7 +113,7 @@ export function RequestCard({ request, density, onOpenDrawer, onQuickTreat, onDe
                 <time dateTime={created}>{formatRelativeTimeFr(created)}</time>
             </p>
 
-            {!isCompact && message && message !== title ? (
+            {message && message !== title ? (
                 <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">{message}</p>
             ) : null}
 

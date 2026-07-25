@@ -39,13 +39,13 @@ export function RhDashboardExecutiveOverview({ analytics, onRefresh, refreshing 
             <div className="grid grid-cols-1 gap-3 lg:grid-cols-12">
                 <div
                     className={cx(
-                        "flex items-center gap-4 rounded-lg border border-violet-200/60 bg-gradient-to-br from-violet-50/50 via-white to-white p-3 lg:col-span-3 dark:border-violet-900/40 dark:from-violet-950/20 dark:via-slate-900 dark:to-slate-900",
+                        "flex items-center gap-4 rounded-lg border border-primary-200/60 bg-gradient-to-br from-primary-50/50 via-white to-white p-3 lg:col-span-3 dark:border-primary-900/40 dark:from-primary-950/20 dark:via-slate-900 dark:to-slate-900",
                     )}
                 >
                     <MiniScoreRing score={rh_score} size={64} />
                     <div className="min-w-0">
                         <div className={cx("flex items-center gap-1.5 text-[11px] font-semibold", RH_TEXT_SECONDARY)}>
-                            <Gauge size={12} className="text-violet-600" aria-hidden />
+                            <Gauge size={12} className="text-primary-600" aria-hidden />
                             Score RH global
                         </div>
                         <p className={cx("mt-1 text-[10px] leading-snug", RH_TEXT_MUTED)}>

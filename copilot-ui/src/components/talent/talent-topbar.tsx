@@ -44,7 +44,7 @@ export function TalentTopbar() {
                 <Avatar
                     key={avatarSrc ?? "no-avatar"}
                     size="sm"
-                    className="ring-2 ring-[#7c6ef5]/30"
+                    className="ring-2 ring-primary-600/30"
                     src={avatarSrc}
                     initials={initials || "T"}
                     alt={user?.fullName || "Compte"}

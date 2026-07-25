@@ -1,66 +1,28 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { CheckCircle, FolderPlus } from "lucide-react";
 import { useNavigate, useSearchParams } from "react-router";
 import { useTranslation } from "react-i18next";
 import type { TFunction } from "i18next";
-import { Button } from "@/components/base/buttons/button";
-import { ProjectEditDialog } from "@/components/project-mission-control/ProjectEditDialog";
-import {
-    ManagerProjectsPortfolioTable,
-    projectDecisionRaw,
-    sortPortfolioProjects,
-    type PortfolioTableSortKey,
-    type ProjectsTableDensity,
-} from "@/components/manager/manager-projects-portfolio-table";
+import { classifyManagerProjectDeleteError } from "@/api/manager-projects.api";
+import { ManagerProjectsPortfolioTable } from "@/components/manager/manager-projects-portfolio-table";
+import { CreateProjectModal } from "@/components/manager/projects/CreateProjectModal";
+import { DeleteProjectDialog } from "@/components/manager/projects/DeleteProjectDialog";
 import { ProjectsEmptyState } from "@/components/manager/projects/ProjectsEmptyState";
-import { ProjectsInsightBar, type ProjectsSegmentFilter } from "@/components/manager/projects/ProjectsInsightBar";
-import { ProjectsSegments } from "@/components/manager/projects/ProjectsSegments";
-import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { ProjectsFiltersBar, type ProjectsListFilters } from "@/components/manager/projects/ProjectsFiltersBar";
+import {
+    sortProjectsList,
+    type ProjectsListSortDirection,
+    type ProjectsListSortKey,
+} from "@/components/manager/projects/projects-list-sort";
 import { WorkspacePageShell } from "@/components/workspace/workspace-page-shell";
-import { useWatchdogScan } from "@/hooks/useTeam";
-import { useCreateProject, useDeleteProject, useProjects } from "@/hooks/useProjects";
+import { useDeleteProject, useProjects } from "@/hooks/useProjects";
 import { useWorkspaceTopbarMeta } from "@/layouts/workspace-topbar-meta";
 import { looksLikeUuidOrTechnicalId, stripTechnicalIdentifiers } from "@/lib/matchmaker-display";
+import { useToast } from "@/providers/toast-provider";
+import type { ProjectListItem } from "@/types/api.types";
 import { managerProjectMissionControlPath, parseMissionControlTabParam } from "@/utils/workspace-routes";
-import type { ProjectListItem, ProjectStatus } from "@/types/api.types";
 
-const MANAGER_PROJECTS_LIST_LIMIT = 100;
-const DENSITY_STORAGE_KEY = "projects.density";
-
-function coerceFiniteNumber(value: unknown): number | null {
-    if (value == null || value === "") return null;
-    if (typeof value === "number" && Number.isFinite(value)) return value;
-    const n = Number(value);
-    return Number.isFinite(n) ? n : null;
-}
-
-function normalizedProjectStatus(project: ProjectListItem): ProjectStatus {
-    const s = String(project.status ?? "")
-        .trim()
-        .toLowerCase()
-        .replace(/\s+/g, "_")
-        .replace(/-/g, "_");
-    if (s === "on_hold" || s === "onhold") return "on_hold";
-    if (s === "active" || s === "planned" || s === "completed" || s === "cancelled") return s;
-    return "planned";
-}
-
-function statusLabel(t: TFunction<"common", undefined>, status: ProjectStatus): string {
-    switch (status) {
-        case "active":
-            return t("managerWorkspace.projects.statusActive");
-        case "planned":
-            return t("managerWorkspace.projects.statusPlanned");
-        case "on_hold":
-            return t("managerWorkspace.projects.statusOnHold");
-        case "completed":
-            return t("managerWorkspace.projects.statusCompleted");
-        case "cancelled":
-            return t("managerWorkspace.projects.statusCancelledRow");
-        default:
-            return status;
-    }
-}
+const MANAGER_PROJECTS_LIST_LIMIT = 200;
+const SEARCH_DEBOUNCE_MS = 350;
 
 function projectDisplayName(name: string, t: TFunction<"common", undefined>): string {
     if (looksLikeUuidOrTechnicalId(name)) return t("managerWorkspace.projects.nameWithoutDisplay");
@@ -69,56 +31,40 @@ function projectDisplayName(name: string, t: TFunction<"common", undefined>): st
     return stripped;
 }
 
-function readInitialDensity(): ProjectsTableDensity {
-    if (typeof window === "undefined") return "comfortable";
-    const stored = window.localStorage.getItem(DENSITY_STORAGE_KEY);
-    return stored === "compact" ? "compact" : "comfortable";
-}
-
-function matchesSegmentFilter(project: ProjectListItem, filter: ProjectsSegmentFilter): boolean {
-    if (filter === "all") return true;
-    const decision = projectDecisionRaw(project).toLowerCase();
-    if (filter === "action_required") return decision === "adjust" || decision === "stop" || decision === "reject";
-    if (filter === "stable") return decision === "continue";
-    if (filter === "surveillance") return decision === "proceed";
-    if (filter === "due_soon") {
-        const days = coerceFiniteNumber(project.days_to_milestone);
-        return days != null && days >= 0 && days <= 30;
-    }
-    return true;
-}
-
 export default function ProjectsPage() {
     const { t } = useTranslation("common");
-    const [searchParams, setSearchParams] = useSearchParams();
+    const { push: pushToast } = useToast();
+    const [searchParams] = useSearchParams();
     const navigate = useNavigate();
-    const [segmentFilter, setSegmentFilter] = useState<ProjectsSegmentFilter>("all");
-    const [searchQuery, setSearchQuery] = useState("");
-    const [density, setDensity] = useState<ProjectsTableDensity>(() => readInitialDensity());
-    const [sortKey, setSortKey] = useState<PortfolioTableSortKey>("fragility_score");
-    const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
-    const [createMode, setCreateMode] = useState(false);
-    const [editTarget, setEditTarget] = useState<ProjectListItem | null>(null);
-    const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string } | null>(null);
-    const [createPayload, setCreatePayload] = useState({
-        name: "",
-        status: "planned" as ProjectStatus,
-        priority: 5,
-        milestone_at: "",
-    });
-
-    const projectsQuery = useProjects({ limit: MANAGER_PROJECTS_LIST_LIMIT });
-    const createProject = useCreateProject();
     const deleteProject = useDeleteProject();
-    const watchdogScan = useWatchdogScan();
 
-    const listItems = projectsQuery.data?.items ?? [];
-    const counts = projectsQuery.data?.counts;
-    const apiTotal = projectsQuery.data?.total ?? listItems.length;
+    const [filters, setFilters] = useState<ProjectsListFilters>({
+        search: "",
+        status: "",
+    });
+    const [debouncedSearch, setDebouncedSearch] = useState("");
+    const [sortKey, setSortKey] = useState<ProjectsListSortKey | null>(null);
+    const [sortDirection, setSortDirection] = useState<ProjectsListSortDirection>("asc");
+    const [createOpen, setCreateOpen] = useState(false);
+    const [deleteTarget, setDeleteTarget] = useState<ProjectListItem | null>(null);
+    const [deleteBlockerMessage, setDeleteBlockerMessage] = useState<string | null>(null);
+
+    useWorkspaceTopbarMeta(t("managerWorkspace.projects.heroTitle"), t("managerWorkspace.projects.listSubtitle"));
 
     useEffect(() => {
-        window.localStorage.setItem(DENSITY_STORAGE_KEY, density);
-    }, [density]);
+        const timeoutId = window.setTimeout(() => {
+            setDebouncedSearch(filters.search.trim());
+        }, SEARCH_DEBOUNCE_MS);
+        return () => window.clearTimeout(timeoutId);
+    }, [filters.search]);
+
+    const projectsQuery = useProjects({
+        limit: MANAGER_PROJECTS_LIST_LIMIT,
+        status: filters.status || undefined,
+        search: debouncedSearch || undefined,
+    });
+    const listItems = projectsQuery.data?.items ?? [];
+    const hasActiveFilters = Boolean(filters.status || debouncedSearch);
 
     useEffect(() => {
         const openId = searchParams.get("openProjectId")?.trim() || searchParams.get("project_id")?.trim();
@@ -127,286 +73,176 @@ export default function ProjectsPage() {
         navigate(managerProjectMissionControlPath(openId, tab), { replace: true });
     }, [navigate, searchParams]);
 
-    useEffect(() => {
-        const decisionParam = searchParams.get("decision")?.trim();
-        if (!decisionParam) return;
-        const wanted = decisionParam.toLowerCase();
-        if (wanted === "adjust" || wanted === "stop") {
-            setSegmentFilter("action_required");
-        }
-    }, [searchParams]);
+    const displayedProjects = useMemo(() => {
+        if (!sortKey) return listItems;
+        return sortProjectsList(listItems, sortKey, sortDirection);
+    }, [listItems, sortDirection, sortKey]);
 
-    useWorkspaceTopbarMeta(t("managerWorkspace.projects.heroTitle"), undefined, null);
-
-    const filteredProjects = useMemo(() => {
-        const searchLc = searchQuery.trim().toLowerCase();
-        return listItems.filter((project) => {
-            if (!matchesSegmentFilter(project, segmentFilter)) return false;
-            if (!searchLc) return true;
-            return projectDisplayName(project.name, t).toLowerCase().includes(searchLc);
-        });
-    }, [listItems, segmentFilter, searchQuery, t]);
-
-    const sortedProjects = useMemo(
-        () => sortPortfolioProjects(filteredProjects, sortKey, sortDir),
-        [filteredProjects, sortKey, sortDir],
+    const handleSort = useCallback(
+        (nextKey: ProjectsListSortKey) => {
+            if (nextKey === sortKey) {
+                setSortDirection((current) => (current === "asc" ? "desc" : "asc"));
+                return;
+            }
+            setSortKey(nextKey);
+            setSortDirection(nextKey === "project" ? "asc" : "desc");
+        },
+        [sortKey],
     );
 
-    const toggleDensity = useCallback(() => {
-        setDensity((d) => (d === "comfortable" ? "compact" : "comfortable"));
-    }, []);
+    const onSelectProject = useCallback(
+        (projectId: string) => {
+            navigate(managerProjectMissionControlPath(projectId));
+        },
+        [navigate],
+    );
 
-    const toggleSort = useCallback((k: PortfolioTableSortKey) => {
-        setSortKey((prev) => {
-            if (prev === k) {
-                setSortDir((d) => (d === "asc" ? "desc" : "asc"));
-                return prev;
-            }
-            setSortDir(k === "name" ? "asc" : "desc");
-            return k;
-        });
-    }, []);
-
-    const handleDeleteRequest = useCallback((project: { id: string; name: string }) => {
+    const onRequestDelete = useCallback((project: ProjectListItem) => {
+        setDeleteBlockerMessage(null);
         setDeleteTarget(project);
     }, []);
 
-    const handleConfirmDelete = useCallback(() => {
-        if (!deleteTarget) return;
-        deleteProject.mutate(deleteTarget.id, {
-            onSettled: () => setDeleteTarget(null),
+    const onConfirmDelete = useCallback(() => {
+        if (!deleteTarget || deleteProject.isPending) return;
+        const id = deleteTarget.id;
+        deleteProject.mutate(id, {
+            onSuccess: () => {
+                setDeleteTarget(null);
+                setDeleteBlockerMessage(null);
+            },
+            onError: (err) => {
+                const classified = classifyManagerProjectDeleteError(err);
+                if (classified.kind === "not_found") {
+                    setDeleteTarget(null);
+                    setDeleteBlockerMessage(null);
+                    return;
+                }
+                if (classified.kind === "not_deletable") {
+                    setDeleteTarget(null);
+                    setDeleteBlockerMessage(classified.message);
+                    return;
+                }
+                pushToast(classified.message || t("managerWorkspace.projects.deleteProjectError"), "error");
+                setDeleteTarget(null);
+            },
         });
-    }, [deleteProject, deleteTarget]);
+    }, [deleteProject, deleteTarget, pushToast, t]);
 
-    const handleRunAnalysis = useCallback(
-        (projectId: string) => {
-            watchdogScan.mutate({ project_id: projectId });
-        },
-        [watchdogScan],
-    );
-
-    const onCreate = () => {
-        if (!createPayload.name.trim()) return;
-        createProject.mutate(
-            {
-                name: createPayload.name.trim(),
-                status: createPayload.status,
-                priority: Number(createPayload.priority),
-                milestone_at: createPayload.milestone_at || undefined,
-            },
-            {
-                onSuccess: () => {
-                    setCreateMode(false);
-                    setCreatePayload({ name: "", status: "planned", priority: 5, milestone_at: "" });
-                },
-            },
-        );
-    };
-
-    const projectDetailPath = useCallback((projectId: string) => managerProjectMissionControlPath(projectId), []);
-
-    const showEmptyAll = !projectsQuery.isLoading && !projectsQuery.isError && segmentFilter === "all" && !searchQuery.trim() && listItems.length === 0;
-    const showEmptySegment =
-        !projectsQuery.isLoading && !projectsQuery.isError && sortedProjects.length === 0 && segmentFilter === "action_required";
-    const showEmptySearch =
-        !projectsQuery.isLoading && !projectsQuery.isError && sortedProjects.length === 0 && Boolean(searchQuery.trim());
+    const showEmpty = !projectsQuery.isLoading && !projectsQuery.isError && listItems.length === 0;
 
     return (
-        <WorkspacePageShell role="manager" eyebrow={t("workspaceRoles.manager")} title={t("managerWorkspace.projects.heroTitle")} description={false} omitHeader>
+        <WorkspacePageShell
+            role="manager"
+            eyebrow={t("workspaceRoles.manager")}
+            title={t("managerWorkspace.projects.heroTitle")}
+            description={false}
+            omitHeader
+        >
             <div className="flex flex-col gap-4">
-                <header className="space-y-3 border-b border-slate-100 pb-3 dark:border-slate-800">
-                    <div className="flex flex-wrap items-baseline justify-between gap-3">
-                        <h1 className="text-xl font-semibold text-slate-900 dark:text-slate-100">
-                            {t("managerWorkspace.projects.heroTitle")}
-                            {counts?.total !== undefined ? (
-                                <span className="ml-2 text-base font-normal text-slate-400">{counts.total}</span>
-                            ) : apiTotal > 0 ? (
-                                <span className="ml-2 text-base font-normal text-slate-400">{apiTotal}</span>
-                            ) : null}
-                        </h1>
-                        <div className="flex items-center gap-2">
-                            <Button type="button" color="tertiary" size="sm" onClick={toggleDensity}>
-                                {density === "comfortable"
-                                    ? t("managerWorkspace.projects.densityToggleCompact")
-                                    : t("managerWorkspace.projects.densityToggleComfortable")}
-                            </Button>
-                            <Button type="button" color="primary" size="sm" onClick={() => setCreateMode((v) => !v)}>
-                                {createMode
-                                    ? t("managerWorkspace.projects.toggleCreateClose")
-                                    : t("managerWorkspace.projects.newProjectShort")}
-                            </Button>
+                <ProjectsFiltersBar filters={filters} onChange={setFilters} onCreate={() => setCreateOpen(true)} />
+
+                {deleteBlockerMessage ? (
+                    <div
+                        role="alert"
+                        className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-100"
+                    >
+                        <div className="flex items-start justify-between gap-3">
+                            <p className="whitespace-pre-wrap font-medium">{deleteBlockerMessage}</p>
+                            <button
+                                type="button"
+                                className="shrink-0 text-xs font-medium underline"
+                                onClick={() => setDeleteBlockerMessage(null)}
+                            >
+                                {t("managerWorkspace.projects.deleteBlockerDismiss")}
+                            </button>
                         </div>
                     </div>
-
-                    {!projectsQuery.isLoading ? (
-                        <ProjectsInsightBar counts={counts} onFilterClick={setSegmentFilter} />
-                    ) : null}
-                </header>
+                ) : null}
 
                 {projectsQuery.isError ? (
-                    <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800 dark:border-red-900/50 dark:bg-red-950/30 dark:text-red-200">
-                        {t("managerWorkspace.projects.loadError")}
-                    </p>
-                ) : null}
-
-                {!projectsQuery.isLoading && projectsQuery.data ? (
-                    <div className="flex flex-col gap-3">
-                        <div className="flex flex-wrap items-center gap-3">
-                            <input
-                                value={searchQuery}
-                                onChange={(e) => setSearchQuery(e.target.value)}
-                                placeholder={t("managerWorkspace.projects.searchPlaceholder")}
-                                aria-label={t("managerWorkspace.projects.searchPlaceholder")}
-                                className="min-w-[12rem] max-w-[20rem] flex-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-sm text-slate-900 placeholder:text-slate-400 focus:border-slate-400 focus:outline-none focus:ring-1 focus:ring-slate-300 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
-                            />
-                            <ProjectsSegments
-                                counts={counts}
-                                totalFallback={apiTotal}
-                                active={segmentFilter}
-                                onChange={setSegmentFilter}
-                            />
-                        </div>
+                    <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800 dark:border-red-900/50 dark:bg-red-950/30 dark:text-red-200">
+                        <p className="font-medium">{t("managerWorkspace.projects.loadError")}</p>
+                        <button
+                            type="button"
+                            className="mt-2 rounded-md bg-red-100 px-3 py-1.5 text-xs font-medium text-red-800 hover:bg-red-200 dark:bg-red-900/40 dark:text-red-100 dark:hover:bg-red-900/60"
+                            onClick={() => void projectsQuery.refetch()}
+                        >
+                            {t("managerWorkspace.dashboard.retry")}
+                        </button>
                     </div>
-                ) : null}
-
-                {createMode ? (
-                    <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-950">
-                        <div className="grid gap-2 md:grid-cols-4">
-                            <input
-                                value={createPayload.name}
-                                onChange={(e) => setCreatePayload((p) => ({ ...p, name: e.target.value }))}
-                                placeholder={t("managerWorkspace.projects.namePlaceholder")}
-                                className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-900"
-                            />
-                            <select
-                                value={createPayload.status}
-                                onChange={(e) => setCreatePayload((p) => ({ ...p, status: e.target.value as ProjectStatus }))}
-                                className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-900"
-                            >
-                                <option value="planned">{t("managerWorkspace.projects.statusPlanned")}</option>
-                                <option value="active">{t("managerWorkspace.projects.statusActive")}</option>
-                                <option value="on_hold">{t("managerWorkspace.projects.statusOnHold")}</option>
-                                <option value="completed">{t("managerWorkspace.projects.statusCompleted")}</option>
-                                <option value="cancelled">{t("managerWorkspace.projects.statusCancelledRow")}</option>
-                            </select>
-                            <input
-                                value={createPayload.priority}
-                                type="number"
-                                min={1}
-                                max={10}
-                                onChange={(e) => setCreatePayload((p) => ({ ...p, priority: Number(e.target.value) }))}
-                                placeholder={t("managerWorkspace.projects.priorityPlaceholder")}
-                                className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-900"
-                            />
-                            <div className="flex gap-2">
-                                <input
-                                    value={createPayload.milestone_at}
-                                    type="date"
-                                    onChange={(e) => setCreatePayload((p) => ({ ...p, milestone_at: e.target.value }))}
-                                    className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-900"
-                                />
-                                <Button
-                                    type="button"
-                                    color="secondary"
-                                    size="md"
-                                    className="shrink-0"
-                                    onClick={onCreate}
-                                    isDisabled={createProject.isPending}
-                                    isLoading={createProject.isPending}
-                                >
-                                    {t("managerWorkspace.projects.add")}
-                                </Button>
-                            </div>
-                        </div>
-                    </section>
                 ) : null}
 
                 {projectsQuery.isLoading ? (
-                    <div className="h-64 animate-pulse rounded-xl border border-slate-200 bg-slate-100/80 dark:border-slate-700 dark:bg-slate-800/40" />
+                    <div className="space-y-2" aria-label={t("loading")}>
+                        {[1, 2, 3, 4, 5, 6].map((i) => (
+                            <div
+                                key={i}
+                                className="h-14 animate-pulse rounded-lg bg-slate-100 dark:bg-slate-800/50"
+                                style={{ opacity: 1 - i * 0.08 }}
+                            />
+                        ))}
+                    </div>
                 ) : null}
 
-                {showEmptyAll ? (
+                {showEmpty ? (
                     <ProjectsEmptyState
-                        icon={FolderPlus}
-                        title={t("managerWorkspace.projects.emptyCreateTitle")}
-                        description={t("managerWorkspace.projects.emptyCreateDescription")}
-                        actionLabel={t("managerWorkspace.projects.emptyCreateAction")}
-                        onAction={() => setCreateMode(true)}
+                        title={
+                            hasActiveFilters
+                                ? t("managerWorkspace.projects.listEmptyNoMatch")
+                                : t("managerWorkspace.projects.listEmptyNone")
+                        }
+                        description={
+                            hasActiveFilters
+                                ? t("managerWorkspace.projects.listEmptyNoMatchHint")
+                                : t("managerWorkspace.projects.emptyCreateDescription")
+                        }
+                        actionLabel={
+                            hasActiveFilters
+                                ? t("managerWorkspace.projects.emptyResetSearch")
+                                : t("managerWorkspace.projects.emptyCreateAction")
+                        }
+                        onAction={
+                            hasActiveFilters
+                                ? () => setFilters({ search: "", status: "" })
+                                : () => setCreateOpen(true)
+                        }
                     />
                 ) : null}
 
-                {showEmptySegment ? (
-                    <ProjectsEmptyState
-                        icon={CheckCircle}
-                        title={t("managerWorkspace.projects.emptyNoActionTitle")}
-                        description={t("managerWorkspace.projects.emptyNoActionDescription")}
-                    />
-                ) : null}
-
-                {showEmptySearch ? (
-                    <ProjectsEmptyState
-                        title={t("managerWorkspace.projects.emptySearchTitle", { query: searchQuery.trim() })}
-                        actionLabel={t("managerWorkspace.projects.emptyResetSearch")}
-                        onAction={() => setSearchQuery("")}
-                    />
-                ) : null}
-
-                {!projectsQuery.isLoading && sortedProjects.length > 0 ? (
-                    <ManagerProjectsPortfolioTable
-                        rows={sortedProjects}
-                        sortKey={sortKey}
-                        sortDir={sortDir}
-                        density={density}
-                        onSort={toggleSort}
-                        projectDetailPath={projectDetailPath}
-                        t={t}
-                        statusLabel={(s) => statusLabel(t, s)}
-                        projectDisplayName={(name) => projectDisplayName(name, t)}
-                        onDeleteRequest={handleDeleteRequest}
-                        onEditRequest={setEditTarget}
-                        onRunAnalysis={handleRunAnalysis}
-                        isAnalysisPending={watchdogScan.isPending}
-                    />
-                ) : null}
-
-                {editTarget ? (
-                    <ProjectEditDialog
-                        open={Boolean(editTarget)}
-                        onOpenChange={(open) => {
-                            if (!open) setEditTarget(null);
-                        }}
-                        projectId={editTarget.id}
-                        initial={{
-                            status: normalizedProjectStatus(editTarget),
-                            priority: Math.round(coerceFiniteNumber(editTarget.priority) ?? 5),
-                            milestone_at: editTarget.milestone_at ?? "",
-                        }}
-                    />
-                ) : null}
-
-                <ConfirmDialog
-                    isOpen={Boolean(deleteTarget)}
-                    onOpenChange={(open) => {
-                        if (!open && !deleteProject.isPending) setDeleteTarget(null);
-                    }}
-                    title={t("managerWorkspace.projects.deleteProjectTitle")}
-                    body={
-                        <div className="space-y-2">
-                            {deleteTarget ? (
-                                <p className="font-medium text-primary">
-                                    {t("managerWorkspace.projects.deleteProjectSubtitle", { name: deleteTarget.name })}
-                                </p>
-                            ) : null}
-                            <p>{t("managerWorkspace.projects.deleteProjectBody")}</p>
+                {!projectsQuery.isLoading && !projectsQuery.isError && listItems.length > 0 ? (
+                    <>
+                        <div className="flex flex-wrap items-center justify-between gap-2 text-[11px] text-slate-500">
+                            <span>
+                                {t("managerWorkspace.projects.listCountShown", {
+                                    shown: displayedProjects.length,
+                                    total: projectsQuery.data?.total ?? listItems.length,
+                                })}
+                            </span>
                         </div>
-                    }
-                    confirmLabel={t("managerWorkspace.projects.deleteProjectConfirm")}
-                    cancelLabel={t("managerWorkspace.projects.deleteProjectCancel")}
-                    tone="danger"
-                    isConfirmLoading={deleteProject.isPending}
-                    onConfirm={handleConfirmDelete}
-                />
+                        <ManagerProjectsPortfolioTable
+                            rows={displayedProjects}
+                            projectDisplayName={(name) => projectDisplayName(name, t)}
+                            onSelectProject={onSelectProject}
+                            onDeleteProject={onRequestDelete}
+                            sortKey={sortKey}
+                            sortDirection={sortDirection}
+                            onSort={handleSort}
+                        />
+                    </>
+                ) : null}
             </div>
+
+            <CreateProjectModal open={createOpen} onOpenChange={setCreateOpen} />
+
+            <DeleteProjectDialog
+                open={Boolean(deleteTarget)}
+                projectName={deleteTarget ? projectDisplayName(deleteTarget.name, t) : ""}
+                isDeleting={deleteProject.isPending}
+                onOpenChange={(open) => {
+                    if (!open && !deleteProject.isPending) setDeleteTarget(null);
+                }}
+                onConfirm={onConfirmDelete}
+            />
         </WorkspacePageShell>
     );
 }

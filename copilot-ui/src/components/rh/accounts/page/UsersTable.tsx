@@ -4,12 +4,10 @@ import { EmptyState } from "@/components/ui/EmptyState";
 import { ROLE_BADGE, isUserActive } from "@/lib/rh-accounts-display";
 import { formatDateRelative } from "@/utils/format";
 import { cx } from "@/utils/cx";
-import type { RhAccountsDensity } from "./use-rh-accounts-density";
 
 type UsersTableProps = {
     users: RhStaffAccount[];
     isLoading: boolean;
-    density: RhAccountsDensity;
     onRowClick: (user: RhStaffAccount) => void;
 };
 
@@ -23,9 +21,7 @@ function TableSkeleton() {
     );
 }
 
-export function UsersTable({ users, isLoading, density, onRowClick }: UsersTableProps) {
-    const isCompact = density === "compact";
-
+export function UsersTable({ users, isLoading, onRowClick }: UsersTableProps) {
     if (isLoading) return <TableSkeleton />;
 
     if (users.length === 0) {
@@ -60,14 +56,13 @@ export function UsersTable({ users, isLoading, density, onRowClick }: UsersTable
                                 key={u.id}
                                 onClick={() => onRowClick(u)}
                                 className={cx(
-                                    "cursor-pointer border-l-4 transition hover:bg-slate-50 dark:hover:bg-slate-800/50",
+                                    "h-14 cursor-pointer border-l-4 transition hover:bg-slate-50 dark:hover:bg-slate-800/50",
                                     active ? "border-l-emerald-500" : "border-l-slate-300 opacity-60",
-                                    isCompact ? "h-10" : "h-14",
                                 )}
                             >
                                 <td className="px-4">
                                     <p className="truncate font-medium">{u.full_name}</p>
-                                    {!isCompact && u.role === "manager" ? (
+                                    {u.role === "manager" ? (
                                         <p className="text-xs text-slate-500">
                                             {u.managed_talents_count} talent{u.managed_talents_count > 1 ? "s" : ""}{" "}
                                             managé{u.managed_talents_count > 1 ? "s" : ""}

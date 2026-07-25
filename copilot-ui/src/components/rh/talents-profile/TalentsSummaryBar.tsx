@@ -23,7 +23,7 @@ function Kpi({
         neutral: "bg-ws-card text-ws-primary",
         success: "bg-emerald-50 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-200",
         warning: "bg-amber-50 text-amber-900 dark:bg-amber-950/40 dark:text-amber-100",
-        info: "bg-sky-50 text-sky-800 dark:bg-sky-950/40 dark:text-sky-200",
+        info: "bg-primary-50 text-primary-800 dark:bg-primary-950/40 dark:text-primary-200",
     }[tone];
 
     return (

@@ -15,7 +15,6 @@ export { DecisionRow } from "./DecisionRow";
 export { DecisionSkeleton } from "./DecisionSkeleton";
 export { DecisionStackedBar } from "./DecisionStackedBar";
 export { DecisionWatchCard } from "./DecisionWatchCard";
-export { DensityToggle, type DecisionLogDensity } from "./DensityToggle";
 export { ImpactedProjectsCard } from "./ImpactedProjectsCard";
 export { ReasonChip } from "./ReasonChip";
 export { ScoreBar } from "./ScoreBar";

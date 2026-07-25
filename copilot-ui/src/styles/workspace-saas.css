@@ -3,9 +3,9 @@
  * Même structure UI ; seules les variables changent avec `.dark-mode`.
  */
 :root {
-    --ws-canvas: #f8fafc;
-    --ws-card: #ffffff;
-    --ws-sidebar: #ffffff;
+    --ws-canvas: oklch(0.97 0.01 165);
+    --ws-card: oklch(1 0 0);
+    --ws-sidebar: oklch(1 0 0);
     --ws-sidebar-border: #e2e8f0;
     --ws-border: #e2e8f0;
     --ws-border-subtle: #f1f5f9;
@@ -18,10 +18,10 @@
     --ws-nav-text: #475569;
     --ws-nav-text-active: #0f172a;
     --ws-nav-bg-active: #f1f5f9;
-    --ws-accent: #7c3aed;
-    --ws-accent-hover: #6d28d9;
-    --ws-accent-muted: #ede9fe;
-    --ws-accent-ring: rgb(124 58 237 / 0.25);
+    --ws-accent: #0e9384;
+    --ws-accent-hover: #0f766e;
+    --ws-accent-muted: #f0fdfa;
+    --ws-accent-ring: rgb(14 147 132 / 0.25);
     --ws-overlay: rgb(15 23 42 / 0.42);
     --ws-input-bg: #ffffff;
     --ws-shadow-card: 0 1px 2px rgb(15 23 42 / 0.05);
@@ -29,9 +29,9 @@
 }
 
 .dark-mode {
-    --ws-canvas: #0b1220;
-    --ws-card: #111827;
-    --ws-sidebar: #0f172a;
+    --ws-canvas: #10131f;
+    --ws-card: #111527;
+    --ws-sidebar: #111527;
     --ws-sidebar-border: rgb(30 41 59 / 0.75);
     --ws-border: #1e293b;
     --ws-border-subtle: #1e293b;
@@ -44,10 +44,10 @@
     --ws-nav-text: #94a3b8;
     --ws-nav-text-active: #f1f5f9;
     --ws-nav-bg-active: rgb(51 65 85 / 0.55);
-    --ws-accent: #8b5cf6;
-    --ws-accent-hover: #7c3aed;
-    --ws-accent-muted: rgb(91 33 182 / 0.22);
-    --ws-accent-ring: rgb(139 92 246 / 0.35);
+    --ws-accent: #2dd4bf;
+    --ws-accent-hover: #5eead4;
+    --ws-accent-muted: rgb(14 147 132 / 0.22);
+    --ws-accent-ring: rgb(45 212 191 / 0.35);
     --ws-overlay: rgb(2 6 23 / 0.62);
     --ws-input-bg: #111827;
     --ws-shadow-card: 0 1px 3px rgb(0 0 0 / 0.28);

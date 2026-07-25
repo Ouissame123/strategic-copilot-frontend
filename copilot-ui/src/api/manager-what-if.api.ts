@@ -1,7 +1,8 @@
-/** @deprecated Import depuis `@/api/whatif.api` et `@/api/whatif.types`. */
 export {
     getWhatIfErrorCode,
+    getWhatIfErrorMessage,
     managerWhatIfApi,
+    parseWhatIfValidationErrors,
     runWhatIfSimulation,
     sanitizeWhatIfModifications,
     WHAT_IF_PATH,
@@ -10,4 +11,11 @@ export {
     type ManagerWhatIfModifications as WhatIfModifications,
 } from "@/api/whatif.api";
 
-export type { ScoreBreakdown, ViabilityDecision, WhatIfError, WhatIfRequest, WhatIfResponse } from "@/api/whatif.types";
+export type {
+    ScoreBreakdown,
+    ViabilityDecision,
+    WhatIfError,
+    WhatIfFieldErrors,
+    WhatIfRequest,
+    WhatIfResponse,
+} from "@/api/whatif.types";

@@ -72,6 +72,8 @@ export type RhChatPostResult = {
     sources?: RhChatSource[];
     confidence?: number | null;
     quick_replies?: string[];
+    user_message_id?: string;
+    assistant_message_id?: string;
 };
 
 /** Métadonnées assistant affichées dans le panneau « Analyse IA ». */

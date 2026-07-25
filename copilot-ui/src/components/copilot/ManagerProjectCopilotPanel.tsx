@@ -71,7 +71,7 @@ export type ManagerProjectCopilotPanelProps = {
     /** Re-scan complet via POST `/webhook/api/project/viability` (modal Mission Control). */
     onRefreshProjectSnapshot?: () => void;
     refreshingProjectSnapshot?: boolean;
-    /** Mode drawer Mission Control : masque le titre/sous-titre déjà affichés par `CopilotDrawer`. */
+    /** Mode drawer Mission Control : masque le titre/sous-titre du shell parent. */
     embeddedInDrawer?: boolean;
     /** Fermeture du drawer (panneau Copilot v3). */
     onClose?: () => void;

@@ -66,7 +66,7 @@ export function OpportunitiesCard({ opportunities, excludeProjectId, totalCount 
             <section className={cx(TALENT_SURFACE, TALENT_SURFACE_ACCENT.ai, "flex h-full flex-col p-5")} aria-labelledby="talent-opportunities-title">
                 <header className="mb-4 flex items-start justify-between gap-2">
                     <div className="flex min-w-0 items-center gap-2">
-                        <span className="flex size-7 shrink-0 items-center justify-center rounded-md bg-violet-500/10 text-violet-600 dark:text-violet-300" aria-hidden>
+                        <span className="flex size-7 shrink-0 items-center justify-center rounded-md bg-primary-500/10 text-primary-600 dark:text-primary-300" aria-hidden>
                             <Sparkles className="size-3.5" />
                         </span>
                         <div>
@@ -113,7 +113,7 @@ export function OpportunitiesCard({ opportunities, excludeProjectId, totalCount 
                                     </p>
                                 </div>
                                 <span
-                                    className="shrink-0 rounded-md bg-violet-600 px-2 py-1 text-sm font-bold tabular-nums text-white"
+                                    className="shrink-0 rounded-md bg-primary-600 px-2 py-1 text-sm font-bold tabular-nums text-white"
                                     aria-label={`Score ${match.overall_score}`}
                                 >
                                     {match.overall_score}

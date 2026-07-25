@@ -1,23 +1,16 @@
 import { resolveRhWebhookBase } from "@/api/rh-dashboard.api";
-import { API_ROUTES } from "@/lib/api-routes";
-import { FEATURES } from "@/lib/feature-flags";
 
 /**
- * Routes WF_RH_Conversations + WF_RH_Chat (chemins webhook n8n).
+ * Routes WF_RH_Conversations (chemins webhook n8n).
  * Ne pas dupliquer ces valeurs dans les composants — utiliser `buildRhChatUrl`.
  */
 export const RH_CHAT_ENDPOINTS = {
     list: "/webhook/rh/conversations",
-    detail: "/webhook/wf-rh-conversations-detail-v1/rh/conversations",
-    archive: "/webhook/wf-rh-conversations-archive-v1/rh/conversations",
-    chat: "/webhook/rh/chat",
+    detail: "/webhook/rh/conversations",
+    archive: "/webhook/rh/conversations",
 } as const;
 
 export type RhChatEndpointKey = keyof typeof RH_CHAT_ENDPOINTS;
-
-function resolveRhChatPostPath(): string {
-    return FEATURES.USE_RH_CHAT_V3_RAG ? API_ROUTES.rhChatV3() : RH_CHAT_ENDPOINTS.chat;
-}
 
 function rhChatApiBaseOverride(): string | undefined {
     return (import.meta.env.VITE_RH_CHAT_API_BASE as string | undefined)?.trim();
@@ -28,9 +21,10 @@ function webhookPathSuffix(pathWithWebhookPrefix: string): string {
 }
 
 /**
- * URL absolue ou relative pour `apiGet` / `apiPost` / `apiPatch` (Bearer via apiClient).
+ * URL absolue ou relative pour `apiGet` / `apiPatch` (Bearer via apiClient).
+ * L'envoi de messages passe par `sendRhMessage` (`/rh/chat/sessions`).
  */
-export function buildRhChatUrl(route: "list" | "chat"): string;
+export function buildRhChatUrl(route: "list"): string;
 export function buildRhChatUrl(route: "detail" | "archive", conversationId: string): string;
 export function buildRhChatUrl(route: RhChatEndpointKey, conversationId?: string): string {
     const id = conversationId?.trim();
@@ -48,9 +42,6 @@ export function buildRhChatUrl(route: RhChatEndpointKey, conversationId?: string
         if (route === "archive") {
             return `${RH_CHAT_ENDPOINTS.archive}/${encodeURIComponent(id!)}/archive`;
         }
-        if (route === "chat") {
-            return resolveRhChatPostPath();
-        }
         return RH_CHAT_ENDPOINTS[route];
     }
 
@@ -61,9 +52,6 @@ export function buildRhChatUrl(route: RhChatEndpointKey, conversationId?: string
     }
     if (route === "archive") {
         return `${webhookBase}${webhookPathSuffix(RH_CHAT_ENDPOINTS.archive)}/${encodeURIComponent(id!)}/archive`;
-    }
-    if (route === "chat") {
-        return `${webhookBase}${webhookPathSuffix(resolveRhChatPostPath())}`;
     }
     return `${webhookBase}${webhookPathSuffix(RH_CHAT_ENDPOINTS[route])}`;
 }

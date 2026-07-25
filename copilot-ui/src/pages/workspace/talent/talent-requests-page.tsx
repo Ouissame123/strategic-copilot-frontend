@@ -1,24 +1,23 @@
 import { useCallback, useMemo, useState } from "react";
-import { Plus, Search } from "lucide-react";
 import { useSearchParams } from "react-router";
 import { NewTalentRequestDialog } from "@/components/talent/requests/NewTalentRequestDialog";
-import { TalentRequestCard } from "@/components/talent/requests/TalentRequestCard";
 import { TalentRequestDrawer } from "@/components/talent/requests/TalentRequestDrawer";
-import { TalentRequestsDensityToggle } from "@/components/talent/requests/TalentRequestsDensityToggle";
-import { TalentRequestsInsightBar } from "@/components/talent/requests/TalentRequestsInsightBar";
+import { TALENT_PAGE_STACK } from "@/components/talent/ui/talent-workspace-ui";
 import {
-    REQUEST_TYPE_OPTIONS,
-    TALENT_REQUEST_TABS,
+    RequestCard,
+    RequestsEmptyState,
+    RequestsStatsBar,
+    RequestsToolbar,
+    emptyTitleForTab,
+    filterRequestsBySearch,
+    filterUrgentRequests,
     parseTabParam,
-    readTalentRequestsDensity,
+    searchEmptyTitle,
+    sortRequestsByCreatedDesc,
     tabToApiStatus,
-    writeTalentRequestsDensity,
-    type TalentRequestsDensity,
+    type RequestsStatKey,
     type TalentRequestsTab,
-} from "@/components/talent/requests/talent-request-ui";
-import { Button } from "@/components/base/buttons/button";
-import { NativeSelect } from "@/components/base/select/select-native";
-import { EmptyState } from "@/components/ui/EmptyState";
+} from "@/features/talent/requests";
 import { ErrorState } from "@/components/ui/ErrorState";
 import { useCopilotPage } from "@/hooks/use-copilot-page";
 import {
@@ -28,8 +27,6 @@ import {
 } from "@/hooks/useTalentRequests";
 import { useWorkspaceTopbarMeta } from "@/layouts/workspace-topbar-meta";
 import type { TalentRequest, TalentRequestType } from "@/types/talent-requests";
-import { TALENT_PAGE_STACK, TALENT_SEGMENT_ACTIVE, TALENT_SEGMENT_IDLE, TALENT_SEGMENTED } from "@/components/talent/ui/talent-workspace-ui";
-import { cx } from "@/utils/cx";
 
 export function TalentRequestsPage() {
     useCopilotPage("none", "Mes demandes");
@@ -42,12 +39,12 @@ export function TalentRequestsPage() {
     const tab = parseTabParam(searchParams.get("tab"));
     const typeFilter = (searchParams.get("type") ?? "all") as TalentRequestType | "all";
     const [search, setSearch] = useState("");
-    const [density, setDensity] = useState<TalentRequestsDensity>(() => readTalentRequestsDensity());
+    const [urgentOnly, setUrgentOnly] = useState(false);
     const [createOpen, setCreateOpen] = useState(false);
     const [selectedId, setSelectedId] = useState<string | null>(null);
     const [selectedRow, setSelectedRow] = useState<TalentRequest | null>(null);
 
-    const apiStatus = tabToApiStatus(tab);
+    const apiStatus = urgentOnly ? undefined : tabToApiStatus(tab);
     const listFilters = useMemo(
         () => ({
             ...(apiStatus ? { status: apiStatus } : {}),
@@ -61,14 +58,21 @@ export function TalentRequestsPage() {
     const createMutation = useCreateTalentRequest();
 
     const filteredItems = useMemo(() => {
-        const items = listQuery.data ?? [];
-        const q = search.trim().toLowerCase();
-        if (!q) return items;
-        return items.filter((item) => item.title.toLowerCase().includes(q));
-    }, [listQuery.data, search]);
+        let items = listQuery.data ?? [];
+        if (urgentOnly) items = filterUrgentRequests(items);
+        items = filterRequestsBySearch(items, search);
+        return sortRequestsByCreatedDesc(items);
+    }, [listQuery.data, search, urgentOnly]);
+
+    const activeStat: RequestsStatKey | null = urgentOnly
+        ? "urgent"
+        : tab === "pending" || tab === "accepted"
+          ? tab
+          : null;
 
     const setTab = useCallback(
         (next: TalentRequestsTab) => {
+            setUrgentOnly(false);
             setSearchParams((prev) => {
                 const params = new URLSearchParams(prev);
                 if (next === "all") params.delete("tab");
@@ -91,11 +95,21 @@ export function TalentRequestsPage() {
         [setSearchParams],
     );
 
-    const toggleDensity = () => {
-        const next: TalentRequestsDensity = density === "compact" ? "comfortable" : "compact";
-        setDensity(next);
-        writeTalentRequestsDensity(next);
-    };
+    const handleStatClick = useCallback(
+        (key: RequestsStatKey) => {
+            if (key === "urgent") {
+                setUrgentOnly(true);
+                setSearchParams((prev) => {
+                    const params = new URLSearchParams(prev);
+                    params.delete("tab");
+                    return params;
+                });
+                return;
+            }
+            setTab(key);
+        },
+        [setSearchParams, setTab],
+    );
 
     const openDrawer = (request: TalentRequest) => {
         setSelectedId(request.id);
@@ -115,8 +129,16 @@ export function TalentRequestsPage() {
         });
     };
 
+    const openCreate = () => setCreateOpen(true);
+
     const showEmpty = !listQuery.isLoading && !listQuery.isError && filteredItems.length === 0;
-    const hasActiveFilters = tab !== "all" || typeFilter !== "all" || search.trim().length > 0;
+    const searchTrimmed = search.trim();
+    const emptyTitle = searchTrimmed
+        ? searchEmptyTitle(searchTrimmed)
+        : urgentOnly
+          ? "Aucune demande urgente"
+          : emptyTitleForTab(tab);
+    const showNewRequestOnEmpty = !searchTrimmed;
 
     return (
         <div className={TALENT_PAGE_STACK}>
@@ -128,56 +150,29 @@ export function TalentRequestsPage() {
                     onRetry={() => void summaryQuery.refetch()}
                 />
             ) : (
-                <TalentRequestsInsightBar summary={summaryQuery.data} isLoading={summaryQuery.isLoading} />
+                <RequestsStatsBar
+                    summary={summaryQuery.data}
+                    isLoading={summaryQuery.isLoading}
+                    activeStat={activeStat}
+                    onStatClick={handleStatClick}
+                />
             )}
 
-            <div className="flex flex-wrap items-center justify-between gap-3">
-                <div className={TALENT_SEGMENTED}>
-                    {TALENT_REQUEST_TABS.map((item) => (
-                        <button
-                            key={item.value}
-                            type="button"
-                            onClick={() => setTab(item.value)}
-                            className={cx(
-                                "rounded px-2.5 py-1 text-xs transition",
-                                tab === item.value ? TALENT_SEGMENT_ACTIVE : TALENT_SEGMENT_IDLE,
-                            )}
-                        >
-                            {item.label}
-                        </button>
-                    ))}
-                </div>
-                <div className="flex flex-wrap items-center gap-2">
-                    <Button type="button" color="primary" iconLeading={Plus} onClick={() => setCreateOpen(true)}>
-                        Nouvelle demande
-                    </Button>
-                    <TalentRequestsDensityToggle density={density} onToggle={toggleDensity} />
-                </div>
-            </div>
-
-            <div className="flex flex-wrap items-center gap-3">
-                <NativeSelect
-                    value={typeFilter}
-                    onChange={(e) => setTypeFilter(e.target.value as TalentRequestType | "all")}
-                    className="min-w-[180px]"
-                    options={REQUEST_TYPE_OPTIONS.map((opt) => ({ label: opt.label, value: opt.value }))}
-                />
-                <div className="relative min-w-[220px] flex-1">
-                    <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-tertiary" />
-                    <input
-                        type="search"
-                        value={search}
-                        onChange={(e) => setSearch(e.target.value)}
-                        placeholder="Rechercher par titre…"
-                        className="w-full rounded-lg border border-secondary bg-primary py-2 pl-9 pr-3 text-sm text-primary outline-none focus:border-brand-secondary"
-                    />
-                </div>
-            </div>
+            <RequestsToolbar
+                tab={urgentOnly ? "all" : tab}
+                typeFilter={typeFilter}
+                search={search}
+                summary={summaryQuery.data}
+                onTabChange={setTab}
+                onTypeChange={setTypeFilter}
+                onSearchChange={setSearch}
+                onNewRequest={openCreate}
+            />
 
             {listQuery.isLoading ? (
-                <div className={cx("grid gap-3", density === "compact" ? "sm:grid-cols-2 xl:grid-cols-3" : "sm:grid-cols-2")}>
+                <div className="grid grid-cols-1 items-stretch gap-3 md:grid-cols-2">
                     {Array.from({ length: 6 }).map((_, i) => (
-                        <div key={i} className="h-32 animate-pulse rounded-2xl bg-secondary" />
+                        <div key={i} className="h-36 animate-pulse rounded-lg bg-secondary" />
                     ))}
                 </div>
             ) : null}
@@ -192,39 +187,23 @@ export function TalentRequestsPage() {
             ) : null}
 
             {showEmpty ? (
-                <EmptyState size="md">
-                    <EmptyState.Header>
-                        <EmptyState.FeaturedIcon color="gray" />
-                    </EmptyState.Header>
-                    <EmptyState.Content>
-                        <EmptyState.Title>
-                            {hasActiveFilters ? "Aucune demande ne correspond" : "Vous n'avez pas encore créé de demande"}
-                        </EmptyState.Title>
-                        <EmptyState.Description>
-                            {hasActiveFilters
-                                ? "Essayez d'élargir vos filtres ou de modifier votre recherche."
-                                : "Créez une demande pour la transmettre à votre manager et aux RH."}
-                        </EmptyState.Description>
-                    </EmptyState.Content>
-                    {!hasActiveFilters ? (
-                        <EmptyState.Footer>
-                            <Button type="button" color="primary" iconLeading={Plus} onClick={() => setCreateOpen(true)}>
-                                Nouvelle demande
-                            </Button>
-                        </EmptyState.Footer>
-                    ) : null}
-                </EmptyState>
+                <RequestsEmptyState
+                    title={emptyTitle}
+                    description={
+                        searchTrimmed
+                            ? undefined
+                            : tab === "all" && !urgentOnly
+                              ? "Créez une demande pour la transmettre à votre manager et aux RH."
+                              : undefined
+                    }
+                    onNewRequest={showNewRequestOnEmpty ? openCreate : undefined}
+                />
             ) : null}
 
             {!listQuery.isLoading && !listQuery.isError && filteredItems.length > 0 ? (
-                <div className={cx("grid gap-3", density === "compact" ? "sm:grid-cols-2 xl:grid-cols-3" : "sm:grid-cols-2")}>
+                <div className="grid grid-cols-1 items-stretch gap-3 md:grid-cols-2">
                     {filteredItems.map((request) => (
-                        <TalentRequestCard
-                            key={request.id}
-                            request={request}
-                            density={density}
-                            onClick={openDrawer}
-                        />
+                        <RequestCard key={request.id} request={request} onClick={openDrawer} />
                     ))}
                 </div>
             ) : null}

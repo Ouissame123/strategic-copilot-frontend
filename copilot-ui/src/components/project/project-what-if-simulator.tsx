@@ -230,7 +230,7 @@ export function ProjectWhatIfSimulator({ onSimulate, talentOptions = [], onReque
                                     min={0}
                                     max={100}
                                     step={1}
-                                    className="w-full accent-violet-600"
+                                    className="w-full accent-primary-600"
                                     value={Number.isFinite(allocationNumber) ? allocationNumber : 0}
                                     onChange={(e) => setAllocationPct(e.target.value)}
                                 />

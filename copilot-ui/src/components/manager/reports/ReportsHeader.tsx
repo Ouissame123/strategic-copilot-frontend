@@ -9,7 +9,7 @@ export function ReportsHeader({ title, subtitle }: ReportsHeaderProps) {
     return (
         <header className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between print:hidden">
             <div className="flex items-center gap-3">
-                <span className="flex size-11 items-center justify-center rounded-2xl bg-gradient-to-br from-indigo-600 to-violet-600 text-white shadow-md">
+                <span className="flex size-11 items-center justify-center rounded-2xl bg-gradient-to-br from-primary-600 to-primary-700 text-white shadow-md">
                     <FileBarChart2 className="size-5" aria-hidden />
                 </span>
                 <div>

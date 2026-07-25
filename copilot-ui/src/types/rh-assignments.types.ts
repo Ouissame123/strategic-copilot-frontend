@@ -89,7 +89,7 @@ export type CreateRhAssignmentPayload = {
     note?: string | null;
 };
 
-/** PATCH `/rh/assignments/:talent_id` — body `{ manager_user_id }`. */
+/** PATCH `…/webhook/wf-rh-assignments-update-v2/rh/assignments/:id` — body `{ manager_user_id }` (`id` = talent_id). */
 export type UpdateRhAssignmentPayload = {
     manager_user_id: string;
     note?: string | null;

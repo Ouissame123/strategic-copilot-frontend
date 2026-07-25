@@ -8,7 +8,6 @@ import { cx } from "@/utils/cx";
 type KpiCardsRowProps = {
     kpis?: TalentDashboard["kpis"];
     opportunitiesCount?: number;
-    density?: "compact" | "comfortable";
     className?: string;
 };
 

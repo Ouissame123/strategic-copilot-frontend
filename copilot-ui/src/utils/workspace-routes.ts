@@ -24,8 +24,11 @@ export function workspaceProjectsListPath(role: Role | null | undefined): string
 
 export const MISSION_CONTROL_WORKSPACE_TABS = [
     "overview",
+    "copilot",
     "team",
+    "competences",
     "tasks",
+    "budget",
     "risks",
     "simulation",
     "decisions",

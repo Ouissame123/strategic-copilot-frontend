@@ -121,7 +121,7 @@ export function ReportsAutomationCalendar({ automations, month: controlledMonth,
                                     rx={8}
                                     className={cx(
                                         isToday(day)
-                                            ? "fill-indigo-100 stroke-indigo-400 dark:fill-indigo-950/50 dark:stroke-indigo-500"
+                                            ? "fill-primary-100 stroke-primary-400 dark:fill-primary-950/50 dark:stroke-primary-500"
                                             : "fill-white stroke-slate-200/80 dark:fill-slate-900 dark:stroke-slate-700",
                                     )}
                                     strokeWidth={isToday(day) ? 1.5 : 1}
@@ -161,7 +161,7 @@ export function ReportsAutomationCalendar({ automations, month: controlledMonth,
 
             <div className="mt-4 flex flex-wrap gap-3 text-xs text-slate-500">
                 <span className="inline-flex items-center gap-1.5">
-                    <span className="size-2 rounded-full bg-indigo-500" /> Comité
+                    <span className="size-2 rounded-full bg-primary-500" /> Comité
                 </span>
                 <span className="inline-flex items-center gap-1.5">
                     <span className="size-2 rounded-full bg-amber-500" /> Risques

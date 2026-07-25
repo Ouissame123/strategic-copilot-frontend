@@ -55,7 +55,7 @@ function SummaryPill({ label, value, tone }: { label: string; value: number; ton
         tone === "warn"
             ? "text-amber-700 dark:text-amber-300"
             : tone === "info"
-              ? "text-sky-700 dark:text-sky-300"
+              ? "text-primary-700 dark:text-primary-300"
               : RH_TEXT_PRIMARY;
     return (
         <div
@@ -119,7 +119,7 @@ export function TalentAbsencesSection({ talentId, token }: TalentAbsencesSection
         <section
             className={cx(
                 RH_CARD,
-                "overflow-hidden border-slate-200/80 bg-gradient-to-br from-white via-slate-50/80 to-violet-50/20 p-0 shadow-sm backdrop-blur-sm dark:border-slate-700/80 dark:from-slate-900 dark:via-slate-900 dark:to-violet-950/10",
+                "overflow-hidden border-slate-200/80 bg-gradient-to-br from-white via-slate-50/80 to-primary-50/20 p-0 shadow-sm backdrop-blur-sm dark:border-slate-700/80 dark:from-slate-900 dark:via-slate-900 dark:to-primary-950/10",
             )}
         >
             <div className="flex flex-wrap items-start justify-between gap-2 border-b border-slate-100/90 px-3 py-2.5 dark:border-slate-800">

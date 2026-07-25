@@ -53,7 +53,7 @@ export function ProfileTabSecurity({
 
             <section className={PROFILE_CARD + " p-5 sm:p-6"}>
                 <header className="mb-5 flex items-start gap-3">
-                    <span className="flex size-10 items-center justify-center rounded-xl bg-indigo-50 text-indigo-600 dark:bg-indigo-950/50 dark:text-indigo-400">
+                    <span className="flex size-10 items-center justify-center rounded-xl bg-primary-50 text-primary-600 dark:bg-primary-950/50 dark:text-primary-400">
                         <KeyRound className="size-5" aria-hidden />
                     </span>
                     <div>
@@ -129,7 +129,7 @@ export function ProfileTabSecurity({
                     <button
                         type="submit"
                         disabled={!canSubmitPassword || passwordSaving}
-                        className="inline-flex items-center gap-2 rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-50"
+                        className="inline-flex items-center gap-2 rounded-xl bg-primary-600 px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-50"
                     >
                         {passwordSaving ? <Loader2 className="size-4 animate-spin" aria-hidden /> : null}
                         Mettre à jour le mot de passe

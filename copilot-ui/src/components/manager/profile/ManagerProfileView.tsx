@@ -15,6 +15,7 @@ import {
     MANAGER_ACCOUNT_PREFS_KEY,
     MANAGER_COMPANY_FALLBACK,
     isValidEmail,
+    resolveProfileTabId,
     type ManagerAccountPrefs,
     type ProfileTabId,
 } from "./profile-shared";
@@ -44,7 +45,10 @@ export function ManagerProfileView() {
     const { push: pushToast } = useToast();
     const { theme, setTheme } = useTheme();
 
-    const [activeTab, setActiveTab] = useState<ProfileTabId>("account");
+    const [activeTab, setActiveTabState] = useState<ProfileTabId>("account");
+    const setActiveTab = (id: ProfileTabId | string) => {
+        setActiveTabState(resolveProfileTabId(id));
+    };
     const [logoutPending, setLogoutPending] = useState(false);
 
     const [profile, setProfile] = useState({ full_name: "", email: "" });
@@ -186,7 +190,7 @@ export function ManagerProfileView() {
                 <button
                     type="button"
                     onClick={() => navigate("/login")}
-                    className="mt-4 rounded-xl bg-indigo-600 px-4 py-2 text-sm font-semibold text-white"
+                    className="mt-4 rounded-xl bg-primary-600 px-4 py-2 text-sm font-semibold text-white"
                 >
                     Connexion
                 </button>

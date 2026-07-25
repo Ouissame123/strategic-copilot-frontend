@@ -1,6 +1,7 @@
-import { isAxiosError } from "axios";import { isAxiosError } from "axios";
+import { isAxiosError } from "axios";
 import { FEATURES } from "@/lib/feature-flags";
-import { HELPER_CHAT_V2_PATH, webhookPath } from "@/lib/n8n-webhook-path";
+import { HELPER_CHAT_V2_DEFAULT_PATH } from "@/lib/helper-chat-config";
+import { webhookPath } from "@/lib/n8n-webhook-path";
 import { httpClient, type HttpClientRequestConfig } from "@/lib/http-client";
 import type { HelperChatV3Request, HelperChatV3Response } from "@/api/helper-chat-v3.types";
 
@@ -12,7 +13,7 @@ function resolveHelperChatPath(): string {
     if (FEATURES.USE_HELPER_V3) {
         return webhookPath(HELPER_CHAT_V3_PATH);
     }
-    return webhookPath(HELPER_CHAT_V2_PATH);
+    return webhookPath(HELPER_CHAT_V2_DEFAULT_PATH);
 }
 
 export function getHelperChatV3ErrorMessage(err: unknown): string {

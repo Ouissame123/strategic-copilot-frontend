@@ -11,7 +11,7 @@ function dayBarColor(value: number): string {
 }
 
 function projectBarColor(index: number): string {
-    const palette = ["#7c6ef5", "#f59e0b", "#3b82f6", "#22c27a", "#a0a3bd"];
+    const palette = ["var(--color-primary-600)", "#f59e0b", "var(--color-primary-400)", "#22c27a", "#a0a3bd"];
     return palette[index % palette.length]!;
 }
 

@@ -138,9 +138,9 @@ function RoleBadge({ role }: { role: string }) {
 
         role === "rh"
 
-            ? "bg-violet-50 text-violet-700 dark:bg-violet-950/40 dark:text-violet-200"
+            ? "bg-primary-50 text-primary-700 dark:bg-primary-950/40 dark:text-primary-200"
 
-            : "bg-sky-50 text-sky-700 dark:bg-sky-950/40 dark:text-sky-200";
+            : "bg-primary-50 text-primary-700 dark:bg-primary-950/40 dark:text-primary-200";
 
     return <span className={cx("rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase", cls)}>{label}</span>;
 
@@ -184,7 +184,7 @@ function ListShell({
 
             <div className={cx(RH_CARD, "flex min-h-[240px] items-center justify-center gap-2 p-8")}>
 
-                <Loader2 className="size-5 animate-spin text-violet-600" aria-hidden />
+                <Loader2 className="size-5 animate-spin text-primary-600" aria-hidden />
 
                 <span className={cx("text-sm", RH_TEXT_MUTED)}>Chargement des comptes…</span>
 

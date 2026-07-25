@@ -2,12 +2,9 @@ import { Link } from "react-router";
 import { Plus } from "lucide-react";
 import type { TalentDashboard } from "@/types/talent-dashboard";
 import { DashboardSectionCard } from "./DashboardSectionCard";
-import type { TalentDashboardDensity } from "./use-talent-dashboard-density";
-import { cx } from "@/utils/cx";
 
 type RequestsSummaryProps = {
     summary?: TalentDashboard["requests_summary"];
-    density: TalentDashboardDensity;
 };
 
 const STAT_ITEMS: Array<{ key: keyof NonNullable<TalentDashboard["requests_summary"]>; label: string }> = [
@@ -18,10 +15,9 @@ const STAT_ITEMS: Array<{ key: keyof NonNullable<TalentDashboard["requests_summa
     { key: "rejected", label: "Refusées" },
 ];
 
-export function RequestsSummary({ summary, density }: RequestsSummaryProps) {
+export function RequestsSummary({ summary }: RequestsSummaryProps) {
     if (summary === undefined) return null;
 
-    const compact = density === "compact";
     const empty = summary.total === 0;
 
     return (
@@ -30,14 +26,11 @@ export function RequestsSummary({ summary, density }: RequestsSummaryProps) {
             subtitle="Strategist"
             ctaLabel="Voir tout"
             ctaHref="/workspace/talent/requests"
-            density={density}
             accent="action"
         >
             {empty ? (
                 <div className="flex flex-wrap items-center justify-between gap-3">
-                    <p className={cx("text-tertiary", compact ? "text-xs" : "text-sm")}>
-                        Aucune demande envoyée
-                    </p>
+                    <p className="text-sm text-tertiary">Aucune demande envoyée</p>
                     <Link
                         to="/workspace/talent/requests"
                         className="inline-flex items-center gap-1.5 rounded-md bg-brand-solid px-3 py-1.5 text-xs font-semibold text-white hover:opacity-95"
@@ -49,18 +42,14 @@ export function RequestsSummary({ summary, density }: RequestsSummaryProps) {
             ) : (
                 <>
                     <div className="flex items-baseline gap-2">
-                        <p className={cx("font-semibold tabular-nums text-primary", compact ? "text-xl" : "text-2xl")}>
-                            {summary.total}
-                        </p>
+                        <p className="text-2xl font-semibold tabular-nums text-primary">{summary.total}</p>
                         <p className="text-xs text-tertiary">demandes au total</p>
                     </div>
-                    <div className={cx("mt-2 flex flex-wrap gap-1.5", compact && "mt-1.5")}>
+                    <div className="mt-2 flex flex-wrap gap-1.5">
                         {STAT_ITEMS.map(({ key, label }) => (
                             <div
                                 key={key}
-                                className={cx(
-                                    "rounded-md border border-secondary/50 bg-secondary_subtle/30 px-2.5 py-1",
-                                )}
+                                className="rounded-md border border-secondary/50 bg-secondary_subtle/30 px-2.5 py-1"
                             >
                                 <span className="text-sm font-semibold tabular-nums text-primary">{summary[key]}</span>
                                 <span className="ml-1.5 text-[10px] text-tertiary">{label}</span>

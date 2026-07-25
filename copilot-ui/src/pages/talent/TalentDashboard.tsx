@@ -117,7 +117,7 @@ export default function TalentDashboard() {
 
                 {/* Alertes backend (contrat, risques) — données réelles uniquement */}
                 {hasAlerts ? (
-                    <AlertsSection alerts={data.alerts} contractAlert={data.contract_alert} density="comfortable" />
+                    <AlertsSection alerts={data.alerts} contractAlert={data.contract_alert} />
                 ) : null}
             </div>
 

@@ -41,14 +41,14 @@ export function EvolutionPanel({
 
     if (isEmptyEvolution(trends)) {
         return (
-            <section className="rounded-xl border border-blue-200 bg-blue-50 p-4 dark:border-blue-900 dark:bg-blue-950/30">
+            <section className="rounded-xl border border-primary-200 bg-primary-50 p-4 dark:border-primary-900 dark:bg-primary-950/30">
                 <div className="flex items-start gap-3">
-                    <BarChart01 className="size-5 shrink-0 text-blue-600" aria-hidden />
+                    <BarChart01 className="size-5 shrink-0 text-primary-600" aria-hidden />
                     <div className="min-w-0 flex-1">
-                        <h2 className="text-sm font-semibold text-blue-900 dark:text-blue-100">{te("sectionTitle")}</h2>
-                        <p className="mt-1 text-sm text-blue-800 dark:text-blue-200">{te("emptyBody")}</p>
+                        <h2 className="text-sm font-semibold text-primary-900 dark:text-primary-100">{te("sectionTitle")}</h2>
+                        <p className="mt-1 text-sm text-primary-800 dark:text-primary-200">{te("emptyBody")}</p>
                         {nextReviewAt ? (
-                            <p className="mt-2 text-xs text-blue-700 dark:text-blue-300">
+                            <p className="mt-2 text-xs text-primary-700 dark:text-primary-300">
                                 {te("nextReview", { date: new Date(nextReviewAt).toLocaleDateString(dateLocale) })}
                             </p>
                         ) : null}

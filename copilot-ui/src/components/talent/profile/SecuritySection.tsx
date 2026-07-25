@@ -152,7 +152,7 @@ export function SecuritySection({ mustChangePassword, autoOpenPasswordModal }: S
         <>
             <section className="rounded-2xl border border-secondary bg-primary p-5 shadow-xs ring-1 ring-secondary/60 sm:p-6">
                 <div className="flex items-start gap-3">
-                    <span className="flex size-10 items-center justify-center rounded-xl bg-violet-50 text-violet-600 dark:bg-violet-950/40 dark:text-violet-300">
+                    <span className="flex size-10 items-center justify-center rounded-xl bg-primary-50 text-primary-600 dark:bg-primary-950/40 dark:text-primary-300">
                         <KeyRound className="size-5" aria-hidden />
                     </span>
                     <div className="min-w-0 flex-1">

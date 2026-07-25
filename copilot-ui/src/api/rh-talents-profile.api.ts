@@ -49,11 +49,23 @@ export function normalizeTalentProfile(raw: unknown): TalentProfile | null {
 
     const manager_user_id = str(r.manager_user_id ?? r.managerUserId) || null;
     const manager_name = str(r.manager_name ?? r.managerName) || null;
+    const user_id = str(r.user_id ?? r.userId ?? r.portal_user_id ?? r.portalUserId) || null;
+
+    const explicitPortal = r.has_portal_access ?? r.hasPortalAccess ?? r.portal_access ?? r.portalAccess;
+    let has_portal_access = false;
+    if (explicitPortal === true) has_portal_access = true;
+    else if (explicitPortal === false) has_portal_access = false;
+    else if (typeof explicitPortal === "string") {
+        const s = explicitPortal.trim().toLowerCase();
+        has_portal_access = s === "true" || s === "1" || s === "yes";
+    } else {
+        has_portal_access = Boolean(user_id);
+    }
 
     return {
         talent_id,
-        user_id: str(r.user_id ?? r.userId) || null,
-        has_portal_access: r.has_portal_access === true || r.hasPortalAccess === true,
+        user_id,
+        has_portal_access,
         name: name || email,
         email,
         job_title: str(r.job_title ?? r.jobTitle) || "—",

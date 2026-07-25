@@ -57,7 +57,7 @@ export function StaffingRowActionsMenu({ onReassign, onRemove }: StaffingRowActi
                                 onReassign();
                             }}
                         >
-                            <ArrowRightLeft size={14} className="text-violet-600" aria-hidden />
+                            <ArrowRightLeft size={14} className="text-primary-600" aria-hidden />
                             Réaffecter vers un autre manager
                         </button>
                     ) : null}

@@ -63,7 +63,7 @@ export function DashboardStickyNav() {
                             className={cx(
                                 "inline-flex shrink-0 items-center rounded-lg px-3 py-2 text-xs font-semibold transition-colors",
                                 isActive
-                                    ? "bg-brand-primary/15 text-brand-secondary ring-1 ring-brand-secondary/25"
+                                    ? "bg-primary-500/15 text-primary-700 ring-1 ring-primary-600/25 dark:text-primary-300"
                                     : "text-tertiary hover:bg-secondary_subtle hover:text-primary",
                             )}
                         >

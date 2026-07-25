@@ -1,6 +1,7 @@
 @import "tailwindcss";
 @import "./theme.css";
 @import "./workspace-saas.css";
+@import "./tokens.css";
 @import "./inbox-tokens.css";
 @import "./typography.css";
 
@@ -77,6 +78,16 @@ body {
     font-variant-ligatures: contextual;
     -webkit-font-kerning: normal;
     font-kerning: normal;
+}
+
+html {
+    /* Scroll document (fenêtre) — pas de shell overflow interne. */
+    min-height: 100%;
+    overflow-y: auto;
+}
+
+#root {
+    min-height: 100%;
 }
 
 /* Hide the default expand arrow on Safari.  */

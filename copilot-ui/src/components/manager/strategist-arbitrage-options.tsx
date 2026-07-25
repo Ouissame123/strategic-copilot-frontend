@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { AlertCircle, CheckCircle2, Clock, Octagon, Plus, Repeat, X } from "lucide-react";
-import { dedupeArbitrageOptions, resolveArbitrageOptionType } from "@/lib/strategist-arbitrage";
+import { hasExecutedStrategistOption, resolveArbitrageOptionType } from "@/lib/strategist-arbitrage";
 import type { ArbitrageImpactJson, ArbitrageOption, ArbitrageOptionType } from "@/types/api.types";
 import { cx } from "@/utils/cx";
 
@@ -67,6 +67,8 @@ function isTerminalArbitrageStatus(status: string | undefined): boolean {
 export type StrategistArbitrageOptionsProps = {
     options: ArbitrageOption[];
     proposeLoading?: boolean;
+    managerSummary?: string | null;
+    topRecommendationId?: string | null;
     onAccept: (option: ArbitrageOption) => Promise<void>;
     onReject: (option: ArbitrageOption) => Promise<void>;
     onPropose: () => Promise<void>;
@@ -75,6 +77,8 @@ export type StrategistArbitrageOptionsProps = {
 export function StrategistArbitrageOptions({
     options,
     proposeLoading = false,
+    managerSummary,
+    topRecommendationId,
     onAccept,
     onReject,
     onPropose,
@@ -85,7 +89,8 @@ export function StrategistArbitrageOptions({
 
     const [actingId, setActingId] = useState<string | null>(null);
 
-    const displayOptions = useMemo(() => dedupeArbitrageOptions(options), [options]);
+    const displayOptions = useMemo(() => options, [options]);
+    const executedLocked = useMemo(() => hasExecutedStrategistOption(options), [options]);
 
     const handleAccept = async (opt: ArbitrageOption) => {
         setActingId(opt.id);
@@ -141,6 +146,9 @@ export function StrategistArbitrageOptions({
                     <p className="mt-1 text-xs text-fg-tertiary">
                         {tm("arbitrageOptionsCount", { count: displayOptions.length })}
                     </p>
+                    {managerSummary ? (
+                        <p className="mt-2 text-sm italic text-fg-secondary">{managerSummary}</p>
+                    ) : null}
                 </div>
                 <button
                     type="button"
@@ -160,6 +168,8 @@ export function StrategistArbitrageOptions({
                     const status = opt.status ?? "proposed";
                     const isTerminal = isTerminalArbitrageStatus(status);
                     const isActing = actingId === opt.id;
+                    const isTopRecommendation = topRecommendationId === opt.id;
+                    const canAct = status === "proposed" && !executedLocked;
                     const impact = opt.impact_json;
                     const confidencePct = Math.round((opt.confidence ?? 0) * 100);
 
@@ -171,6 +181,8 @@ export function StrategistArbitrageOptions({
                                 cfg.border,
                                 cfg.bg,
                                 isTerminal && "opacity-60 saturate-50",
+                                executedLocked && status === "proposed" && "opacity-50",
+                                isTopRecommendation && "ring-2 ring-violet-500 ring-offset-1",
                             )}
                         >
                             <header className="mb-2 flex items-start gap-2">
@@ -189,6 +201,11 @@ export function StrategistArbitrageOptions({
                                         <span className="rounded bg-primary/80 px-1.5 py-0.5 text-[10px] font-semibold tabular-nums text-fg-secondary">
                                             {confidencePct}%
                                         </span>
+                                        {isTopRecommendation ? (
+                                            <span className="rounded-full bg-violet-600 px-2 py-0.5 text-[10px] font-semibold text-white">
+                                                Recommandée
+                                            </span>
+                                        ) : null}
                                         {status === "executed" ? (
                                             <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-semibold text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-200">
                                                 {tm("arbitrageStatusExecuted")}
@@ -262,7 +279,7 @@ export function StrategistArbitrageOptions({
                                 <button
                                     type="button"
                                     onClick={() => void handleAccept(opt)}
-                                    disabled={isActing || isTerminal}
+                                    disabled={isActing || !canAct}
                                     className="inline-flex flex-1 items-center justify-center gap-1 rounded-lg bg-brand-solid px-2 py-1.5 text-xs font-semibold text-white transition hover:opacity-95 disabled:cursor-not-allowed disabled:opacity-50"
                                 >
                                     <CheckCircle2 className="size-3" aria-hidden />
@@ -271,7 +288,7 @@ export function StrategistArbitrageOptions({
                                 <button
                                     type="button"
                                     onClick={() => void handleReject(opt)}
-                                    disabled={isActing || isTerminal}
+                                    disabled={isActing || !canAct}
                                     className="rounded-lg border border-secondary bg-primary px-2 py-1.5 text-fg-secondary transition hover:bg-secondary_subtle disabled:cursor-not-allowed disabled:opacity-50"
                                     title={tm("rejectOption")}
                                     aria-label={tm("rejectOption")}

@@ -3,22 +3,19 @@ import { AlertTriangle, ChevronDown, ChevronRight } from "lucide-react";
 import type { TalentDashboard } from "@/types/talent-dashboard";
 import { TALENT_SURFACE } from "@/components/talent/ui/talent-workspace-ui";
 import { SEVERITY_TONES, toneClasses } from "./talent-dashboard-tones";
-import type { TalentDashboardDensity } from "./use-talent-dashboard-density";
 import { cx } from "@/utils/cx";
 
 type AlertsSectionProps = {
     alerts?: TalentDashboard["alerts"];
     contractAlert?: TalentDashboard["contract_alert"];
-    density: TalentDashboardDensity;
     defaultExpanded?: boolean;
 };
 
-export function AlertsSection({ alerts, contractAlert, density, defaultExpanded = false }: AlertsSectionProps) {
+export function AlertsSection({ alerts, contractAlert, defaultExpanded = false }: AlertsSectionProps) {
     const list = alerts ?? [];
     const hasContract = contractAlert != null;
     if (list.length === 0 && !hasContract) return null;
 
-    const compact = density === "compact";
     const sorted = [...list].sort((a, b) => {
         const order = { critical: 0, high: 1, medium: 2, low: 3 };
         return (order[a.severity] ?? 9) - (order[b.severity] ?? 9);
@@ -54,7 +51,7 @@ export function AlertsSection({ alerts, contractAlert, density, defaultExpanded 
             </button>
 
             {expanded ? (
-                <ul className={cx("space-y-1 border-t border-secondary/40 px-3 pb-3 pt-2 sm:px-4", compact && "pb-2")}>
+                <ul className="space-y-1 border-t border-secondary/40 px-3 pb-3 pt-2 sm:px-4">
                     {hasContract ? (
                         <li>
                             <article

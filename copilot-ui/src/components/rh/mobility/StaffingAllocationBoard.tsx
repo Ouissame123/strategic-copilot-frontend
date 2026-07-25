@@ -43,7 +43,6 @@ export function StaffingAllocationBoard({
         <section className={cx(MOBILITY_SURFACE, "overflow-hidden")}>
             <div className={MOBILITY_BOARD_HEADER}>
                 <span>Talent</span>
-                <span>Poste</span>
                 <span>Manager</span>
                 <span>Email manager</span>
                 <span>Statut</span>

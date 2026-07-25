@@ -1,4 +1,6 @@
 import axios from "axios";
+import { API_ROUTES } from "@/lib/api-routes";
+import { buildBrowserFetchN8nUrl } from "@/lib/build-n8n-url";
 import { authStorage } from "@/lib/auth-storage";
 import type {
     CompleteTaskPayload,
@@ -27,34 +29,21 @@ tasksHttp.interceptors.request.use((config) => {
     return config;
 });
 
-/** Dev : proxy Vite. Prod (Vercel) : rewrite `vercel.json` `/n8n-webhook` → n8n. */
-const N8N_BASE = "/n8n-webhook";
-
-function encId(id: string, label: "projectId" | "taskId"): string {
-    const s = String(id ?? "").trim();
-    if (!s) throw new Error(`Missing ${label}`);
-    const lower = s.toLowerCase();
-    if (lower === ":id" || lower === ":projectid" || lower === ":taskid") {
-        throw new Error(`Invalid ${label} placeholder`);
-    }
-    return encodeURIComponent(s);
+/** Chemins `/webhook/wmt-*` (proxy Vite en dev, rewrites Vercel en prod). */
+function taskUrl(path: string): string {
+    return buildBrowserFetchN8nUrl(path);
 }
 
 export const TASKS_ENDPOINTS = {
-    list: (projectId: string) =>
-        `${N8N_BASE}/wmt-list-v1/manager/projects/${encId(projectId, "projectId")}/tasks`,
+    list: (projectId: string) => taskUrl(API_ROUTES.taskList(projectId)),
 
-    create: (projectId: string) =>
-        `${N8N_BASE}/wmt-create-v1/manager/projects/${encId(projectId, "projectId")}/tasks`,
+    create: (projectId: string) => taskUrl(API_ROUTES.taskCreate(projectId)),
 
-    update: (projectId: string, taskId: string) =>
-        `${N8N_BASE}/wmt-update-v1/manager/projects/${encId(projectId, "projectId")}/tasks/${encId(taskId, "taskId")}`,
+    update: (projectId: string, taskId: string) => taskUrl(API_ROUTES.taskUpdate(projectId, taskId)),
 
-    complete: (projectId: string, taskId: string) =>
-        `${N8N_BASE}/wmt-complete-v1/manager/projects/${encId(projectId, "projectId")}/tasks/${encId(taskId, "taskId")}/complete`,
+    complete: (projectId: string, taskId: string) => taskUrl(API_ROUTES.taskComplete(projectId, taskId)),
 
-    delete: (projectId: string, taskId: string) =>
-        `${N8N_BASE}/wmt-delete-v1/manager/projects/${encId(projectId, "projectId")}/tasks/${encId(taskId, "taskId")}`,
+    delete: (projectId: string, taskId: string) => taskUrl(API_ROUTES.taskDelete(projectId, taskId)),
 };
 
 // --- normalisation (inchangée) ---
@@ -238,8 +227,13 @@ export async function completeProjectTask(
 }
 
 export async function deleteProjectTask(projectId: string, taskId: string): Promise<DeleteTaskResponse> {
-    const res = await tasksHttp.delete<DeleteTaskResponse>(TASKS_ENDPOINTS.delete(projectId, taskId));
-    return res.data;
+    const res = await tasksHttp.delete<unknown>(TASKS_ENDPOINTS.delete(projectId, taskId));
+    const root = asRecord(res.data) ?? {};
+    if (String(root.status ?? "").toLowerCase() === "error") {
+        const message = String(root.message ?? root.error ?? "Suppression impossible").trim();
+        throw new Error(message || "Suppression impossible");
+    }
+    return res.data as DeleteTaskResponse;
 }
 
 /** API objet — utilisée par les hooks existants. */

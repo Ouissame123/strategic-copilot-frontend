@@ -72,7 +72,7 @@ export function RhRequestCard({
             ) : null}
 
             {item.confidence != null ? (
-                <p className="mt-2 text-[11px] font-medium text-violet-700 dark:text-violet-300">
+                <p className="mt-2 text-[11px] font-medium text-primary-700 dark:text-primary-300">
                     Confiance Strategist : {item.confidence}%
                 </p>
             ) : null}

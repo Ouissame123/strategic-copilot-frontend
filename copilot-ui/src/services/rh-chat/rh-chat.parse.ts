@@ -123,7 +123,13 @@ export function parseRhChatConversationDetail(raw: unknown, id: string): RhChatC
     const rawMessages = Array.isArray(merged.messages) ? merged.messages : [];
     const messages = orderRhChatMessagesForDisplay(
         rawMessages
-            .map((m, i) => parseRhChatMessage(m, `msg-${i}`))
+            .map((m) => {
+                const o = asRecord(m);
+                const roleRaw = str(o.role).toLowerCase();
+                const role = roleRaw === "assistant" || roleRaw === "system" ? roleRaw : "user";
+                const createdAt = str(o.created_at ?? o.timestamp) || new Date().toISOString();
+                return parseRhChatMessage(m, `${role}_${createdAt}`);
+            })
             .filter((x): x is RhChatMessage => x != null),
     );
 
@@ -140,10 +146,12 @@ export function parseRhChatPostResponse(raw: unknown): RhChatPostResult {
     const root = asRecord(raw);
     const data = asRecord(root.data);
     const merged = { ...data, ...root };
+    const assistant = asRecord(merged.assistant_message);
+    const userMsg = asRecord(merged.user_message);
 
     return {
-        conversation_id: str(merged.conversation_id ?? merged.conversationId),
-        reply: str(merged.reply ?? merged.message ?? merged.output ?? merged.response),
+        conversation_id: str(merged.session_id ?? merged.conversation_id ?? merged.conversationId),
+        reply: str(merged.reply ?? assistant.content ?? merged.message ?? merged.output ?? merged.response),
         intent: str(merged.intent) || null,
         details: merged.details,
         suggested_actions: normalizeSuggestedActions(merged.suggested_actions),
@@ -157,6 +165,8 @@ export function parseRhChatPostResponse(raw: unknown): RhChatPostResult {
         quick_replies: Array.isArray(merged.quick_replies)
             ? (merged.quick_replies as unknown[]).map((q) => str(q)).filter(Boolean)
             : undefined,
+        user_message_id: str(userMsg.id) || undefined,
+        assistant_message_id: str(assistant.id) || undefined,
     };
 }
 

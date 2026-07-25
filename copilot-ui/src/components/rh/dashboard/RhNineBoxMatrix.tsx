@@ -10,8 +10,8 @@ const PERFORMANCE_ROWS = ["High", "Medium", "Low"] as const;
 const POTENTIAL_COLS = ["Low", "Medium", "High"] as const;
 
 const CELL_TONE: Record<number, string> = {
-    0: "bg-violet-50/90 border-violet-100 dark:bg-violet-950/25 dark:border-violet-900/50",
-    1: "bg-sky-50/90 border-sky-100 dark:bg-sky-950/25 dark:border-sky-900/50",
+    0: "bg-primary-50/90 border-primary-100 dark:bg-primary-950/25 dark:border-primary-900/50",
+    1: "bg-primary-50/90 border-primary-100 dark:bg-primary-950/25 dark:border-primary-900/50",
     2: "bg-emerald-50/90 border-emerald-100 dark:bg-emerald-950/25 dark:border-emerald-900/50",
 };
 
@@ -35,7 +35,7 @@ export function RhNineBoxMatrix({ matrix, className }: RhNineBoxMatrixProps) {
                 <div className="flex w-10 shrink-0 flex-col justify-center gap-0">
                     <span
                         className={cx(
-                            "mb-1 text-center text-[9px] font-bold uppercase tracking-wide text-violet-600 dark:text-violet-400",
+                            "mb-1 text-center text-[9px] font-bold uppercase tracking-wide text-primary-600 dark:text-primary-400",
                         )}
                         style={{ writingMode: "vertical-rl", transform: "rotate(180deg)" }}
                     >
@@ -126,7 +126,7 @@ export function RhNineBoxMatrix({ matrix, className }: RhNineBoxMatrixProps) {
                             </span>
                         ))}
                     </div>
-                    <p className={cx("mt-1 text-center text-[9px] font-bold uppercase tracking-wide text-indigo-600 dark:text-indigo-400")}>
+                    <p className={cx("mt-1 text-center text-[9px] font-bold uppercase tracking-wide text-primary-600 dark:text-primary-400")}>
                         Potential →
                     </p>
                 </div>

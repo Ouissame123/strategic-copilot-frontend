@@ -334,14 +334,14 @@ function RequestDetailPanel({
                     ) : null}
                     {showOrchestratorHint ? (
                         <div
-                            className="flex gap-2 rounded-lg border border-sky-200 bg-sky-50/80 p-3 text-xs text-sky-950 dark:border-sky-900 dark:bg-sky-950/30 dark:text-sky-100"
+                            className="flex gap-2 rounded-lg border border-primary-200 bg-primary-50/80 p-3 text-xs text-primary-950 dark:border-primary-900 dark:bg-primary-950/30 dark:text-primary-100"
                             role="status"
                             aria-live="polite"
                         >
                             <Sparkles size={16} className="mt-0.5 shrink-0" aria-hidden />
                             <div>
                                 <p className="font-semibold">Recalcul IA programmé</p>
-                                <p className="mt-1 text-sky-900/90 dark:text-sky-100/90">
+                                <p className="mt-1 text-primary-900/90 dark:text-primary-100/90">
                                     Après validation, l&apos;IA recalculera le risque, les KPI et les matchings du
                                     projet <strong>{projectDisplay}</strong>. Mise à jour estimée en ~30s.
                                 </p>

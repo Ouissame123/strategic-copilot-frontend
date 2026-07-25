@@ -1,12 +1,12 @@
 import { Link, useParams } from "react-router";
 import { useTranslation } from "react-i18next";
+import { useMemo } from "react";
 import { useAuth } from "@/providers/auth-provider";
 import { useDashboard } from "@/hooks/useDashboard";
 import { WorkspacePageShell } from "@/components/workspace/workspace-page-shell";
-import { formatRelativeShort } from "@/lib/format-relative-short";
 
 /**
- * Détail d’une action RH (même source de données dashboard, pas de nouvel endpoint).
+ * Détail d’une action de validation (même source dashboard V3 — file Helper).
  * Les managers ne passent pas par l’espace `/workspace/rh` (rôle réservé RH).
  */
 export default function ManagerPendingActionPage() {
@@ -14,7 +14,44 @@ export default function ManagerPendingActionPage() {
     const { actionId } = useParams();
     const { user } = useAuth();
     const { data, isLoading, isError } = useDashboard("mine");
-    const item = data?.widgets.pending_rh_actions.find((a) => a.id === actionId);
+
+    const item = useMemo(() => {
+        if (!data || !actionId) return null;
+        // v4_factual : plus de validation_queue sur le dashboard — file dédiée Validations Copilot.
+        const q = (data as { validation_queue?: {
+            conflicts?: Array<{ id: string; type: string; title: string; conflicting_project?: string; talent_name?: string; why_explanation?: string }>;
+            missing_justif?: Array<{ id: string; type: string; title: string; talent_name?: string; why_explanation?: string }>;
+            standard_queue?: Array<{ id: string; type: string; title: string; talent_name?: string; why_explanation?: string }>;
+        } }).validation_queue;
+        if (!q) return null;
+        const all = [
+            ...(q.conflicts ?? []).map((c) => ({
+                id: c.id,
+                type: c.type,
+                message: c.title,
+                project_name: c.conflicting_project || null,
+                talent_name: c.talent_name,
+                why: c.why_explanation,
+            })),
+            ...(q.missing_justif ?? []).map((c) => ({
+                id: c.id,
+                type: c.type,
+                message: c.title,
+                project_name: null as string | null,
+                talent_name: c.talent_name,
+                why: c.why_explanation,
+            })),
+            ...(q.standard_queue ?? []).map((c) => ({
+                id: c.id,
+                type: c.type,
+                message: c.title,
+                project_name: null as string | null,
+                talent_name: c.talent_name,
+                why: c.why_explanation,
+            })),
+        ];
+        return all.find((a) => a.id === actionId) ?? null;
+    }, [data, actionId]);
 
     return (
         <WorkspacePageShell
@@ -28,10 +65,12 @@ export default function ManagerPendingActionPage() {
             {!isLoading && !isError && item ? (
                 <div className="max-w-lg space-y-4 rounded-xl border border-secondary bg-primary p-4">
                     <p className="text-xs font-medium uppercase tracking-wide text-tertiary">{item.type}</p>
-                    <p className="text-base font-medium text-primary">{item.message ?? t("managerWorkspace.relative.emDash")}</p>
+                    <p className="text-base font-medium text-primary">{item.message || t("managerWorkspace.relative.emDash")}</p>
                     <p className="text-sm text-tertiary">
-                        {item.project_name ?? t("managerWorkspace.pendingRh.projectUnknown")} · {formatRelativeShort(item.created_at)}
+                        {item.talent_name}
+                        {item.project_name ? ` · ${item.project_name}` : ""}
                     </p>
+                    {item.why ? <p className="text-sm text-tertiary">{item.why}</p> : null}
                     {user?.role === "rh" ? (
                         <Link
                             to={`/workspace/manager/hr-requests?action=${encodeURIComponent(item.id)}`}
@@ -42,7 +81,7 @@ export default function ManagerPendingActionPage() {
                     ) : (
                         <p className="text-sm text-tertiary">
                             {t("managerWorkspace.pendingRh.managerHintBefore")}{" "}
-                            <Link to="/workspace/manager/hr-requests" className="text-brand-secondary hover:underline">
+                            <Link to="/workspace/manager/validations" className="text-brand-secondary hover:underline">
                                 {t("managerWorkspace.pendingRh.dashboard")}
                             </Link>{" "}
                             {t("managerWorkspace.pendingRh.managerHintAfter")}

@@ -8,8 +8,19 @@ import {
     primaryMessage,
     stripLeadingSubjectPrefix,
 } from "@/components/manager/rh-requests/rh-requests-utils";
+import { formatRequestMessage } from "@/components/manager/rh-requests/formatRequestMessage";
 import { Button } from "@/components/base/buttons/button";
 import { WorkspacePageShell } from "@/components/workspace/workspace-page-shell";
+import {
+    ActionCard,
+    ActionFilters,
+    dedupeReallocationActions,
+    matchesActionFilter,
+    parseReallocation,
+    type ActionFilterCounts,
+    type RhActionCardModel,
+    type RhActionFilterId,
+} from "@/features/rh/actions";
 import { useWorkspaceTopbarMeta } from "@/layouts/workspace-topbar-meta";
 import {
     mapRhRequestsDecisionError,
@@ -30,20 +41,6 @@ import { managerProjectsOpenModalPath } from "@/utils/workspace-routes";
 
 type RhDecisionChoice = "accept" | "reject" | "progress" | "done";
 
-function formatRelativeFr(iso: string): string {
-    const t = new Date(iso).getTime();
-    if (!Number.isFinite(t)) return "Non disponible";
-    const sec = Math.max(0, Math.round((Date.now() - t) / 1000));
-    if (sec < 45) return "À l’instant";
-    const min = Math.floor(sec / 60);
-    if (min < 60) return `Il y a ${min} min`;
-    const h = Math.floor(min / 60);
-    if (h < 24) return `Il y a ${h} h`;
-    const d = Math.floor(h / 24);
-    if (d < 7) return `Il y a ${d} j`;
-    return new Date(iso).toLocaleDateString("fr-FR", { day: "numeric", month: "short" });
-}
-
 function typeLabelFr(type: string): string {
     const t = type.toLowerCase();
     const map: Record<string, string> = {
@@ -54,14 +51,6 @@ function typeLabelFr(type: string): string {
         recruitment: "Recrutement",
     };
     return map[t] ?? (type ? type.replace(/_/g, " ") : "Non disponible");
-}
-
-function priorityLabelFr(priority: string): "Urgent" | "Normal" | "Faible" | "Non disponible" {
-    const p = priority.toLowerCase();
-    if (p === "urgent") return "Urgent";
-    if (p === "normal") return "Normal";
-    if (p === "low") return "Faible";
-    return "Non disponible";
 }
 
 function recommendedAction(type: string): string {
@@ -75,38 +64,42 @@ function recommendedAction(type: string): string {
 }
 
 function statusKpiLabel(bucket: RhRequestStatusBucket): string {
-    const m: Record<RhRequestStatusBucket, string> = {
+    const m: Partial<Record<RhRequestStatusBucket, string>> = {
         pending: "En attente",
         accepted: "Acceptées",
         in_progress: "En cours",
         done: "Terminées",
         rejected: "Rejetées",
+        closed: "Fermées",
+        cancelled: "Annulées",
     };
-    return m[bucket];
+    return m[bucket] ?? bucket;
 }
 
 function statusPillClass(bucket: RhRequestStatusBucket): string {
-    const map: Record<RhRequestStatusBucket, string> = {
+    const map: Partial<Record<RhRequestStatusBucket, string>> = {
         pending: "border-amber-200/90 bg-amber-50 text-amber-950 dark:border-amber-800 dark:bg-amber-950/35 dark:text-amber-100",
-        accepted: "border-sky-200/90 bg-sky-50 text-sky-950 dark:border-sky-800 dark:bg-sky-950/35 dark:text-sky-100",
-        in_progress: "border-violet-200/90 bg-violet-50 text-violet-950 dark:border-violet-800 dark:bg-violet-950/35 dark:text-violet-100",
+        accepted: "border-primary-200/90 bg-primary-50 text-primary-950 dark:border-primary-800 dark:bg-primary-950/35 dark:text-primary-100",
+        in_progress: "border-primary-200/90 bg-primary-50 text-primary-950 dark:border-primary-800 dark:bg-primary-950/35 dark:text-primary-100",
         done: "border-emerald-200/90 bg-emerald-50 text-emerald-950 dark:border-emerald-800 dark:bg-emerald-950/35 dark:text-emerald-100",
         rejected: "border-rose-200/90 bg-rose-50 text-rose-950 dark:border-rose-800 dark:bg-rose-950/35 dark:text-rose-100",
+        closed: "border-secondary/80 bg-secondary_subtle/60 text-secondary",
+        cancelled: "border-secondary/80 bg-secondary_subtle/60 text-secondary",
     };
-    return map[bucket];
+    return map[bucket] ?? "border-secondary/80 bg-secondary_subtle/60 text-secondary";
 }
 
 function kpiCardSurface(bucket: RhRequestStatusBucket, active: boolean): string {
-    const base: Record<RhRequestStatusBucket, string> = {
+    const base: Partial<Record<RhRequestStatusBucket, string>> = {
         pending: "border-amber-200/70 bg-gradient-to-br from-amber-50/90 to-primary dark:from-amber-950/25 dark:to-primary",
-        accepted: "border-sky-200/70 bg-gradient-to-br from-sky-50/90 to-primary dark:from-sky-950/25 dark:to-primary",
-        in_progress: "border-violet-200/70 bg-gradient-to-br from-violet-50/90 to-primary dark:from-violet-950/25 dark:to-primary",
+        accepted: "border-primary-200/70 bg-gradient-to-br from-primary-50/90 to-primary dark:from-primary-950/25 dark:to-primary",
+        in_progress: "border-primary-200/70 bg-gradient-to-br from-primary-50/90 to-primary dark:from-primary-950/25 dark:to-primary",
         done: "border-emerald-200/70 bg-gradient-to-br from-emerald-50/90 to-primary dark:from-emerald-950/25 dark:to-primary",
         rejected: "border-rose-200/70 bg-gradient-to-br from-rose-50/90 to-primary dark:from-rose-950/25 dark:to-primary",
     };
     return cx(
         "rounded-xl border px-3 py-2 text-left shadow-sm transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-solid/30",
-        base[bucket],
+        base[bucket] ?? "border-secondary/70 bg-primary",
         active ? "ring-2 ring-brand-secondary/50" : "hover:border-secondary hover:shadow-md",
     );
 }
@@ -124,6 +117,67 @@ function requestMessageRaw(row: Record<string, unknown>): string {
     return stripLeadingSubjectPrefix(primaryMessage(row));
 }
 
+function looksLikeEmbeddedJson(text: string): boolean {
+    const t = text.trim();
+    if (!t) return false;
+    if (t.includes("[") || t.includes("{")) return /[\[{]/.test(t);
+    return false;
+}
+
+function parseProposalsFromRow(row: Record<string, unknown>): ReturnType<typeof parseReallocation> {
+    const candidates = [
+        requestMessageRaw(row),
+        String(row.message ?? ""),
+        String(row.title ?? ""),
+        String(row.description ?? ""),
+    ];
+    for (const raw of candidates) {
+        if (!raw.trim()) continue;
+        const parsed = parseReallocation(raw);
+        if (parsed) return parsed;
+    }
+    return null;
+}
+
+function fallbackTitleForRow(row: Record<string, unknown>, tr: (k: string) => string): string {
+    const formatted = formatRequestMessage({ message: requestMessageRaw(row) || String(row.message ?? row.title ?? "") });
+    if (formatted && !looksLikeEmbeddedJson(formatted)) return formatted;
+    const title = requestTitle(row, tr);
+    if (title && !looksLikeEmbeddedJson(title)) return humanizeField(title);
+    const type = String(row.type ?? "").toLowerCase();
+    if (type === "reallocation") return "Réaffectation proposée";
+    return humanizeField(title) || "Demande RH";
+}
+
+function fallbackDescriptionForRow(row: Record<string, unknown>, title: string): string {
+    const msg = requestMessageRaw(row);
+    if (!msg || msg === title || looksLikeEmbeddedJson(msg)) return "";
+    return humanizeField(msg.slice(0, 200));
+}
+
+function mapRowToActionModel(
+    row: Record<string, unknown> & { id: string },
+    tr: (k: string) => string,
+): Omit<RhActionCardModel, "duplicateCount"> {
+    const type = String(row.type ?? "");
+    const bucket = rhRequestStatusToBucket(String(row.status ?? row.state ?? ""));
+    const fallbackTitle = fallbackTitleForRow(row, tr);
+    return {
+        id: String(row.id),
+        type,
+        statusLabel: labelRhRequestStatus(row.status ?? row.state),
+        statusBucket: bucket,
+        priority: String(row.priority ?? ""),
+        projectName: readRhRequestField(row, ["project_name", "projectName", "project"]),
+        projectId: readRhRequestField(row, ["project_id", "projectId"]),
+        createdAt: String(row.created_at ?? row.createdAt ?? ""),
+        fallbackTitle,
+        fallbackDescription: fallbackDescriptionForRow(row, fallbackTitle),
+        recommendedAction: recommendedAction(type),
+        proposals: parseProposalsFromRow(row),
+    };
+}
+
 export default function ManagerRequestsPage({ embedded = false }: { embedded?: boolean }) {
     const { t } = useTranslation("common");
     const [searchParams, setSearchParams] = useSearchParams();
@@ -132,6 +186,7 @@ export default function ManagerRequestsPage({ embedded = false }: { embedded?: b
     const [filterPriority, setFilterPriority] = useState<"all" | "urgent" | "normal" | "low">("all");
     const [filterType, setFilterType] = useState<string>("all");
     const [filterProject, setFilterProject] = useState<string>("all");
+    const [actionFilter, setActionFilter] = useState<RhActionFilterId>("all");
     const [drawerOpen, setDrawerOpen] = useState(false);
     const [drawerId, setDrawerId] = useState<string | null>(null);
     const [note, setNote] = useState("");
@@ -208,6 +263,26 @@ export default function ManagerRequestsPage({ embedded = false }: { embedded?: b
         });
     }, [rows, statusFilter, search, filterPriority, filterType, filterProject]);
 
+    const presentationActions = useMemo(() => {
+        const mapped = filteredRows.map((row) => mapRowToActionModel(row, t));
+        return dedupeReallocationActions(mapped);
+    }, [filteredRows, t]);
+
+    const actionFilterCounts = useMemo((): ActionFilterCounts => {
+        const counts: ActionFilterCounts = { all: presentationActions.length, urgent: 0, reallocation: 0, pending: 0 };
+        for (const a of presentationActions) {
+            if (matchesActionFilter("urgent", a)) counts.urgent += 1;
+            if (matchesActionFilter("reallocation", a)) counts.reallocation += 1;
+            if (matchesActionFilter("pending", a)) counts.pending += 1;
+        }
+        return counts;
+    }, [presentationActions]);
+
+    const visibleActions = useMemo(
+        () => presentationActions.filter((a) => matchesActionFilter(actionFilter, a)),
+        [presentationActions, actionFilter],
+    );
+
     const drawerRow = useMemo(
         () => (drawerId ? (rows.find((r) => r.id === drawerId) ?? null) : null),
         [drawerId, rows],
@@ -263,11 +338,6 @@ export default function ManagerRequestsPage({ embedded = false }: { embedded?: b
 
     const listErrorMessage = listQuery.error ? mapRhRequestsDecisionError(listQuery.error) : null;
 
-    useWorkspaceTopbarMeta(
-        embedded ? "" : t("managerWorkspace.pendingRh.listPageTitle"),
-        embedded ? null : t("managerWorkspace.pendingRh.listPageSubtitle"),
-    );
-
     const body = (
         <>
             <div className="space-y-4">
@@ -306,6 +376,7 @@ export default function ManagerRequestsPage({ embedded = false }: { embedded?: b
                             setFilterPriority("all");
                             setFilterType("all");
                             setFilterProject("all");
+                            setActionFilter("all");
                         }}
                     >
                         Réinitialiser les filtres
@@ -399,76 +470,20 @@ export default function ManagerRequestsPage({ embedded = false }: { embedded?: b
                             </button>
                         </div>
                     ) : null}
-                    {!listQuery.isPending && !listErrorMessage && filteredRows.length === 0 ? (
+                    <div className="mb-2">
+                        <ActionFilters value={actionFilter} onChange={setActionFilter} counts={actionFilterCounts} />
+                    </div>
+
+                    {!listQuery.isPending && !listErrorMessage && visibleActions.length === 0 ? (
                         <p className="rounded-xl border border-dashed border-secondary/80 bg-secondary_subtle/40 py-10 text-center text-sm text-tertiary">
                             Aucune demande ne correspond aux filtres.
                         </p>
                     ) : null}
 
                     <ul className="space-y-2">
-                        {filteredRows.map((rh) => {
-                            const id = String(rh.id);
-                            const bucket = rhRequestStatusToBucket(String(rh.status ?? rh.state ?? "")) ?? "pending";
-                            const type = String(rh.type ?? "");
-                            const title = requestTitle(rh, t);
-                            const msgPreview = requestMessageRaw(rh);
-                            const project = readRhRequestField(rh, ["project_name", "projectName", "project"]);
-                            const pr = String(rh.priority ?? "");
-                            const pri = priorityLabelFr(pr);
-                            const created = String(rh.created_at ?? rh.createdAt ?? "");
-                            const urgentVisual = pr.toLowerCase() === "urgent";
-                            const statusLabel = labelRhRequestStatus(rh.status ?? rh.state);
-
-                            return (
-                                <li
-                                    key={id}
-                                    className={cx(
-                                        "rounded-xl border bg-primary p-3 shadow-sm ring-1 ring-secondary/35 transition sm:p-4",
-                                        urgentVisual ? "border-rose-200/80 ring-rose-200/50 dark:border-rose-900/40" : "border-secondary/80",
-                                    )}
-                                >
-                                    <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                                        <div className="min-w-0 flex-1 space-y-2">
-                                            <div className="flex flex-wrap items-center gap-2">
-                                                <span
-                                                    className={cx(
-                                                        "rounded-md border px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide",
-                                                        urgentVisual
-                                                            ? "border-rose-300 bg-rose-100 text-rose-900 dark:border-rose-800 dark:bg-rose-950/50 dark:text-rose-100"
-                                                            : "border-secondary bg-secondary_subtle text-secondary",
-                                                    )}
-                                                >
-                                                    {pri}
-                                                </span>
-                                                <span className="rounded-md border border-secondary/80 bg-secondary_subtle/60 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-secondary">
-                                                    {typeLabelFr(type)}
-                                                </span>
-                                                <span className={cx("rounded-md border px-2 py-0.5 text-[10px] font-semibold", statusPillClass(bucket))}>
-                                                    {statusLabel}
-                                                </span>
-                                            </div>
-                                            <h3 className="line-clamp-2 text-sm font-semibold leading-snug text-primary">{title}</h3>
-                                            {msgPreview && msgPreview !== title ? (
-                                                <p className="line-clamp-2 text-xs text-tertiary">{humanizeField(msgPreview.slice(0, 200))}</p>
-                                            ) : null}
-                                            <p className="text-xs text-secondary">
-                                                <span className="font-medium text-tertiary">Projet :</span>{" "}
-                                                {project ? <span className="text-primary">{project}</span> : <span className="italic">Non disponible</span>}
-                                            </p>
-                                            <p className="text-[11px] text-tertiary">{formatRelativeFr(created)}</p>
-                                            <p className="rounded-lg border border-dashed border-secondary/70 bg-secondary_subtle/40 px-2.5 py-2 text-xs leading-relaxed text-secondary">
-                                                <span className="font-semibold text-primary">Action recommandée :</span> {recommendedAction(type)}
-                                            </p>
-                                        </div>
-                                        <div className="flex shrink-0 flex-col gap-2 sm:w-44">
-                                            <Button size="sm" color="primary" onPress={() => openDrawer(id)}>
-                                                Traiter
-                                            </Button>
-                                        </div>
-                                    </div>
-                                </li>
-                            );
-                        })}
+                        {visibleActions.map((action) => (
+                            <ActionCard key={action.id} action={action} onTreat={openDrawer} />
+                        ))}
                     </ul>
                 </section>
             </div>
@@ -487,18 +502,33 @@ export default function ManagerRequestsPage({ embedded = false }: { embedded?: b
         </>
     );
 
-    if (embedded) return body;
-
     return (
-        <WorkspacePageShell
-            role="rh"
-            eyebrow={t("workspaceRoles.rh")}
-            title={t("managerWorkspace.pendingRh.listPageTitle")}
-            omitHeader
-        >
-            {body}
-        </WorkspacePageShell>
+        <>
+            {!embedded ? (
+                <ManagerRequestsTopbarBinder
+                    title={t("managerWorkspace.pendingRh.listPageTitle")}
+                    subtitle={t("managerWorkspace.pendingRh.listPageSubtitle")}
+                />
+            ) : null}
+            {embedded ? (
+                body
+            ) : (
+                <WorkspacePageShell
+                    role="rh"
+                    eyebrow={t("workspaceRoles.rh")}
+                    title={t("managerWorkspace.pendingRh.listPageTitle")}
+                    omitHeader
+                >
+                    {body}
+                </WorkspacePageShell>
+            )}
+        </>
     );
+}
+
+function ManagerRequestsTopbarBinder({ title, subtitle }: { title: string; subtitle: string }) {
+    useWorkspaceTopbarMeta(title, subtitle);
+    return null;
 }
 
 function RhRequestDecisionDrawer({

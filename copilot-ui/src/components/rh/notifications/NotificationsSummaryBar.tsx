@@ -30,7 +30,7 @@ function KpiCell({
         neutral: "bg-ws-card text-ws-primary",
         warning: "bg-amber-50 text-amber-900 dark:bg-amber-950/40 dark:text-amber-100",
         critical: "bg-rose-50 text-rose-800 dark:bg-rose-950/40 dark:text-rose-200",
-        info: "bg-sky-50 text-sky-800 dark:bg-sky-950/40 dark:text-sky-100",
+        info: "bg-primary-50 text-primary-800 dark:bg-primary-950/40 dark:text-primary-100",
     }[tone];
 
     const inner = (

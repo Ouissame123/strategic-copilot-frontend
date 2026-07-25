@@ -35,10 +35,13 @@ export interface AiRecommendation {
     decision_icon?: string | null;
     viability_score?: number | null;
     reason?: string | null;
+    reason_code?: string | null;
     reason_label?: string | null;
     source_agent?: string | null;
     confidence?: number | null;
     explanation?: string | null;
+    explanation_clean?: string | null;
+    computed_at?: string | null;
     top_action?: AiTopAction | null;
     arbitrages_pending?: number | null;
     risks_count?: number | null;

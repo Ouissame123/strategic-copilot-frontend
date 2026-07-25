@@ -675,7 +675,7 @@ i18n.use(initReactI18next).init({
             copilot: {
                 trigger: "Copilot",
                 title: "Copilot",
-                strategicTitle: "Strategic Copilot",
+                strategicTitle: "Copilote Stratégique",
                 noContext: "Page courante",
                 panelBackendSubtitle: "Contenu fourni par le serveur — aucun calcul côté interface.",
                 panelProjectIdMissing: "Identifiant projet manquant pour ce contexte.",
@@ -1449,7 +1449,7 @@ i18n.use(initReactI18next).init({
             copilot: {
                 trigger: "Copilot",
                 title: "Copilot",
-                strategicTitle: "Strategic Copilot",
+                strategicTitle: "Copilote Stratégique",
                 noContext: "Current page",
                 panelBackendSubtitle: "Content from the server — no client-side calculation.",
                 panelProjectIdMissing: "Missing project id for this context.",
@@ -2220,7 +2220,7 @@ i18n.use(initReactI18next).init({
             copilot: {
                 trigger: "Copilot",
                 title: "Copilot",
-                strategicTitle: "المساعد الاستراتيجي",
+                strategicTitle: "Copilote Stratégique",
                 noContext: "الصفحة الحالية",
                 panelBackendSubtitle: "محتوى من الخادم — دون حساب في الواجهة.",
                 panelProjectIdMissing: "معرّف المشروع مفقود لهذا السياق.",

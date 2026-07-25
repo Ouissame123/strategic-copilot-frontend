@@ -53,9 +53,9 @@ const TONE_CLASSES: Record<ToneKey, { badge: string; bar: string; text: string }
         text: "text-emerald-700 dark:text-emerald-300",
     },
     blue: {
-        badge: "border-blue-200 bg-blue-50 text-blue-800 dark:border-blue-900/50 dark:bg-blue-950/40 dark:text-blue-200",
-        bar: "bg-blue-500",
-        text: "text-blue-700 dark:text-blue-300",
+        badge: "border-primary-200 bg-primary-50 text-primary-800 dark:border-primary-900/50 dark:bg-primary-950/40 dark:text-primary-200",
+        bar: "bg-primary-500",
+        text: "text-primary-700 dark:text-primary-300",
     },
     amber: {
         badge: "border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-900/50 dark:bg-amber-950/40 dark:text-amber-200",

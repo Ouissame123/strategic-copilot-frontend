@@ -83,13 +83,13 @@ function ScoreRing({ score, max = 10, size = 72 }: { score: number; max?: number
                 />
                 <defs>
                     <linearGradient id="scoreGrad" x1="0%" y1="0%" x2="100%" y2="0%">
-                        <stop offset="0%" stopColor="#7c3aed" />
-                        <stop offset="100%" stopColor="#4f46e5" />
+                        <stop offset="0%" stopColor="#0e9384" />
+                        <stop offset="100%" stopColor="#14b8a6" />
                     </linearGradient>
                 </defs>
             </svg>
             <div className="absolute inset-0 flex flex-col items-center justify-center">
-                <span className="text-lg font-bold tabular-nums text-violet-700 dark:text-violet-300">{score.toFixed(1)}</span>
+                <span className="text-lg font-bold tabular-nums text-primary-700 dark:text-primary-300">{score.toFixed(1)}</span>
                 <span className={cx("text-[9px] uppercase tracking-wide", WS_TEXT_FAINT)}>/ {max}</span>
             </div>
         </div>
@@ -105,9 +105,9 @@ type HeroKpi = {
 };
 
 const ACCENT_ICON: Record<HeroKpi["accent"], string> = {
-    violet: "bg-violet-500/10 text-violet-600 dark:text-violet-400",
+    violet: "bg-primary-500/10 text-primary-600 dark:text-primary-400",
     emerald: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400",
-    sky: "bg-sky-500/10 text-sky-600 dark:text-sky-400",
+    sky: "bg-primary-500/10 text-primary-600 dark:text-primary-400",
     amber: "bg-amber-500/10 text-amber-600 dark:text-amber-400",
 };
 
@@ -122,7 +122,7 @@ export function MatchingHeroKpiStrip({ items }: { items: HeroKpi[] }) {
                         "group relative overflow-hidden p-4 transition hover:-translate-y-0.5 hover:shadow-xl",
                     )}
                 >
-                    <div className="pointer-events-none absolute -right-6 -top-6 h-24 w-24 rounded-full bg-violet-500/5 blur-2xl transition group-hover:bg-violet-500/10" />
+                    <div className="pointer-events-none absolute -right-6 -top-6 h-24 w-24 rounded-full bg-primary-500/5 blur-2xl transition group-hover:bg-primary-500/10" />
                     <div className="flex items-start justify-between gap-2">
                         <div>
                             <p className={cx("text-[10px] font-bold uppercase tracking-widest", WS_TEXT_FAINT)}>{kpi.label}</p>
@@ -143,22 +143,22 @@ export function MatchingHeroKpiStrip({ items }: { items: HeroKpi[] }) {
 
 export function MatchingHeroSection({ projectName }: { projectName?: string | null }) {
     return (
-        <section className="relative overflow-hidden rounded-3xl border border-violet-200/40 bg-gradient-to-br from-violet-600/[0.08] via-white to-indigo-500/[0.06] p-6 shadow-xl shadow-violet-500/5 dark:border-violet-500/20 dark:from-violet-950/40 dark:via-slate-950 dark:to-indigo-950/30 md:p-8">
-            <div className="pointer-events-none absolute -left-20 -top-20 h-64 w-64 rounded-full bg-violet-500/20 blur-3xl" />
-            <div className="pointer-events-none absolute -bottom-16 -right-16 h-56 w-56 rounded-full bg-indigo-500/15 blur-3xl" />
-            <div className="pointer-events-none absolute left-1/2 top-0 h-px w-2/3 -translate-x-1/2 bg-gradient-to-r from-transparent via-violet-400/50 to-transparent" />
+        <section className="relative overflow-hidden rounded-3xl border border-primary-200/40 bg-gradient-to-br from-primary-600/[0.08] via-white to-primary-500/[0.06] p-6 shadow-xl shadow-primary-500/5 dark:border-primary-500/20 dark:from-primary-950/40 dark:via-slate-950 dark:to-primary-950/30 md:p-8">
+            <div className="pointer-events-none absolute -left-20 -top-20 h-64 w-64 rounded-full bg-primary-500/20 blur-3xl" />
+            <div className="pointer-events-none absolute -bottom-16 -right-16 h-56 w-56 rounded-full bg-primary-500/15 blur-3xl" />
+            <div className="pointer-events-none absolute left-1/2 top-0 h-px w-2/3 -translate-x-1/2 bg-gradient-to-r from-transparent via-primary-400/50 to-transparent" />
 
             <div className="relative flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
                 <div className="flex gap-4">
                     <div className="relative">
-                        <div className="absolute inset-0 rounded-2xl bg-violet-500/40 blur-xl" />
-                        <div className="relative flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-violet-600 to-indigo-600 text-white shadow-lg shadow-violet-500/30">
+                        <div className="absolute inset-0 rounded-2xl bg-primary-500/40 blur-xl" />
+                        <div className="relative flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-primary-600 to-primary-600 text-white shadow-lg shadow-primary-500/30">
                             <GitBranch size={26} strokeWidth={2} aria-hidden />
                         </div>
                     </div>
                     <div>
                         <div className="mb-1 flex flex-wrap items-center gap-2">
-                            <span className="rounded-full bg-violet-500/10 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-violet-700 dark:text-violet-300">
+                            <span className="rounded-full bg-primary-500/10 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-primary-700 dark:text-primary-300">
                                 WF_RH_Matching_Run
                             </span>
                             <span className="rounded-full bg-slate-500/10 px-2 py-0.5 text-[10px] font-medium text-slate-600 dark:text-slate-400">
@@ -173,7 +173,7 @@ export function MatchingHeroSection({ projectName }: { projectName?: string | nu
                             gaps en un seul arbitrage.
                         </p>
                         {projectName ? (
-                            <p className={cx("mt-2 inline-flex items-center gap-1.5 text-xs font-medium text-violet-700 dark:text-violet-300")}>
+                            <p className={cx("mt-2 inline-flex items-center gap-1.5 text-xs font-medium text-primary-700 dark:text-primary-300")}>
                                 <FolderKanban size={12} aria-hidden />
                                 Projet actif : {projectName}
                             </p>
@@ -207,13 +207,13 @@ export function MatchingEmptyState() {
         <div
             className={cx(
                 GLASS,
-                "relative overflow-hidden border-dashed border-violet-300/40 p-10 text-center md:p-14",
+                "relative overflow-hidden border-dashed border-primary-300/40 p-10 text-center md:p-14",
             )}
         >
-            <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_center,rgba(139,92,246,0.08),transparent_70%)]" />
+            <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_center,rgba(14,147,132,0.08),transparent_70%)]" />
             <div className="relative mx-auto max-w-md">
-                <div className="mx-auto mb-6 flex h-20 w-20 items-center justify-center rounded-3xl bg-gradient-to-br from-violet-500/20 to-indigo-500/10 ring-1 ring-violet-500/20 animate-pulse">
-                    <Brain size={36} className="text-violet-600 dark:text-violet-400" strokeWidth={1.5} aria-hidden />
+                <div className="mx-auto mb-6 flex h-20 w-20 items-center justify-center rounded-3xl bg-gradient-to-br from-primary-500/20 to-primary-500/10 ring-1 ring-primary-500/20 animate-pulse">
+                    <Brain size={36} className="text-primary-600 dark:text-primary-400" strokeWidth={1.5} aria-hidden />
                 </div>
                 <h2 className={cx("text-lg font-semibold", RH_TEXT_PRIMARY)}>Aucune analyse de matching</h2>
                 <p className={cx("mt-2 text-sm leading-relaxed", RH_TEXT_MUTED)}>
@@ -266,7 +266,7 @@ export function MatchingControlPanel({
                     <label className={cx("mb-2 block text-xs font-semibold", RH_TEXT_SECONDARY)}>Projet cible</label>
                     <div className="group relative">
                         <FolderKanban
-                            className="pointer-events-none absolute left-4 top-1/2 z-10 -translate-y-1/2 text-violet-500 transition group-hover:text-violet-600"
+                            className="pointer-events-none absolute left-4 top-1/2 z-10 -translate-y-1/2 text-primary-500 transition group-hover:text-primary-600"
                             size={18}
                             aria-hidden
                         />
@@ -276,9 +276,9 @@ export function MatchingControlPanel({
                             disabled={projectsLoading || isRunning}
                             className={cx(
                                 "h-12 w-full appearance-none rounded-xl border border-slate-200/90 bg-white/90 pl-11 pr-10 text-sm font-medium shadow-sm transition",
-                                "hover:border-violet-300 hover:bg-white focus:border-violet-500 focus:outline-none focus:ring-2 focus:ring-violet-500/20",
+                                "hover:border-primary-300 hover:bg-white focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500/20",
                                 "disabled:cursor-not-allowed disabled:opacity-60",
-                                "dark:border-slate-600 dark:bg-slate-900/80 dark:hover:border-violet-700",
+                                "dark:border-slate-600 dark:bg-slate-900/80 dark:hover:border-primary-700",
                                 RH_TEXT_PRIMARY,
                             )}
                         >
@@ -307,10 +307,10 @@ export function MatchingControlPanel({
                         disabled={isRunning || !projectId}
                         className={cx(
                             "relative inline-flex h-12 min-w-[200px] items-center justify-center gap-2 overflow-hidden rounded-xl px-6 text-sm font-bold text-white shadow-lg transition",
-                            "bg-gradient-to-r from-violet-600 via-violet-600 to-indigo-600",
-                            "hover:from-violet-500 hover:to-indigo-500 hover:shadow-violet-500/30",
+                            "bg-gradient-to-r from-primary-600 via-primary-600 to-primary-600",
+                            "hover:from-primary-500 hover:to-primary-500 hover:shadow-primary-500/30",
                             "disabled:cursor-not-allowed disabled:opacity-50 disabled:shadow-none",
-                            isRunning && "animate-pulse shadow-violet-500/40",
+                            isRunning && "animate-pulse shadow-primary-500/40",
                         )}
                     >
                         {isRunning ? (
@@ -331,7 +331,7 @@ export function MatchingControlPanel({
                         disabled={!projectId || isRunning}
                         className={cx(
                             "inline-flex h-12 items-center justify-center gap-2 rounded-xl border border-slate-200/90 bg-white/80 px-5 text-sm font-semibold shadow-sm transition",
-                            "hover:border-violet-300 hover:bg-violet-50/50 dark:border-slate-600 dark:bg-slate-900/60",
+                            "hover:border-primary-300 hover:bg-primary-50/50 dark:border-slate-600 dark:bg-slate-900/60",
                             RH_TEXT_SECONDARY,
                             "disabled:opacity-50",
                         )}
@@ -348,11 +348,11 @@ export function MatchingControlPanel({
 export function MatchingLoadingPanel({ isRun }: { isRun: boolean }) {
     return (
         <div className={cx(GLASS, "relative overflow-hidden p-12 md:p-16")}>
-            <div className="pointer-events-none absolute inset-0 bg-gradient-to-r from-transparent via-violet-500/5 to-transparent animate-pulse" />
+            <div className="pointer-events-none absolute inset-0 bg-gradient-to-r from-transparent via-primary-500/5 to-transparent animate-pulse" />
             <div className="relative flex flex-col items-center text-center">
                 <div className="relative mb-6">
-                    <div className="absolute inset-0 rounded-full bg-violet-500/30 blur-2xl animate-pulse" />
-                    <Loader2 size={48} className="relative animate-spin text-violet-600" aria-hidden />
+                    <div className="absolute inset-0 rounded-full bg-primary-500/30 blur-2xl animate-pulse" />
+                    <Loader2 size={48} className="relative animate-spin text-primary-600" aria-hidden />
                 </div>
                 <p className={cx("text-base font-semibold", RH_TEXT_PRIMARY)}>
                     {isRun ? "Analyse workforce en cours…" : "Chargement des résultats…"}
@@ -363,7 +363,7 @@ export function MatchingLoadingPanel({ isRun }: { isRun: boolean }) {
                         : "Récupération des derniers résultats enregistrés pour ce projet."}
                 </p>
                 <div className="mt-8 h-1.5 w-full max-w-xs overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800">
-                    <div className="h-full w-2/3 animate-pulse rounded-full bg-gradient-to-r from-violet-500 via-indigo-400 to-violet-500" />
+                    <div className="h-full w-2/3 animate-pulse rounded-full bg-gradient-to-r from-primary-500 via-primary-400 to-primary-500" />
                 </div>
             </div>
         </div>
@@ -374,14 +374,14 @@ export function AiInsightsPanel({ narrative, llmEnriched }: { narrative: string;
     return (
         <section
             className={cx(
-                "relative overflow-hidden rounded-2xl border border-violet-400/30 p-6 md:p-8",
-                "bg-gradient-to-br from-violet-500/[0.12] via-orange-500/[0.04] to-indigo-500/[0.08]",
-                "shadow-[0_0_60px_-12px_rgba(139,92,246,0.35)] dark:from-violet-950/50 dark:via-slate-900 dark:to-indigo-950/40",
+                "relative overflow-hidden rounded-2xl border border-primary-400/30 p-6 md:p-8",
+                "bg-gradient-to-br from-primary-500/[0.12] via-orange-500/[0.04] to-primary-500/[0.08]",
+                "shadow-[0_0_60px_-12px_rgba(14,147,132,0.35)] dark:from-primary-950/50 dark:via-slate-900 dark:to-primary-950/40",
             )}
         >
             <div className="pointer-events-none absolute -right-10 top-0 h-40 w-40 rounded-full bg-orange-400/10 blur-3xl" />
             <div className="relative flex flex-col gap-4 md:flex-row md:items-start md:gap-6">
-                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-violet-600 to-orange-500 text-white shadow-lg shadow-violet-500/25">
+                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-primary-600 to-orange-500 text-white shadow-lg shadow-primary-500/25">
                     <Sparkles size={22} aria-hidden />
                 </div>
                 <div className="min-w-0 flex-1">
@@ -428,12 +428,12 @@ export function MatchingTalentCard({ match, rank }: { match: RhMatchingTopMatch;
         <article
             className={cx(
                 GLASS,
-                "group flex flex-col gap-4 p-5 transition duration-300 hover:-translate-y-1 hover:border-violet-300/50 hover:shadow-2xl hover:shadow-violet-500/10",
+                "group flex flex-col gap-4 p-5 transition duration-300 hover:-translate-y-1 hover:border-primary-300/50 hover:shadow-2xl hover:shadow-primary-500/10",
             )}
         >
             <div className="flex items-start gap-4">
                 <div className="relative shrink-0">
-                    <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-violet-500 to-indigo-600 text-sm font-bold text-white shadow-md">
+                    <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-primary-500 to-primary-600 text-sm font-bold text-white shadow-md">
                         {talentInitials(match.talent_name)}
                     </div>
                     <span className="absolute -bottom-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full bg-slate-900 text-[9px] font-bold text-white ring-2 ring-white dark:ring-slate-900">
@@ -472,7 +472,7 @@ export function MatchingTalentCard({ match, rank }: { match: RhMatchingTopMatch;
                     </div>
                     <div className="h-1.5 overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800">
                         <div
-                            className="h-full rounded-full bg-gradient-to-r from-sky-500 to-violet-500"
+                            className="h-full rounded-full bg-gradient-to-r from-primary-500 to-primary-500"
                             style={{ width: `${(match.skill_fit_score / 10) * 100}%` }}
                         />
                     </div>
@@ -494,7 +494,7 @@ export function MatchingTalentCard({ match, rank }: { match: RhMatchingTopMatch;
             {match.match_summary ? (
                 <p
                     className={cx(
-                        "rounded-xl border border-violet-100/80 bg-violet-50/50 p-3 text-xs leading-relaxed dark:border-violet-900/40 dark:bg-violet-950/20",
+                        "rounded-xl border border-primary-100/80 bg-primary-50/50 p-3 text-xs leading-relaxed dark:border-primary-900/40 dark:bg-primary-950/20",
                         RH_TEXT_SECONDARY,
                     )}
                 >

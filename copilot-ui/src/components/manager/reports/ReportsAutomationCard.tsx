@@ -83,7 +83,7 @@ export function ReportsAutomationCard({ automation, onToggle, onEdit, onDelete }
                         onClick={() => onToggle(automation.id, !automation.active)}
                         className={cx(
                             "relative h-6 w-11 rounded-full transition-colors duration-200",
-                            automation.active ? "bg-indigo-600" : "bg-slate-300 dark:bg-slate-600",
+                            automation.active ? "bg-primary-600" : "bg-slate-300 dark:bg-slate-600",
                         )}
                     >
                         <span
@@ -98,7 +98,7 @@ export function ReportsAutomationCard({ automation, onToggle, onEdit, onDelete }
                     <button
                         type="button"
                         onClick={() => onEdit(automation)}
-                        className="inline-flex items-center gap-1 rounded-xl border border-slate-200/80 px-3 py-1.5 text-xs font-medium text-slate-700 hover:border-indigo-200 hover:text-indigo-700 dark:border-slate-700 dark:text-slate-300"
+                        className="inline-flex items-center gap-1 rounded-xl border border-slate-200/80 px-3 py-1.5 text-xs font-medium text-slate-700 hover:border-primary-200 hover:text-primary-700 dark:border-slate-700 dark:text-slate-300"
                     >
                         <Pencil className="size-3.5" /> Éditer
                     </button>

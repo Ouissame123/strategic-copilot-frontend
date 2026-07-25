@@ -6,6 +6,7 @@ import {
     type StrategistAction,
     type StrategistExecuteResponse,
 } from "@/api/manager-strategist-options.api";
+import { StrategistApiError } from "@/api/strategist.api";
 import { COPILOT_DECISIONS_QUERY_ROOT } from "@/hooks/useDecisions";
 import { MANAGER_HR_ACTIONS_QUERY_ROOT } from "@/hooks/use-manager-hr-actions";
 import { invalidateManagerRiskQueries } from "@/hooks/use-manager-risk-data";
@@ -22,15 +23,22 @@ type OptimisticContext = {
     prev: ProjectDetailResponse | undefined;
 };
 
-export function useStrategistExecute(projectId: string) {
+export function useStrategistExecute(projectId: string, enterpriseId: string) {
     const qc = useQueryClient();
     const { push: toast } = useToast();
     const pid = projectId.trim();
+    const eid = enterpriseId.trim();
     const detailKey = queryKeys.projectDetail(pid);
 
     return useMutation<StrategistExecuteResponse, unknown, StrategistExecuteVars, OptimisticContext>({
         mutationFn: (vars) =>
-            managerStrategistApi.execute(vars.optionId, vars.action ?? "execute").then((r) => r.data),
+            managerStrategistApi
+                .execute({
+                    enterpriseId: eid,
+                    optionId: vars.optionId,
+                    action: vars.action ?? "execute",
+                })
+                .then((r) => r.data),
 
         onMutate: async (vars) => {
             await qc.cancelQueries({ queryKey: detailKey });
@@ -47,6 +55,17 @@ export function useStrategistExecute(projectId: string) {
         onError: (err, _vars, ctx) => {
             if (ctx?.prev) qc.setQueryData(detailKey, ctx.prev);
 
+            if (err instanceof StrategistApiError) {
+                if (err.httpStatus === 404) {
+                    toast("Cette option n'est plus disponible (déjà exécutée ou expirée).", "error");
+                    return;
+                }
+                if (err.code === "FORBIDDEN_PROJECT" || err.httpStatus === 403) {
+                    toast("Accès refusé sur ce projet.", "error");
+                    return;
+                }
+            }
+
             const status = isAxiosError(err) ? err.response?.status : undefined;
             const code = getStrategistExecuteErrorCode(err);
 
@@ -60,17 +79,15 @@ export function useStrategistExecute(projectId: string) {
         },
 
         onSuccess: (data) => {
-            const summary = data.decision_executed?.summary?.trim();
+            const summary = data.decision_executed?.summary?.trim() || data.user_message?.trim();
             if (summary) toast(summary, "success", 6000);
 
             const rhActionId = data.db_result?.rh_action_id;
-            const rhActionType = data.db_result?.rh_action_type;
             if (rhActionId) {
-                const typeLabel = rhActionType?.trim() || "RH";
-                toast(`Demande RH créée (type: ${typeLabel}). Visible dans Demandes RH.`, "info", 5000);
+                toast("Demande RH créée. Visible dans Demandes RH.", "info", 5000);
             }
 
-            if (data.effect === "applied_delay" && data.db_result?.project_updated?.milestone_at) {
+            if (data.decision_executed?.impact?.delay_days && data.db_result?.project_updated?.milestone_at) {
                 toast("Échéance projet décalée. Recompute en cours.", "success", 4000);
             }
         },

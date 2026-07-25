@@ -46,12 +46,12 @@ export function AiRecommendationHero({ matches, priorities }: AiRecommendationHe
             <section
                 className={cx(
                     TALENT_SURFACE,
-                    "border-l-[3px] border-l-violet-500 bg-gradient-to-r from-violet-500/[0.06] via-primary to-primary p-3 sm:p-4",
+                    "border-l-[3px] border-l-primary-500 bg-gradient-to-r from-primary-500/[0.06] via-primary to-primary p-3 sm:p-4",
                 )}
             >
                 <div className="flex flex-wrap items-start justify-between gap-3">
                     <div className="flex min-w-0 items-center gap-2">
-                        <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-violet-500/15 text-violet-600 dark:text-violet-300">
+                        <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-primary-500/15 text-primary-600 dark:text-primary-300">
                             <Sparkles className="size-4" aria-hidden />
                         </span>
                         <div>
@@ -78,7 +78,7 @@ export function AiRecommendationHero({ matches, priorities }: AiRecommendationHe
                             </p>
                         </div>
                         <div className="flex shrink-0 items-center gap-2">
-                            <span className="rounded-md bg-violet-600 px-2.5 py-1 text-lg font-bold tabular-nums text-white">
+                            <span className="rounded-md bg-primary-600 px-2.5 py-1 text-lg font-bold tabular-nums text-white">
                                 {top.overall_score}
                             </span>
                             <Button type="button" color="primary" size="sm" onClick={() => setDialogOpen(true)}>

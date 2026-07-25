@@ -9,8 +9,6 @@ import { DeleteAssignmentModal } from "@/components/rh/mobility/DeleteAssignment
 import { StaffingAllocationBoard } from "@/components/rh/mobility/StaffingAllocationBoard";
 import { StaffingKpiStrip } from "@/components/rh/mobility/StaffingKpiStrip";
 import { StaffingToolbar } from "@/components/rh/mobility/StaffingToolbar";
-import { WorkspacePageShell } from "@/components/workspace/workspace-page-shell";
-import { useWorkspaceTopbarMeta } from "@/layouts/workspace-topbar-meta";
 import { fetchRhTalentsList, RH_TALENTS_WEBHOOK_BASE } from "@/api/rh-talents.api";
 import { resolveRhWebhookBase } from "@/api/rh-dashboard.api";
 import {
@@ -152,11 +150,13 @@ export function RhMobilityStaffing({ enterpriseId, apiBase = RH_TALENTS_WEBHOOK_
         }
     };
 
-    useWorkspaceTopbarMeta("", null, null);
-
     return (
-        <WorkspacePageShell role="rh" eyebrow="" title="" description={false} omitHeader>
+        <>
             <div className="mx-auto max-w-[1600px] space-y-5 pb-8">
+                <p className="text-sm text-slate-500 dark:text-slate-400">
+                    Rattachement hiérarchique des talents à leurs managers.
+                </p>
+
                 {error ? (
                     <div className={cx("flex items-start gap-2 rounded-lg p-3 text-sm", RH_ALERT_ERROR)}>
                         <AlertTriangle size={16} className="mt-0.5 shrink-0" aria-hidden />
@@ -169,6 +169,7 @@ export function RhMobilityStaffing({ enterpriseId, apiBase = RH_TALENTS_WEBHOOK_
                     total={assignments.length}
                     withManager={withManagerCount}
                     withoutManager={withoutManagerCount}
+                    onViewUnassigned={() => setManagerFilter("without_manager")}
                 />
 
                 <StaffingToolbar
@@ -244,6 +245,6 @@ export function RhMobilityStaffing({ enterpriseId, apiBase = RH_TALENTS_WEBHOOK_
                 onClose={() => setDeleteRow(null)}
                 onConfirm={() => void handleDelete()}
             />
-        </WorkspacePageShell>
+        </>
     );
 }

@@ -94,7 +94,7 @@ export function ReportsHistoryTimeline({
                         {sparkline.map((v, i) => (
                             <div
                                 key={i}
-                                className="w-3 rounded-t bg-gradient-to-t from-indigo-600 to-violet-400"
+                                className="w-3 rounded-t bg-gradient-to-t from-primary-600 to-primary-400"
                                 style={{ height: `${Math.max(4, (v / maxSpark) * 100)}%` }}
                             />
                         ))}
@@ -116,7 +116,7 @@ export function ReportsHistoryTimeline({
                             className={cx(
                                 "rounded-full border px-3 py-1 text-xs font-medium transition",
                                 filter === f.id
-                                    ? "border-indigo-600 bg-indigo-50 text-indigo-700 dark:bg-indigo-950/40 dark:text-indigo-300"
+                                    ? "border-primary-600 bg-primary-50 text-primary-700 dark:bg-primary-950/40 dark:text-primary-300"
                                     : "border-slate-200 text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-400",
                             )}
                         >

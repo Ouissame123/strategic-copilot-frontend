@@ -189,8 +189,8 @@ export function TalentAvailabilitySection({
                 </div>
 
                 {data?.recommended_action ? (
-                    <div className="flex items-start gap-2 rounded-lg border border-sky-200/80 bg-sky-50/80 px-3 py-2 text-xs dark:border-sky-900 dark:bg-sky-950/30">
-                        <Lightbulb size={14} className="mt-0.5 shrink-0 text-sky-600" aria-hidden />
+                    <div className="flex items-start gap-2 rounded-lg border border-primary-200/80 bg-primary-50/80 px-3 py-2 text-xs dark:border-primary-900 dark:bg-primary-950/30">
+                        <Lightbulb size={14} className="mt-0.5 shrink-0 text-primary-600" aria-hidden />
                         <p className={RH_TEXT_PRIMARY}>{data.recommended_action}</p>
                     </div>
                 ) : null}

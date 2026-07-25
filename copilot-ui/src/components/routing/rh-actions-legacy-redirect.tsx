@@ -1,6 +1,6 @@
 import { Navigate, useSearchParams } from "react-router";
 
-export type RhActionsTab = "requests" | "matching" | "mobility";
+export type RhActionsTab = "requests" | "mobility";
 
 type RhActionsLegacyRedirectProps = {
     defaultTab: RhActionsTab;

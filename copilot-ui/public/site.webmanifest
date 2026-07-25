@@ -1,0 +1,11 @@
+{
+  "name": "Copilote Stratégique",
+  "short_name": "Copilote",
+  "icons": [
+    { "src": "/favicon-32x32.png", "sizes": "32x32", "type": "image/png" },
+    { "src": "/apple-touch-icon.png", "sizes": "180x180", "type": "image/png" }
+  ],
+  "theme_color": "#0F6E56",
+  "background_color": "#E1F5EE",
+  "display": "standalone"
+}

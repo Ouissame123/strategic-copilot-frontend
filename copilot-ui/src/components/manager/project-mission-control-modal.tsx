@@ -5,9 +5,6 @@ import { buildStrictAssignTalentPayload } from "@/api/manager-projects.api";
 import { ProjectMissionControlRisks } from "@/components/manager/project-mission-control-risks";
 import { ProjectTasksTab } from "@/components/projects/tasks/ProjectTasksTab";
 import { StrategistArbitrageOptions } from "@/components/manager/strategist-arbitrage-options";
-import { CopilotDrawer } from "@/components/copilot/CopilotDrawer";
-import { CopilotFloatingButton } from "@/components/copilot/CopilotFloatingButton";
-import { ManagerProjectCopilotPanel, type CopilotPrefetchedProjectContext } from "@/components/copilot/ManagerProjectCopilotPanel";
 import { stripTechnicalScoringSegments } from "@/lib/business-explanation";
 import { readMissionControlHttpErrorMessage, readUserFacingApiErrorMessage } from "@/lib/user-facing-api-error";
 import { useAuth } from "@/providers/auth-provider";
@@ -17,8 +14,6 @@ import {
     formatMissionProjectStatusLabel,
     pushStrategistStopScopeExecuteToast,
     resolveArbitrageOptionType,
-    resolveCopilotDisplayDecision,
-    resolveCopilotDisplayInsight,
 } from "@/lib/strategist-arbitrage";
 import { ProjectLifecycleStepper, type ProjectLifecycleProject } from "@/components/projects/ProjectLifecycleStepper";
 import { WhatIfResultPanel, type WhatIfResponse } from "@/components/projects/WhatIfResultPanel";
@@ -39,7 +34,6 @@ import { cx } from "@/utils/cx";
 import type { MissionControlWorkspaceTabId } from "@/utils/workspace-routes";
 import {
     formatMissionExecutiveSummary,
-    formatMissionViabilityExplanation,
     formatProgressPercent,
     formatViabilityScore,
     normalizeProgressPctValue,
@@ -125,7 +119,7 @@ function statusPillClass(status: string | null | undefined): string {
         .replace(/\s+/g, "_");
     if (v === "on_hold" || v === "onhold") return "bg-amber-100 text-amber-800";
     if (v === "completed") return "bg-green-100 text-green-800";
-    if (v === "active") return "bg-blue-100 text-blue-800";
+    if (v === "active") return "bg-primary-100 text-primary-800";
     if (v === "planned") return "bg-slate-100 text-slate-700";
     if (v === "cancelled") return "bg-red-100 text-red-800";
     return "bg-slate-100 text-slate-700";
@@ -158,7 +152,7 @@ type MissionKpiCardProps = {
 };
 
 function kpiAccentBorder(kind: MissionKpiCardKind, scoreBarPct?: number | null, progressBarPct?: number | null, alertsCount = 0): string {
-    if (kind === "talents") return "border-l-blue-500";
+    if (kind === "talents") return "border-l-primary-500";
     if (kind === "alerts") {
         if (alertsCount >= 3) return "border-l-red-500";
         if (alertsCount >= 1) return "border-l-orange-500";
@@ -240,7 +234,7 @@ function MissionKpiCard({ label, value, unit, scoreBarPct, progressBarPct, kind,
                 {progressBarPct != null ? (
                     <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-slate-100 dark:bg-secondary_subtle">
                         <div
-                            className="h-full rounded-full bg-gradient-to-r from-blue-500 to-blue-600 transition-all duration-200 ease-out"
+                            className="h-full rounded-full bg-gradient-to-r from-primary-500 to-primary-600 transition-all duration-200 ease-out"
                             style={{ width: `${Math.min(100, Math.max(0, progressBarPct))}%` }}
                             aria-hidden
                         />
@@ -342,7 +336,7 @@ export function ProjectMissionControlWorkspace({
     const unassignTalent = useUnassignTalent();
     const whatIf = useWhatIf();
     const tasksQuery = useProjectTasks(pid, enabled);
-    const { mutate: runViabilityRefresh, isPending: viabilityRefreshing } = useProjectViabilityRefresh();
+    const { mutate: runViabilityRefresh } = useProjectViabilityRefresh();
     const viabilityScanKeyRef = useRef<string | null>(null);
     const [editPayload, setEditPayload] = useState({ status: "active" as ProjectStatus, priority: 5, milestone_at: "" });
     const { push: pushToast } = useToast();
@@ -355,9 +349,6 @@ export function ProjectMissionControlWorkspace({
     const [whatIfAllocationPct, setWhatIfAllocationPct] = useState("");
     const [workspaceTab, setWorkspaceTab] = useState<WorkspaceTabId>(workspaceTabProp);
     const [mobileMissionTab, setMobileMissionTab] = useState<MobileMissionTabId>(workspaceTabProp);
-    const [isCopilotOpen, setIsCopilotOpen] = useState(false);
-    const copilotFabRef = useRef<HTMLButtonElement>(null);
-
     const applyWorkspaceTab = useCallback(
         (tab: WorkspaceTabId) => {
             setWorkspaceTab(tab);
@@ -411,22 +402,6 @@ export function ProjectMissionControlWorkspace({
         assignmentTypeTouched.current = false;
         setAssignPayload({ talent_id: "", allocation_pct: 50, assignment_type: "part_time" });
     }, [projectId]);
-
-    const refreshProjectSnapshot = useCallback(() => {
-        const enterpriseId = user?.enterpriseId?.trim();
-        if (!pid || !enterpriseId) {
-            pushToast(tm("viabilityRefreshMissingEnterprise"), "error");
-            return;
-        }
-        runViabilityRefresh(
-            { projectId: pid, enterpriseId },
-            {
-                onSuccess: () => pushToast(tm("viabilityRefreshSuccess"), "success"),
-                onError: (err) =>
-                    pushToast(tm("viabilityRefreshError", { message: readMissionControlHttpErrorMessage(err) }), "error"),
-            },
-        );
-    }, [pid, pushToast, runViabilityRefresh, tm, user?.enterpriseId]);
 
     useEffect(() => {
         if (!pid) return;
@@ -526,11 +501,11 @@ export function ProjectMissionControlWorkspace({
     const progressLabel = formatProgressPercent(progressPct);
     const health = readLatestKpiHealthScore(latestKpi);
     const delayDays = readLatestKpiDelayDays(latestKpi);
-    const projectName = detail.data?.project.name ?? listProject?.name ?? tm("projectNameFallback");
+    const projectName = detail.data?.project?.name ?? listProject?.name ?? tm("projectNameFallback");
     const latestDecisionRaw = detail.data?.latest_viability?.decision ?? listProject?.latest_decision ?? null;
     const decisionBadge = latestDecisionRaw ?? "—";
     const viabilityDecision = latestDecisionRaw;
-    const projectStatusRaw = detail.data?.project.status ?? listProject?.status ?? null;
+    const projectStatusRaw = detail.data?.project?.status ?? listProject?.status ?? null;
     const statusBadgeLabel = formatMissionProjectStatusLabel(projectStatusRaw, {
         planned: tm("statusOptionPlanned"),
         active: tm("statusOptionActive"),
@@ -550,33 +525,6 @@ export function ProjectMissionControlWorkspace({
             }),
         [viabilityScore, viabilityDecision, health, progressPct, delayDays],
     );
-
-    const copilotPrefetched: CopilotPrefetchedProjectContext = useMemo(() => {
-        const explanation = formatMissionViabilityExplanation(
-            detail.data?.latest_viability?.explanation,
-            viabilityScore,
-            viabilityDecision,
-        );
-        return {
-            displayName: projectName,
-            decision: resolveCopilotDisplayDecision(projectStatusRaw, latestDecisionRaw, {
-                onHold: tm("statusOptionOnHold"),
-            }),
-            score: viabilityFormatted.display,
-            alertsCount: detail.data?.active_alerts?.length ?? 0,
-            aiRecommendation: resolveCopilotDisplayInsight(projectStatusRaw, explanation, tm("copilotOnHoldInsight")),
-        };
-    }, [
-        projectName,
-        projectStatusRaw,
-        latestDecisionRaw,
-        viabilityFormatted.display,
-        detail.data?.latest_viability?.explanation,
-        detail.data?.active_alerts?.length,
-        viabilityScore,
-        viabilityDecision,
-        tm,
-    ]);
 
     const whatIfPreviewText = useMemo(() => {
         const raw = whatIfAllocationPct.trim();
@@ -693,9 +641,9 @@ export function ProjectMissionControlWorkspace({
             aria-selected={mobileMissionTab === id}
             onClick={() => applyWorkspaceTab(id)}
             className={cx(
-                "shrink-0 border-b-2 px-3 py-2.5 text-xs font-medium transition-colors duration-200 ease-out focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500 sm:text-sm",
+                "shrink-0 border-b-2 px-3 py-2.5 text-xs font-medium transition-colors duration-200 ease-out focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary-500 sm:text-sm",
                 mobileMissionTab === id
-                    ? "border-blue-600 font-semibold text-blue-600"
+                    ? "border-primary-600 font-semibold text-primary-600"
                     : "border-transparent text-slate-500 hover:text-slate-800",
             )}
         >
@@ -704,26 +652,14 @@ export function ProjectMissionControlWorkspace({
     );
 
     const dateLocale = i18n.language === "ar" ? "ar" : i18n.language === "en" ? "en-GB" : "fr-FR";
-    const milestoneLabel = (detail.data?.project.milestone_at ?? listProject?.milestone_at)
-        ? new Date((detail.data?.project.milestone_at ?? listProject?.milestone_at) as string).toLocaleDateString(dateLocale, {
+    const milestoneLabel = (detail.data?.project?.milestone_at ?? listProject?.milestone_at)
+        ? new Date((detail.data?.project?.milestone_at ?? listProject?.milestone_at) as string).toLocaleDateString(dateLocale, {
               day: "numeric",
               month: "short",
               year: "numeric",
           })
         : "—";
-    const priorityBadge = detail.data?.project.priority ?? listProject?.priority ?? "—";
-
-    const copilotPanel = (
-        <ManagerProjectCopilotPanel
-            projectId={pid}
-            projectName={projectName}
-            compact
-            embeddedInDrawer
-            prefetchedContext={copilotPrefetched}
-            onRefreshProjectSnapshot={refreshProjectSnapshot}
-            refreshingProjectSnapshot={viabilityRefreshing}
-        />
-    );
+    const priorityBadge = detail.data?.project?.priority ?? listProject?.priority ?? "—";
 
     const workspaceNav = (
         <nav
@@ -749,9 +685,9 @@ export function ProjectMissionControlWorkspace({
                         aria-selected={workspaceTab === tab.id}
                         onClick={() => applyWorkspaceTab(tab.id)}
                         className={cx(
-                            "shrink-0 border-b-2 px-4 py-3 text-sm font-medium transition-colors duration-200 ease-out focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500",
+                            "shrink-0 border-b-2 px-4 py-3 text-sm font-medium transition-colors duration-200 ease-out focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary-500",
                             workspaceTab === tab.id
-                                ? "border-blue-600 font-semibold text-blue-600"
+                                ? "border-primary-600 font-semibold text-primary-600"
                                 : "border-transparent text-slate-500 hover:text-slate-800",
                         )}
                     >
@@ -769,7 +705,7 @@ export function ProjectMissionControlWorkspace({
                     {tm("partialDetailNote")}
                 </p>
             ) : null}
-            <section className="rounded-xl border border-slate-100 border-l-4 border-l-blue-500 bg-slate-50 p-5 shadow-sm dark:border-secondary dark:bg-secondary_subtle/30">
+            <section className="rounded-xl border border-slate-100 border-l-4 border-l-primary-500 bg-slate-50 p-5 shadow-sm dark:border-secondary dark:bg-secondary_subtle/30">
                 <p className="mb-3 text-xs uppercase tracking-widest text-slate-400">{tm("execSummary")}</p>
                 <p className="text-sm leading-relaxed text-slate-700 dark:text-fg-secondary">{executiveSummary}</p>
             </section>
@@ -811,16 +747,16 @@ export function ProjectMissionControlWorkspace({
                     kind="progress"
                 />
             </section>
-            <section className="relative overflow-hidden rounded-xl border border-purple-200 bg-gradient-to-br from-purple-50 via-purple-50/80 to-indigo-50 p-5 shadow-sm dark:border-purple-800/40 dark:from-purple-950/30 dark:to-indigo-950/20">
-                <span className="absolute right-4 top-4 rounded-full border border-purple-200/80 bg-white/90 px-2.5 py-1 text-[10px] font-bold uppercase tracking-widest text-purple-600 shadow-sm backdrop-blur-sm dark:border-purple-700 dark:bg-purple-950/80 dark:text-purple-200">
+            <section className="relative overflow-hidden rounded-xl border border-primary-200 bg-gradient-to-br from-primary-50 via-primary-50/80 to-primary-50 p-5 shadow-sm dark:border-primary-800/40 dark:from-primary-950/30 dark:to-primary-950/20">
+                <span className="absolute right-4 top-4 rounded-full border border-primary-200/80 bg-white/90 px-2.5 py-1 text-[10px] font-bold uppercase tracking-widest text-primary-600 shadow-sm backdrop-blur-sm dark:border-primary-700 dark:bg-primary-950/80 dark:text-primary-200">
                     IA
                 </span>
                 <div className="flex gap-4 pr-14">
-                    <div className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-purple-100 text-purple-600 dark:bg-purple-950/50">
+                    <div className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-primary-100 text-primary-600 dark:bg-primary-950/50">
                         <Sparkles className="size-5" aria-hidden />
                     </div>
                     <div className="min-w-0 flex-1">
-                        <span className="inline-flex items-center gap-1.5 rounded-full border border-purple-200 bg-white/80 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-widest text-purple-700 dark:border-purple-700 dark:bg-purple-950/60 dark:text-purple-200">
+                        <span className="inline-flex items-center gap-1.5 rounded-full border border-primary-200 bg-white/80 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-widest text-primary-700 dark:border-primary-700 dark:bg-primary-950/60 dark:text-primary-200">
                             <Sparkles className="size-3" aria-hidden />
                             {tm("aiRecoTitle")}
                         </span>
@@ -1085,7 +1021,7 @@ export function ProjectMissionControlWorkspace({
                             <h4 className="text-sm font-semibold tracking-tight text-fg-primary sm:text-base">{tm("whatIfTitle")}</h4>
                             <p className="mt-1 max-w-xl text-xs leading-relaxed text-fg-tertiary sm:text-sm">{tm("whatIfIntro")}</p>
                         </div>
-                        <span className="inline-flex shrink-0 self-start rounded-full border border-brand-secondary/35 bg-gradient-to-r from-brand-primary/15 to-violet-500/10 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider text-brand-secondary shadow-sm">
+                        <span className="inline-flex shrink-0 self-start rounded-full border border-brand-secondary/35 bg-gradient-to-r from-brand-primary/15 to-primary-500/10 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider text-brand-secondary shadow-sm">
                             {tm("whatIfAiPowered")}
                         </span>
                     </div>
@@ -1176,6 +1112,8 @@ export function ProjectMissionControlWorkspace({
             <StrategistArbitrageOptions
                 options={strategistArbitrage.displayOptions}
                 proposeLoading={strategistArbitrage.proposeLoading}
+                managerSummary={strategistArbitrage.managerSummary}
+                topRecommendationId={strategistArbitrage.topRecommendationId}
                 onAccept={async (opt) => {
                     if (!user?.enterpriseId?.trim()) {
                         pushToast(tm("arbitrageErrorNoEnterprise"), "error");
@@ -1183,17 +1121,18 @@ export function ProjectMissionControlWorkspace({
                     }
                     try {
                         const response = await strategistArbitrage.acceptOption(opt);
+                        const summary =
+                            response.decision_executed?.summary?.trim() ||
+                            response.user_message?.trim() ||
+                            tm("arbitrageAcceptedToast", { label: opt.label || opt.id });
                         const isStopScope = resolveArbitrageOptionType(opt) === "stop_scope";
                         if (isStopScope && response.action_taken) {
-                            pushStrategistStopScopeExecuteToast(
-                                pushToast,
-                                response,
-                                tm("arbitrageAcceptedToast", { label: opt.label || opt.id }),
-                                { pausedDescription: tm("arbitrageStopScopePausedDesc") },
-                            );
+                            pushStrategistStopScopeExecuteToast(pushToast, response, summary, {
+                                pausedDescription: tm("arbitrageStopScopePausedDesc"),
+                            });
                             applyWorkspaceTab("overview");
                         } else {
-                            pushToast(tm("arbitrageAcceptedToast", { label: opt.label || opt.id }), "success", 8000);
+                            pushToast(summary, "success", 8000);
                         }
                     } catch (error) {
                         pushToast(strategistArbitrage.readError(error), "error");
@@ -1328,7 +1267,7 @@ export function ProjectMissionControlWorkspace({
                                 </span>
                             ) : null}
                             {viabilityScore != null ? (
-                                <span className="rounded-full bg-blue-100 px-3 py-1 text-xs font-semibold text-blue-800 shadow-sm">
+                                <span className="rounded-full bg-primary-100 px-3 py-1 text-xs font-semibold text-primary-800 shadow-sm">
                                     {tm("badgeScore")}{" "}
                                     <span className="tabular-nums">{viabilityFormatted.header}</span>
                                 </span>
@@ -1337,7 +1276,7 @@ export function ProjectMissionControlWorkspace({
                                 {tm("badgePriority")}{" "}
                                 <span className="tabular-nums">{String(priorityBadge)}</span>
                             </span>
-                            <span className="rounded-full bg-purple-100 px-3 py-1 text-xs font-semibold text-purple-800 shadow-sm">
+                            <span className="rounded-full bg-primary-100 px-3 py-1 text-xs font-semibold text-primary-800 shadow-sm">
                                 {tm("milestonePrefix")} {milestoneLabel}
                             </span>
                         </div>
@@ -1392,21 +1331,6 @@ export function ProjectMissionControlWorkspace({
             </div>
 
             <div className="hidden min-h-0 flex-1 overflow-hidden lg:flex">{missionWorkspace}</div>
-
-            <CopilotFloatingButton
-                ref={copilotFabRef}
-                hidden={isCopilotOpen}
-                onClick={() => setIsCopilotOpen(true)}
-            />
-
-            <CopilotDrawer
-                open={isCopilotOpen}
-                onClose={() => setIsCopilotOpen(false)}
-                projectName={projectName}
-                returnFocusRef={copilotFabRef}
-            >
-                <div className="flex h-full min-h-0 flex-1 flex-col overflow-hidden">{copilotPanel}</div>
-            </CopilotDrawer>
         </div>
     );
 }

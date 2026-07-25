@@ -8,7 +8,6 @@ import { TalentDrawer } from "@/components/rh/accounts/page/TalentDrawer";
 import { TalentsTable } from "@/components/rh/accounts/page/TalentsTable";
 import { UserDrawer } from "@/components/rh/accounts/page/UserDrawer";
 import { UsersTable } from "@/components/rh/accounts/page/UsersTable";
-import { useRhAccountsDensity } from "@/components/rh/accounts/page/use-rh-accounts-density";
 import { useWorkspaceTopbarMeta } from "@/layouts/workspace-topbar-meta";
 import { useTalents, useUsers, type TalentsListFilters, type UsersListFilters } from "@/hooks/useRhAccounts";
 import type { RhStaffAccount, RhTalentAccount } from "@/types/rh-accounts.types";
@@ -21,7 +20,6 @@ function RhAccountsTopbarMeta() {
 }
 
 export function RhAccountsPageContent({ embedded = false }: { embedded?: boolean }) {
-    const { density, toggleDensity } = useRhAccountsDensity();
     const [tab, setTab] = useState<AccountsTab>("users");
     const [search, setSearch] = useState("");
     const [debouncedSearch, setDebouncedSearch] = useState("");
@@ -82,8 +80,6 @@ export function RhAccountsPageContent({ embedded = false }: { embedded?: boolean
             {!embedded ? <RhAccountsTopbarMeta /> : null}
             <AccountsHeader
                 embedded={embedded}
-                density={density}
-                onToggleDensity={toggleDensity}
                 usersSummary={usersSummaryQuery.data?.summary}
                 talentsSummary={talentsSummaryQuery.data?.summary}
             />
@@ -120,14 +116,12 @@ export function RhAccountsPageContent({ embedded = false }: { embedded?: boolean
                 <UsersTable
                     users={usersTableQuery.data?.users ?? []}
                     isLoading={usersTableQuery.isLoading}
-                    density={density}
                     onRowClick={setDrawerUser}
                 />
             ) : (
                 <TalentsTable
                     talents={talentsTableQuery.data?.talents ?? []}
                     isLoading={talentsTableQuery.isLoading}
-                    density={density}
                     onRowClick={setDrawerTalent}
                 />
             )}

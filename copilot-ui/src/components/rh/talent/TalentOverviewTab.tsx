@@ -1,5 +1,5 @@
-/**
- * Onglet Vue d’ensemble — fiche talent RH premium (dashboard dense type enterprise).
+﻿/**
+ * Onglet Vue d’ensemble — fiche talent RH premium (vue d'ensemble type enterprise).
  */
 import { useEffect, useMemo, useState } from "react";
 import {
@@ -204,26 +204,26 @@ function TalentAiRecommendationCard({
         <section
             className={cx(
                 RH_CARD,
-                "overflow-hidden border-violet-200/90 bg-gradient-to-br from-violet-50/90 via-white to-indigo-50/50 p-4 shadow-sm dark:border-violet-800/80 dark:from-violet-950/50 dark:via-slate-900 dark:to-indigo-950/40",
+                "overflow-hidden border-primary-200/90 bg-gradient-to-br from-primary-50/90 via-white to-primary-50/50 p-4 shadow-sm dark:border-primary-800/80 dark:from-primary-950/50 dark:via-slate-900 dark:to-primary-950/40",
             )}
         >
             <div className="mb-4 flex items-center gap-2.5">
                 <div
-                    className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-violet-100 text-violet-700 shadow-sm dark:bg-violet-900/60 dark:text-violet-300"
+                    className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary-100 text-primary-700 shadow-sm dark:bg-primary-900/60 dark:text-primary-300"
                     aria-hidden
                 >
                     <Sparkles size={16} />
                 </div>
                 <div>
                     <h3 className={cx("text-sm font-bold tracking-tight", RH_TEXT_PRIMARY)}>Recommandation IA</h3>
-                    <p className={cx("text-[11px]", RH_TEXT_MUTED)}>Analyse Strategic Copilot</p>
+                    <p className={cx("text-[11px]", RH_TEXT_MUTED)}>Analyse Copilote Stratégique</p>
                 </div>
             </div>
 
             {match?.project_name ? (
                 <div
                     className={cx(
-                        "rounded-xl border border-violet-200/80 bg-white/90 p-3.5 shadow-sm dark:border-violet-800/70 dark:bg-violet-950/25",
+                        "rounded-xl border border-primary-200/80 bg-white/90 p-3.5 shadow-sm dark:border-primary-800/70 dark:bg-primary-950/25",
                     )}
                 >
                     <p className={cx("text-[10px] font-semibold uppercase tracking-wider", WS_TEXT_FAINT)}>
@@ -235,17 +235,17 @@ function TalentAiRecommendationCard({
                         </p>
                         {score ? (
                             <div className="shrink-0 text-right">
-                                <span className="text-2xl font-bold tabular-nums leading-none text-violet-700 dark:text-violet-300">
+                                <span className="text-2xl font-bold tabular-nums leading-none text-primary-700 dark:text-primary-300">
                                     {score}
                                 </span>
-                                <span className="text-sm font-semibold text-violet-500 dark:text-violet-400">/10</span>
+                                <span className="text-sm font-semibold text-primary-500 dark:text-primary-400">/10</span>
                             </div>
                         ) : null}
                     </div>
                     {statusLabel ? (
                         <p
                             className={cx(
-                                "mt-2.5 rounded-lg border border-violet-100 bg-violet-50/80 px-2.5 py-1.5 text-xs font-medium leading-snug text-violet-900 dark:border-violet-800/60 dark:bg-violet-900/30 dark:text-violet-100",
+                                "mt-2.5 rounded-lg border border-primary-100 bg-primary-50/80 px-2.5 py-1.5 text-xs font-medium leading-snug text-primary-900 dark:border-primary-800/60 dark:bg-primary-900/30 dark:text-primary-100",
                             )}
                         >
                             {statusLabel}
@@ -253,7 +253,7 @@ function TalentAiRecommendationCard({
                     ) : null}
                 </div>
             ) : (
-                <p className={cx("rounded-lg border border-dashed border-violet-200/70 px-3 py-2.5 text-xs", RH_TEXT_MUTED)}>
+                <p className={cx("rounded-lg border border-dashed border-primary-200/70 px-3 py-2.5 text-xs", RH_TEXT_MUTED)}>
                     Aucun projet recommandé par l&apos;analyse pour le moment.
                 </p>
             )}
@@ -264,12 +264,12 @@ function TalentAiRecommendationCard({
 
             <div
                 className={cx(
-                    "mt-4 grid grid-cols-3 divide-x divide-violet-200/70 overflow-hidden rounded-lg border border-violet-200/60 bg-white/60 dark:divide-violet-800/60 dark:border-violet-800/50 dark:bg-violet-950/20",
+                    "mt-4 grid grid-cols-3 divide-x divide-primary-200/70 overflow-hidden rounded-lg border border-primary-200/60 bg-white/60 dark:divide-primary-800/60 dark:border-primary-800/50 dark:bg-primary-950/20",
                 )}
             >
                 <div className="px-2 py-2.5 text-center sm:px-3">
                     <div className={cx("text-[10px] font-semibold uppercase tracking-wide", WS_TEXT_FAINT)}>IPI</div>
-                    <div className="mt-0.5 text-base font-bold tabular-nums text-violet-700 dark:text-violet-300">
+                    <div className="mt-0.5 text-base font-bold tabular-nums text-primary-700 dark:text-primary-300">
                         {ipiScore != null ? Number(ipiScore).toFixed(1) : "—"}
                     </div>
                 </div>
@@ -387,7 +387,7 @@ export function TalentOverviewTab({
             <section
                 className={cx(
                     RH_CARD,
-                    "overflow-hidden border-slate-200/80 bg-gradient-to-br from-slate-50 via-white to-violet-50/30 p-3 dark:from-slate-900 dark:via-slate-900 dark:to-violet-950/20",
+                    "overflow-hidden border-slate-200/80 bg-gradient-to-br from-slate-50 via-white to-primary-50/30 p-3 dark:from-slate-900 dark:via-slate-900 dark:to-primary-950/20",
                 )}
             >
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-start">
@@ -524,7 +524,7 @@ export function TalentOverviewTab({
 
             {/* 5 — Missions (ex-onglet) */}
             <section id="talent-overview-missions">
-                <SectionTitle icon={<Target size={14} className="text-sky-500" aria-hidden />}>
+                <SectionTitle icon={<Target size={14} className="text-primary-500" aria-hidden />}>
                     Projets actifs ({detail.active_assignments.length})
                 </SectionTitle>
                 {detail.active_assignments.length === 0 ? (
@@ -631,7 +631,7 @@ export function TalentOverviewTab({
                     <ul className="relative mt-1 space-y-0 border-l-2 border-slate-200 pl-5 dark:border-slate-700">
                         {activityItems.map((item, i) => (
                             <li key={i} className="relative pb-5 last:pb-0">
-                                <span className="absolute -left-[23px] top-2 h-2.5 w-2.5 rounded-full border-2 border-white bg-violet-500 dark:border-slate-900" />
+                                <span className="absolute -left-[23px] top-2 h-2.5 w-2.5 rounded-full border-2 border-white bg-primary-500 dark:border-slate-900" />
                                 <p className={cx("text-[11px] font-semibold uppercase tracking-wide", WS_TEXT_FAINT)}>
                                     {fmtDate(item.date)}
                                 </p>

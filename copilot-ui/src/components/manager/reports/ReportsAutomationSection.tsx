@@ -46,7 +46,7 @@ export function ReportsAutomationSection({
                     return (
                         <div key={kpi.label} className={REPORT_CARD + " p-4"}>
                             <div className="flex items-center gap-2 text-slate-500">
-                                <Icon className="size-4 text-indigo-600 dark:text-indigo-400" />
+                                <Icon className="size-4 text-primary-600 dark:text-primary-400" />
                                 <span className="text-xs font-medium uppercase tracking-wide">{kpi.label}</span>
                             </div>
                             <p
@@ -74,7 +74,7 @@ export function ReportsAutomationSection({
                     <button
                         type="button"
                         onClick={onNewAutomation}
-                        className="inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-indigo-600 to-violet-600 px-5 py-2.5 text-sm font-semibold text-white shadow-md transition-all duration-200 hover:scale-[1.01] hover:shadow-lg"
+                        className="inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-primary-600 to-primary-700 px-5 py-2.5 text-sm font-semibold text-white shadow-md transition-all duration-200 hover:scale-[1.01] hover:shadow-lg"
                     >
                         <Plus className="size-4" />
                         Nouvelle automatisation
@@ -107,7 +107,7 @@ export function ReportsAutomationSection({
 
             <section className={REPORT_CARD + " p-5 sm:p-6"}>
                 <h2 className="flex items-center gap-2 text-base font-semibold text-slate-900 dark:text-slate-50">
-                    <Mail className="size-4 text-indigo-600" />
+                    <Mail className="size-4 text-primary-600" />
                     Partager par e-mail
                 </h2>
                 <p className="mt-1 text-sm text-slate-500">Envoi ponctuel d&apos;un rapport PDF déjà généré.</p>

@@ -2,7 +2,7 @@ import type { HTMLAttributes } from "react";
 import { cx } from "@/utils/cx";
 import { StrategicCopilotIcon } from "./strategic-copilot-icon";
 
-const PROJECT_NAME = "Strategic Copilot";
+const PROJECT_NAME = "Copilote Stratégique";
 
 export const ProjectLogo = (props: HTMLAttributes<HTMLDivElement>) => {
     return (

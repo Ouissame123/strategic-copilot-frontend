@@ -10,7 +10,7 @@ type StatPillProps = {
 export function StatPill({ icon: Icon, label, value }: StatPillProps) {
     return (
         <div className="flex items-center gap-3 rounded-xl border border-slate-100 bg-slate-50/80 px-3 py-2.5 dark:border-slate-800 dark:bg-slate-800/40">
-            <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-white text-indigo-600 shadow-sm dark:bg-slate-900 dark:text-indigo-400">
+            <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-white text-primary-600 shadow-sm dark:bg-slate-900 dark:text-primary-400">
                 <Icon className="size-4" aria-hidden />
             </span>
             <div className="min-w-0 flex-1">

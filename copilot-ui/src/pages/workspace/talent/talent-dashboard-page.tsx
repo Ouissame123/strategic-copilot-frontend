@@ -9,7 +9,7 @@ import { asRecord, numOf, textOf } from "@/utils/talent-page-parsers";
 function statusBadgeTone(status: string): string {
     const s = status.toLowerCase();
     if (s.includes("risk") || s.includes("retard")) return "bg-[#fffbeb] text-[#92400e]";
-    if (s.includes("start") || s.includes("demarr")) return "bg-[#eff6ff] text-[#1d4ed8]";
+    if (s.includes("start") || s.includes("demarr")) return "bg-primary-50 text-primary-700";
     if (s.includes("done") || s.includes("term")) return "bg-[#f3f4f6] text-[#6b7280]";
     return "bg-[#eafaf3] text-[#15803d]";
 }
@@ -19,7 +19,7 @@ function taskBadgeTone(priority: string): string {
     if (p.includes("urgent")) return "bg-[#fef2f2] text-[#991b1b]";
     if (p.includes("moyen") || p.includes("medium")) return "bg-[#fffbeb] text-[#92400e]";
     if (p.includes("fait") || p.includes("done")) return "bg-[#eafaf3] text-[#15803d]";
-    return "bg-[#eff6ff] text-[#1d4ed8]";
+    return "bg-primary-50 text-primary-700";
 }
 
 export function TalentDashboardPage() {
@@ -52,7 +52,7 @@ export function TalentDashboardPage() {
                         Voici votre resume de la semaine
                     </p>
                 </div>
-                <button type="button" className="rounded-lg bg-[#7c6ef5] px-3.5 py-2 text-sm font-medium text-white transition hover:bg-[#5a4de0]">
+                <button type="button" className="rounded-lg bg-primary-600 px-3.5 py-2 text-sm font-medium text-white transition hover:bg-primary-700">
                     Nouvelle tache
                 </button>
             </header>
@@ -115,7 +115,7 @@ export function TalentDashboardPage() {
                                                 <td className="px-1 py-2.5 font-semibold text-[#18171e]">{projectName}</td>
                                                 <td className="px-1 py-2.5">
                                                     <div className="h-1.5 w-24 overflow-hidden rounded-full bg-[#f7f6f3]">
-                                                        <div className="h-full rounded-full bg-[#7c6ef5]" style={{ width: `${progress}%` }} />
+                                                        <div className="h-full rounded-full bg-primary-600" style={{ width: `${progress}%` }} />
                                                     </div>
                                                 </td>
                                                 <td className="px-1 py-2.5">

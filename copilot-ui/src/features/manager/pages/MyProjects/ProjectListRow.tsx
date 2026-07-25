@@ -1,9 +1,11 @@
 import type { TFunction } from "i18next";
+import { Link } from "react-router";
 import { DotsVertical } from "@untitledui/icons";
 import { Button } from "@/components/base/buttons/button";
 import { Dropdown } from "@/components/base/dropdown/dropdown";
 import { AiRecommendationBadge } from "@/features/manager/components/AiRecommendationBadge";
 import type { ProjectListItem, ProjectStatus } from "@/types/api.types";
+import type { ManagerProjectNavState } from "@/utils/manager-project-navigation";
 import { cx } from "@/utils/cx";
 
 function coerceFiniteNumber(value: unknown): number | null {
@@ -58,6 +60,8 @@ export function ProjectListRow({
     horizon,
     t,
     onOpenProject,
+    projectDetailPath,
+    buildProjectNavState,
     onEditRequest,
     onDeleteRequest,
     onRunAnalysis,
@@ -70,6 +74,8 @@ export function ProjectListRow({
     horizon: { primary: string; secondary: string | null };
     t: TFunction<"common", undefined>;
     onOpenProject: (project: ProjectListItem) => void;
+    projectDetailPath: (projectId: string) => string;
+    buildProjectNavState: (project: ProjectListItem) => ManagerProjectNavState;
     onEditRequest?: (project: ProjectListItem) => void;
     onDeleteRequest?: (project: { id: string; name: string }) => void;
     onRunAnalysis?: (projectId: string) => void;
@@ -90,7 +96,14 @@ export function ProjectListRow({
             )}
         >
             <td className={cx("max-w-[280px] px-3 align-middle", rowPadding)}>
-                <p className="line-clamp-2 font-semibold leading-snug text-slate-900 dark:text-slate-100">{displayName}</p>
+                <Link
+                    to={projectDetailPath(project.id)}
+                    state={buildProjectNavState(project)}
+                    onClick={(event) => event.stopPropagation()}
+                    className="line-clamp-2 font-semibold leading-snug text-slate-900 hover:text-violet-700 hover:underline dark:text-slate-100 dark:hover:text-violet-300"
+                >
+                    {displayName}
+                </Link>
                 <p className="mt-0.5 text-[11px] text-slate-500">
                     {statusLabel(project.status)} · P{priority}
                     {teamSize > 0 ? ` · 👥 ${teamSize}` : null}

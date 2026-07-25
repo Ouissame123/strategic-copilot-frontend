@@ -1,7 +1,6 @@
 import type { ManagerTeamListCounts, TalentListItem } from "@/types/api.types";
 
 export type TeamSegmentFilter = "all" | "overloaded" | "contract_ending" | "healthy";
-export type TeamTableDensity = "comfortable" | "compact";
 export type TeamTableSortKey = "name" | "charge_pct" | "ipi_score" | "contract_end_date";
 
 export const TEAM_SEGMENT_FILTERS: { id: TeamSegmentFilter; label: string; tone: string }[] = [

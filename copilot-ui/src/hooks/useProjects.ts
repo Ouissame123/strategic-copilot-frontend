@@ -1,22 +1,37 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient, type QueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { orchestratorApi } from "../api/orchestrator.api";
-import { isDescriptionOnlyProjectPatch, isManagerProjectNotDeletableError, managerProjectsApi } from "../api/manager-projects.api";
+import { isDescriptionOnlyProjectPatch, classifyManagerProjectDeleteError, managerProjectsApi } from "../api/manager-projects.api";
 import { strategistApi } from "../api/strategist.api";
 import { readEnv } from "@/config/resolve-api-url";
 import { readMissionControlHttpErrorMessage } from "@/lib/user-facing-api-error";
 import { invalidateAfterStrategistArbitrage } from "@/lib/strategist-arbitrage";
 import { queryKeys } from "@/lib/query-keys";
 import { useToast } from "@/providers/toast-provider";
+import { projectDetailKeys } from "@/hooks/use-project-detail";
 import type {
     AssignTalentRequest,
     CreateProjectRequest,
     ExecuteRequest,
     ProposeRequest,
+    ProjectDeleteResponse,
     ProjectDetailResponse,
     ProjectsListResponse,
     ManagerProjectPatchBody,
 } from "../types/api.types";
+
+async function invalidateProjectDetailCaches(qc: QueryClient, projectId: string): Promise<void> {
+    await Promise.all([
+        qc.invalidateQueries({ queryKey: ["project-detail", projectId] }),
+        qc.invalidateQueries({ queryKey: queryKeys.manager.projectDetail(projectId) }),
+        qc.invalidateQueries({ queryKey: projectDetailKeys.byId(projectId) }),
+        qc.invalidateQueries({ queryKey: ["projects"] }),
+        qc.invalidateQueries({ queryKey: queryKeys.projects.all }),
+        qc.refetchQueries({ queryKey: ["project-detail", projectId] }),
+        qc.refetchQueries({ queryKey: queryKeys.manager.projectDetail(projectId) }),
+        qc.refetchQueries({ queryKey: projectDetailKeys.byId(projectId) }),
+    ]);
+}
 
 /** Invalidation ciblée après création ou suppression d'un projet (liste Mes projets, dashboard, matchmaker). */
 async function invalidateAfterProjectListChange(qc: QueryClient): Promise<void> {
@@ -86,14 +101,7 @@ export const useAssignTalent = () => {
             }
         },
         onSuccess: async (_, { projectId }) => {
-            void qc.invalidateQueries({ queryKey: ["project-detail", projectId] });
-            void qc.invalidateQueries({ queryKey: queryKeys.manager.projectDetail(projectId) });
-            void qc.invalidateQueries({ queryKey: ["projects"] });
-            void qc.invalidateQueries({ queryKey: queryKeys.projects.all });
-            await Promise.all([
-                qc.refetchQueries({ queryKey: ["project-detail", projectId] }),
-                qc.refetchQueries({ queryKey: queryKeys.manager.projectDetail(projectId) }),
-            ]);
+            await invalidateProjectDetailCaches(qc, projectId);
             if (readEnv("VITE_TRIGGER_PROJECT_RECOMPUTE_AFTER_ASSIGN") === "1") {
                 void orchestratorApi.recomputeFull(projectId).catch(() => {});
             }
@@ -106,14 +114,7 @@ export const useUnassignTalent = () => {
     return useMutation({
         mutationFn: ({ projectId, talentId }: { projectId: string; talentId: string }) => managerProjectsApi.unassign(projectId, talentId),
         onSuccess: async (_, { projectId }) => {
-            void qc.invalidateQueries({ queryKey: ["project-detail", projectId] });
-            void qc.invalidateQueries({ queryKey: queryKeys.manager.projectDetail(projectId) });
-            void qc.invalidateQueries({ queryKey: ["projects"] });
-            void qc.invalidateQueries({ queryKey: queryKeys.projects.all });
-            await Promise.all([
-                qc.refetchQueries({ queryKey: ["project-detail", projectId] }),
-                qc.refetchQueries({ queryKey: queryKeys.manager.projectDetail(projectId) }),
-            ]);
+            await invalidateProjectDetailCaches(qc, projectId);
             if (readEnv("VITE_TRIGGER_PROJECT_RECOMPUTE_AFTER_ASSIGN") === "1") {
                 void orchestratorApi.recomputeFull(projectId).catch(() => {});
             }
@@ -137,7 +138,10 @@ export const useDeleteProject = () => {
     const { t } = useTranslation("common");
 
     return useMutation({
-        mutationFn: (projectId: string) => managerProjectsApi.delete(projectId).then((r) => r.data),
+        mutationFn: async (projectId: string): Promise<ProjectDeleteResponse> => {
+            const r = await managerProjectsApi.delete(projectId);
+            return r.data;
+        },
         onMutate: async (projectId) => {
             await qc.cancelQueries({ queryKey: ["projects"] });
             const previous = qc.getQueriesData<ProjectsListResponse>({ queryKey: ["projects"] });
@@ -154,24 +158,17 @@ export const useDeleteProject = () => {
             return { previous };
         },
         onError: (error, _projectId, context) => {
+            const classified = classifyManagerProjectDeleteError(error);
+            // 404 : déjà supprimé ailleurs — on laisse la ligne absente, sans rollback ni toast.
+            if (classified.kind === "not_found") return;
             context?.previous?.forEach(([key, data]) => {
                 qc.setQueryData(key, data);
             });
-            if (isManagerProjectNotDeletableError(error)) {
-                pushToast(t("managerWorkspace.projects.deleteProjectNotDeletable"), "error");
-                return;
-            }
-            pushToast(
-                readMissionControlHttpErrorMessage(error) || t("managerWorkspace.projects.deleteProjectError"),
-                "error",
-            );
+            // 403 / 409 / autres : la page affiche toast ou alerte persistante — pas de toast générique ici.
         },
-        onSuccess: async (data) => {
+        onSuccess: async () => {
             await invalidateAfterProjectListChange(qc);
-            pushToast(
-                t("managerWorkspace.projects.deleteProjectSuccess", { name: data.name || data.deleted_project_id }),
-                "success",
-            );
+            pushToast(t("managerWorkspace.projects.deleteProjectSuccess"), "success");
         },
     });
 };

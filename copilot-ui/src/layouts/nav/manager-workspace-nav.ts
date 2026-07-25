@@ -1,6 +1,5 @@
 import type { TFunction } from "i18next";
 import {
-    AlertTriangle,
     BarChart01,
     CheckCircle,
     Clock,
@@ -11,6 +10,7 @@ import {
     Users01,
     UsersEdit,
 } from "@untitledui/icons";
+import { ManagerRisksAlertesNavIcon } from "@/components/manager/nav/ManagerRisksAlertesNavIcon";
 import type { NavItemType } from "@/components/application/app-navigation/config";
 
 /** Navigation latérale manager uniquement — `/workspace/manager/*`. */
@@ -22,7 +22,7 @@ export function getManagerWorkspaceNavItems(t: TFunction<"nav", undefined>): Nav
         { label: t("managerNavTalentRequests"), href: "/workspace/manager/talent-requests", icon: UsersEdit },
         { label: t("managerNavRhRequests"), href: "/workspace/manager/rh-requests", icon: UserPlus01 },
         { label: t("managerNavValidations"), href: "/workspace/manager/validations", icon: CheckCircle },
-        { label: t("managerNavRisks"), href: "/workspace/manager/risks", icon: AlertTriangle },
+        { label: t("managerNavRisks"), href: "/workspace/manager/risques-alertes", icon: ManagerRisksAlertesNavIcon },
         { label: t("decisionLog"), href: "/workspace/manager/decision-log", icon: Clock },
         { label: t("managerNavReports"), href: "/workspace/manager/reports", icon: BarChart01 },
         { label: t("profile"), href: "/workspace/manager/profile", icon: User01 },

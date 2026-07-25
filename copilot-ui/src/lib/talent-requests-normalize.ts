@@ -18,8 +18,33 @@ function readOptionalBoolean(row: Record<string, unknown>, key: string): boolean
     return Boolean(row[key]);
 }
 
+function inferStatusFromLabel(label: string): TalentRequestStatus | null {
+    const l = label.trim().toLowerCase();
+    if (!l) return null;
+    if (l.includes("attente") || l === "pending") return "pending";
+    if (l.includes("accept") || l === "accepted") return "accepted";
+    if (l.includes("refus") || l === "rejected" || l === "refused") return "rejected";
+    if (l.includes("transf") || l.includes("rh")) return "transferred_to_hr";
+    if (l.includes("progress") || l === "in_progress") return "in_progress";
+    return null;
+}
+
+export function normalizeTalentRequestStatus(raw: unknown, statusLabel?: string | null): TalentRequestStatus {
+    const fromRaw = String(raw ?? "")
+        .trim()
+        .toLowerCase();
+    if (fromRaw) {
+        if (fromRaw === "refused") return "refused";
+        if (fromRaw === "transferred_rh" || fromRaw === "transferred-to-hr") return "transferred_to_hr";
+        return fromRaw as TalentRequestStatus;
+    }
+    const inferred = statusLabel ? inferStatusFromLabel(statusLabel) : null;
+    return inferred ?? "pending";
+}
+
 export function normalizeTalentRequest(raw: unknown): TalentRequest {
     const row = asRecord(raw);
+    const statusLabel = String(row.status_label ?? "");
     const request: TalentRequest = {
         id: String(row.id ?? ""),
         request_type: String(row.request_type ?? "autre") as TalentRequestType,
@@ -27,8 +52,8 @@ export function normalizeTalentRequest(raw: unknown): TalentRequest {
         title: String(row.title ?? ""),
         description: readOptionalString(row, "description"),
         payload: asRecord(row.payload),
-        status: String(row.status ?? "pending") as TalentRequestStatus,
-        status_label: String(row.status_label ?? ""),
+        status: normalizeTalentRequestStatus(row.status ?? row.state, statusLabel),
+        status_label: statusLabel,
         priority: (String(row.priority ?? "normal") as TalentRequestPriority) || "normal",
         manager_user_id: readOptionalString(row, "manager_user_id"),
         manager_name: readOptionalString(row, "manager_name"),

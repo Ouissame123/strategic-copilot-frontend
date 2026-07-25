@@ -71,7 +71,7 @@ export default function LoginPage() {
     return (
         <AuthCardLayout
             title="Connexion"
-            subtitle="Connectez-vous à Strategic Copilot pour accéder à votre espace."
+            subtitle="Connectez-vous à Copilote Stratégique pour accéder à votre espace."
         >
             <form onSubmit={handleSubmit} className="space-y-4">
                 <Input

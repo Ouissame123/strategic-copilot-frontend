@@ -2,6 +2,7 @@ import { BookOpen01, Bell01, Briefcase01, ChartBreakoutCircle, CheckCircle, Layo
 import type { ComponentType } from "react";
 import { useState } from "react";
 import { NavLink } from "react-router";
+import { StrategicCopilotIcon } from "@/components/foundations/logo/strategic-copilot-icon";
 import { useAuth } from "@/providers/auth-provider";
 import { cx } from "@/utils/cx";
 
@@ -36,10 +37,10 @@ function Item({ to, label, icon: Icon }: NavItem) {
                     className={cx(
                         "flex items-center gap-2 rounded-lg px-3 py-2 text-[13.5px] font-normal text-[#c4c2d4] transition",
                         "hover:bg-white/10 hover:text-white",
-                        isActive && "bg-[#7c6ef5]/15 font-medium text-white",
+                        isActive && "bg-primary-600/15 font-medium text-white",
                     )}
                 >
-                    <span className={cx("absolute left-0 top-1/2 h-5 w-[3px] -translate-y-1/2 rounded-r-md bg-[#7c6ef5]", !isActive && "opacity-0")} />
+                    <span className={cx("absolute left-0 top-1/2 h-5 w-[3px] -translate-y-1/2 rounded-r-md bg-primary-600", !isActive && "opacity-0")} />
                     <Icon className={cx("size-4 opacity-70", isActive && "opacity-100")} />
                     <span>{label}</span>
                 </div>
@@ -56,9 +57,11 @@ export function TalentSidebar() {
         <aside className="hidden w-[230px] shrink-0 bg-[#1a1825] px-2 pb-4 pt-0 lg:flex lg:flex-col">
             <div className="border-b border-white/10 px-3 py-5">
                 <div className="flex items-center gap-2">
-                    <div className="flex size-8 items-center justify-center rounded-lg bg-[#7c6ef5] text-xs font-bold text-white">SC</div>
+                    <div className="flex size-8 items-center justify-center rounded-lg bg-[#E1F5EE]">
+                        <StrategicCopilotIcon className="size-5" />
+                    </div>
                     <div>
-                        <p className="text-sm font-semibold text-white">Strategic Copilot</p>
+                        <p className="text-sm font-semibold text-white">Copilote Stratégique</p>
                     </div>
                 </div>
             </div>

@@ -8,6 +8,7 @@ import {
 } from "@/config/manager-projects-api.config";
 import { getWmpAssignPostUrl, getWmpUnassignDeleteUrl } from "@/config/wmp-assignments-webhook.config";
 import { readEnv, trimUrl } from "@/config/resolve-api-url";
+import { readMissionControlHttpErrorMessage } from "@/lib/user-facing-api-error";
 import { normalizeProgressPctValue } from "@/utils/format";
 import type {
     AlertItem,
@@ -24,6 +25,7 @@ import type {
     ProjectCreatedResponse,
     ProjectDeleteResponse,
     ProjectDetailResponse,
+    ProjectFull,
     ProjectKpiFull,
     ProjectListItem,
     ProjectRiskItem,
@@ -129,43 +131,66 @@ function toOptionalFiniteNumber(value: unknown): number | null | undefined {
     return Number.isFinite(n) ? n : undefined;
 }
 
-function normalizeProjectListItem(raw: ProjectListItem & Record<string, unknown>): ProjectListItem {
-    const fragility = toOptionalFiniteNumber(raw.fragility_score);
-    const days = toOptionalFiniteNumber(raw.days_to_milestone);
-    const topInsight =
-        raw.top_insight == null || String(raw.top_insight).trim() === ""
-            ? raw.top_insight === null
-                ? null
-                : undefined
-            : String(raw.top_insight).trim();
-    return {
-        ...raw,
-        ...(fragility !== undefined ? { fragility_score: fragility } : {}),
-        ...(days !== undefined ? { days_to_milestone: days } : {}),
-        ...(topInsight !== undefined ? { top_insight: topInsight } : {}),
-    };
+function requiredFiniteNumber(value: unknown): number | null {
+    const valueAsNumber = toOptionalFiniteNumber(value);
+    return typeof valueAsNumber === "number" ? valueAsNumber : null;
 }
 
-function normalizeProjectsListCounts(raw: unknown): ProjectsListResponse["counts"] {
-    if (raw == null || typeof raw !== "object" || Array.isArray(raw)) return undefined;
-    return raw as ProjectsListResponse["counts"];
+/** Normalisation liste v2.0 — champs factuels uniquement, aucun mapping agent. */
+function normalizeProjectListItem(raw: ProjectListItem & Record<string, unknown>): ProjectListItem | null {
+    const id = String(raw.id ?? "").trim();
+    const name = String(raw.name ?? "").trim();
+    const priority = requiredFiniteNumber(raw.priority);
+    const teamSize = requiredFiniteNumber(raw.team_size);
+    const validStatus = WMP_UPDATE_STATUSES.includes(raw.status);
+    if (!id || !name || priority == null || teamSize == null || !validStatus) return null;
+
+    const deadlineRaw = raw.deadline_urgency == null ? null : String(raw.deadline_urgency).trim().toLowerCase();
+    const deadlineUrgency =
+        deadlineRaw === "overdue" || deadlineRaw === "urgent" || deadlineRaw === "warning" || deadlineRaw === "ok"
+            ? deadlineRaw
+            : null;
+    return {
+        id,
+        name,
+        status: raw.status,
+        status_label: String(raw.status_label ?? "").trim(),
+        priority,
+        milestone_at: raw.milestone_at == null ? null : String(raw.milestone_at),
+        start_date: raw.start_date == null ? null : String(raw.start_date),
+        budget_rh_planned: requiredFiniteNumber(raw.budget_rh_planned),
+        budget_rh_actual: requiredFiniteNumber(raw.budget_rh_actual),
+        description: raw.description == null ? null : String(raw.description),
+        created_at: String(raw.created_at ?? ""),
+        updated_at: String(raw.updated_at ?? ""),
+        team_size: teamSize,
+        capacity_load_pct: requiredFiniteNumber(raw.capacity_load_pct),
+        deadline_urgency: deadlineUrgency,
+    };
 }
 
 function normalizeProjectsList(data: ProjectsListResponse | ManagerProjectsListResponse): ProjectsListResponse {
     if ("items" in data && Array.isArray(data.items)) {
         return {
-            items: data.items.map((item) => normalizeProjectListItem(item as ProjectListItem & Record<string, unknown>)),
+            items: data.items
+                .map((item) => normalizeProjectListItem(item as ProjectListItem & Record<string, unknown>))
+                .filter((item): item is ProjectListItem => item != null),
             total: data.total,
-            counts: normalizeProjectsListCounts(data.counts),
+            enterprise_id: data.enterprise_id,
+            filters_applied: data.filters_applied,
+            meta: data.meta,
         };
     }
-    const projects = (data.projects ?? []).map((item) =>
-        normalizeProjectListItem(item as ProjectListItem & Record<string, unknown>),
-    );
+    const managerData = data as ManagerProjectsListResponse;
+    const projects = (managerData.projects ?? [])
+        .map((item: ProjectListItem) => normalizeProjectListItem(item as ProjectListItem & Record<string, unknown>))
+        .filter((item): item is ProjectListItem => item != null);
     return {
         items: projects,
-        total: data.count ?? projects.length ?? 0,
-        counts: normalizeProjectsListCounts(data.counts),
+        total: managerData.count ?? projects.length,
+        enterprise_id: managerData.enterprise_id,
+        filters_applied: managerData.filters_applied,
+        meta: managerData.meta,
     };
 }
 
@@ -419,10 +444,48 @@ function normalizeProjectRisks(raw: unknown, activeAlerts: AlertItem[]): Project
         .filter((r): r is ProjectRiskItem => r != null);
 }
 
-function normalizeProjectDetail(data: ProjectDetailResponse | ManagerProjectDetailResponse): ProjectDetailResponse {
+function resolveProjectFromDetailBag(bag: Record<string, unknown>, projectIdHint?: string): ProjectFull | undefined {
+    const nested = bag.project;
+    if (nested != null && typeof nested === "object" && !Array.isArray(nested)) {
+        return nested as ProjectFull;
+    }
+
+    const id = String(bag.id ?? bag.project_id ?? projectIdHint ?? "").trim();
+    const name = String(bag.name ?? bag.project_name ?? "").trim();
+    if (!id && !name) return undefined;
+
+    return {
+        id: id || projectIdHint || "",
+        name: name || id || projectIdHint || "",
+        status: String(bag.status ?? "active").trim() as ProjectStatus,
+        priority: Number(bag.priority ?? 5) || 5,
+        milestone_at: bag.milestone_at != null ? String(bag.milestone_at) : undefined,
+        progress_pct: bag.progress_pct != null ? Number(bag.progress_pct) : undefined,
+        description: bag.description != null ? String(bag.description) : undefined,
+        start_date: bag.start_date != null ? String(bag.start_date) : undefined,
+        capacity_load_pct:
+            bag.capacity_load_pct != null && Number.isFinite(Number(bag.capacity_load_pct))
+                ? Number(bag.capacity_load_pct)
+                : undefined,
+        budget_rh_planned:
+            bag.budget_rh_planned != null && Number.isFinite(Number(bag.budget_rh_planned))
+                ? Number(bag.budget_rh_planned)
+                : undefined,
+        budget_rh_actual:
+            bag.budget_rh_actual != null && Number.isFinite(Number(bag.budget_rh_actual))
+                ? Number(bag.budget_rh_actual)
+                : undefined,
+    };
+}
+
+export function normalizeProjectDetail(
+    data: ProjectDetailResponse | ManagerProjectDetailResponse,
+    projectIdHint?: string,
+): ProjectDetailResponse {
     const root = unwrapProjectDetailPayload(data);
     const bag = root as Record<string, unknown>;
-    const projectObj = bag.project;
+    const resolvedProject = resolveProjectFromDetailBag(bag, projectIdHint);
+    const projectObj = resolvedProject ?? bag.project;
     const projectKpi =
         projectObj != null && typeof projectObj === "object"
             ? (projectObj as Record<string, unknown>).latest_kpi
@@ -443,11 +506,11 @@ function normalizeProjectDetail(data: ProjectDetailResponse | ManagerProjectDeta
             : undefined;
 
     return {
-        project: root.project,
+        project: resolvedProject ?? root.project,
         assignments: root.assignments ?? [],
         requirements: root.requirements ?? [],
         active_alerts,
-        latest_viability: normalizeLatestViability(root.latest_viability),
+        latest_viability: normalizeLatestViability(root.latest_viability ?? bag.viability),
         latest_kpi: normalizeLatestKpi(root.latest_kpi ?? projectKpi),
         arbitrage_options: normalizeArbitrageOptions(root.arbitrage_options),
         risks: normalizeProjectRisks(bag.risks ?? bag.project_risks, active_alerts),
@@ -471,9 +534,12 @@ export const managerProjectsApi = {
             })
             .then((r) => ({
                 ...r,
-                data: normalizeProjectDetail(r.data),
+                data: normalizeProjectDetail(r.data, id),
             })),
-    create: (body: CreateProjectRequest) => httpClient.post<ProjectCreatedResponse>(managerProjectsRoot(), body),
+    create: (body: CreateProjectRequest) =>
+        httpClient.post<ProjectCreatedResponse>(managerProjectsRoot(), body, {
+            skipGlobalHttpErrorToast: true,
+        }),
     /** DELETE `wmp-delete-v1` — WF_Manager_Project_Delete_v1. */
     delete: (projectId: string) =>
         httpClient.delete<ProjectDeleteResponse>(getManagerProjectsDeleteUrl(projectId), {
@@ -524,8 +590,56 @@ export function isManagerProjectNotDeletableError(err: unknown): boolean {
     const data = err.response?.data;
     if (data && typeof data === "object") {
         const record = data as Record<string, unknown>;
-        const code = String(record.code ?? record.error_code ?? record.status ?? "").toUpperCase();
+        const code = String(record.code ?? record.error_code ?? record.__code ?? record.status ?? "").toUpperCase();
         return code === "NOT_DELETABLE";
     }
     return false;
+}
+
+export type ManagerProjectCreateField = "name" | "status" | "priority" | "form";
+
+/** Erreurs 400 create — message backend tel quel, mappé au champ via `__code`. */
+export function parseManagerProjectCreateError(err: unknown): {
+    field: ManagerProjectCreateField;
+    message: string;
+} | null {
+    if (!isAxiosError(err) || err.response?.status !== 400) return null;
+    const data = err.response?.data;
+    if (!data || typeof data !== "object") return null;
+    const record = data as Record<string, unknown>;
+    const message = String(record.message ?? "").trim();
+    if (!message) return null;
+    const code = String(record.__code ?? record.code ?? record.error_code ?? "").toUpperCase();
+    if (code === "INVALID_NAME") return { field: "name", message };
+    if (code === "INVALID_STATUS") return { field: "status", message };
+    if (code === "INVALID_PRIORITY") return { field: "priority", message };
+    return { field: "form", message };
+}
+
+export type ManagerProjectDeleteErrorKind = "forbidden" | "not_deletable" | "not_found" | "other";
+
+export function classifyManagerProjectDeleteError(err: unknown): {
+    kind: ManagerProjectDeleteErrorKind;
+    message: string;
+    httpStatus: number | null;
+} {
+    const httpStatus = isAxiosError(err) ? (err.response?.status ?? null) : null;
+    const data = isAxiosError(err) && err.response?.data && typeof err.response.data === "object"
+        ? (err.response.data as Record<string, unknown>)
+        : null;
+    const code = String(data?.code ?? data?.error_code ?? data?.__code ?? data?.status ?? "").toUpperCase();
+    const message =
+        (typeof data?.message === "string" && data.message.trim()) ||
+        readMissionControlHttpErrorMessage(err);
+
+    if (httpStatus === 404 || code === "PROJECT_NOT_FOUND") {
+        return { kind: "not_found", message, httpStatus };
+    }
+    if (httpStatus === 403 || code === "NOT_PROJECT_OWNER") {
+        return { kind: "forbidden", message, httpStatus };
+    }
+    if (httpStatus === 409 || code === "NOT_DELETABLE") {
+        return { kind: "not_deletable", message, httpStatus };
+    }
+    return { kind: "other", message, httpStatus };
 }

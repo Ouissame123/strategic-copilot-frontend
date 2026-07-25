@@ -24,7 +24,7 @@ function KpiCell({
         neutral: "text-ws-primary",
         warning: "text-amber-700 dark:text-amber-300",
         success: "text-emerald-700 dark:text-emerald-300",
-        info: "text-sky-700 dark:text-sky-300",
+        info: "text-primary-700 dark:text-primary-300",
     }[tone];
 
     return (

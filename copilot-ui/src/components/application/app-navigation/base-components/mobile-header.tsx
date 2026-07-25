@@ -1,4 +1,6 @@
 import type { PropsWithChildren } from "react";
+import { useEffect, useState } from "react";
+import { useLocation } from "react-router";
 import { X as CloseIcon, Menu02 } from "@untitledui/icons";
 import {
     Button as AriaButton,
@@ -11,8 +13,15 @@ import { ProjectLogo } from "@/components/foundations/logo/project-logo";
 import { cx } from "@/utils/cx";
 
 export const MobileNavigationHeader = ({ children }: PropsWithChildren) => {
+    const { pathname } = useLocation();
+    const [isOpen, setIsOpen] = useState(false);
+
+    useEffect(() => {
+        setIsOpen(false);
+    }, [pathname]);
+
     return (
-        <AriaDialogTrigger>
+        <AriaDialogTrigger isOpen={isOpen} onOpenChange={setIsOpen}>
             <header className="flex h-16 items-center gap-3 border-b border-secondary bg-primary py-3 pl-2 pr-4 lg:hidden">
                 <AriaButton
                     aria-label="Ouvrir le menu de navigation"

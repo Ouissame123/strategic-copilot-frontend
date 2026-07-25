@@ -1,3 +1,4 @@
+import { RhCopilotApiError } from "@/api/rh-copilot.api";
 import { ApiError } from "@/api/errors";
 
 export type RhChatToastMessage =
@@ -7,6 +8,18 @@ export type RhChatToastMessage =
     | "Timeout";
 
 export function mapRhChatErrorToToast(err: unknown): RhChatToastMessage | string {
+    if (err instanceof RhCopilotApiError) {
+        if (err.code === "TOKEN_EXPIRED" || err.code === "MISSING_BEARER") {
+            return err.message;
+        }
+        if (err.httpStatus === 404 || err.code === "SESSION_NOT_FOUND" || err.code === "CONVERSATION_NOT_FOUND") {
+            return "Conversation introuvable";
+        }
+        if (err.httpStatus != null && err.httpStatus >= 500) {
+            return "Erreur serveur";
+        }
+        return err.message || "Erreur serveur";
+    }
     if (err instanceof ApiError) {
         if (err.status === 408 || err.message.toLowerCase().includes("délai")) {
             return "Timeout";

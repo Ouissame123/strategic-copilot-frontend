@@ -474,7 +474,7 @@ export function CreateTalentAccountModal({
 
             active
 
-                ? "bg-violet-600 text-white shadow-sm"
+                ? "bg-primary-600 text-white shadow-sm"
 
                 : "text-slate-600 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800",
 
@@ -494,7 +494,7 @@ export function CreateTalentAccountModal({
 
                     <div className="flex items-center gap-3">
 
-                        <span className="flex size-10 items-center justify-center rounded-xl bg-violet-100 text-violet-700 dark:bg-violet-950/50 dark:text-violet-300">
+                        <span className="flex size-10 items-center justify-center rounded-xl bg-primary-100 text-primary-700 dark:bg-primary-950/50 dark:text-primary-300">
 
                             <UserPlus size={20} aria-hidden />
 

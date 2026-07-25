@@ -1,34 +1,26 @@
 import { Button } from "@/components/base/buttons/button";
 import type { SkillGap } from "@/types/talent-skills";
-import { SEVERITY_TONES, badgeToneClass, type TalentSkillsDensity } from "./talent-skills-ui";
-import { cx } from "@/utils/cx";
+import { SEVERITY_TONES, badgeToneClass } from "@/features/talent/skills";
 
 type SkillGapCardProps = {
     gap: SkillGap;
-    density: TalentSkillsDensity;
     onRequestFormation: (gap: SkillGap) => void;
 };
 
-export function SkillGapCard({ gap, density, onRequestFormation }: SkillGapCardProps) {
-    const isCompact = density === "compact";
+export function SkillGapCard({ gap, onRequestFormation }: SkillGapCardProps) {
     const severityTone = SEVERITY_TONES[gap.severity] ?? "slate";
 
     return (
-        <article
-            className={cx(
-                "rounded-2xl border border-secondary bg-primary shadow-xs ring-1 ring-secondary/60",
-                isCompact ? "p-3" : "p-4 sm:p-5",
-            )}
-        >
+        <article className="rounded-2xl border border-secondary bg-primary p-4 shadow-xs ring-1 ring-secondary/60 sm:p-5">
             <div className="flex flex-wrap items-start justify-between gap-2">
                 <div>
-                    <p className={cx("font-semibold text-primary", isCompact ? "text-sm" : "text-base")}>{gap.skill_name}</p>
+                    <p className="text-base font-semibold text-primary">{gap.skill_name}</p>
                     {gap.category ? <p className="mt-0.5 text-xs text-tertiary">{gap.category}</p> : null}
                 </div>
                 <span className={badgeToneClass(severityTone)}>{gap.severity}</span>
             </div>
 
-            <p className={cx("mt-3 text-secondary", isCompact ? "text-xs" : "text-sm")}>
+            <p className="mt-3 text-sm text-secondary">
                 Niveau requis : {gap.max_level_required} / Mon niveau : {gap.my_level} → manque {gap.gap_size} niveaux
             </p>
 

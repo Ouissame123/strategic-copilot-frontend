@@ -32,7 +32,7 @@ export function AssignmentDrawerContext({ talentId, assignment, talents }: Assig
                 "flex items-start gap-3 border-slate-200/80 bg-slate-50/50 p-3 dark:border-slate-800 dark:bg-slate-900/50",
             )}
         >
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-violet-100 text-sm font-bold text-violet-800 dark:bg-violet-900/60 dark:text-violet-200">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary-100 text-sm font-bold text-primary-800 dark:bg-primary-900/60 dark:text-primary-200">
                 <User size={18} aria-hidden />
             </div>
             <div className="min-w-0 flex-1">

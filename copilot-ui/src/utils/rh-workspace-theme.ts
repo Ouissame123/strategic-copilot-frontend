@@ -4,26 +4,26 @@
 import { cx } from "@/utils/cx";
 
 /** Fond zone contenu principale */
-export const WS_CANVAS = "bg-[#f8fafc] dark:bg-ws-canvas";
+export const WS_CANVAS = "bg-surface-0";
 
 /** Carte / panneau */
 export const WS_CARD =
-    "rounded-xl border border-slate-200 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-900";
-export const WS_CARD_SM = "rounded-lg border border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-900";
+    "rounded-xl border border-slate-200 bg-surface-1 shadow-sm dark:border-slate-700 dark:bg-surface-1";
+export const WS_CARD_SM = "rounded-lg border border-slate-200 bg-surface-1 dark:border-slate-700 dark:bg-surface-1";
 
-/** Sidebar — light : fond blanc, liens slate-600 ; dark : inchangé (ws-sidebar) */
+/** Sidebar — light : fond blanc (surface-1), liens slate-600 ; dark : panel surface-1 */
 export const WS_SIDEBAR = cx(
-    "border-slate-200 !bg-white text-slate-600",
-    "[&_.border-secondary]:border-slate-200 [&_.bg-secondary]:!bg-white",
+    "border-slate-200 !bg-surface-1 text-slate-600",
+    "[&_.border-secondary]:border-slate-200 [&_.bg-secondary]:!bg-surface-1",
     "[&_.text-fg-quaternary]:text-slate-400 [&_.text-secondary]:text-slate-600",
-    "dark:border-ws-sidebar-border dark:!bg-ws-sidebar dark:text-ws-nav",
-    "dark:[&_.border-secondary]:border-ws-sidebar-border dark:[&_.bg-secondary]:!bg-ws-sidebar",
+    "dark:border-ws-sidebar-border dark:!bg-surface-1 dark:text-ws-nav",
+    "dark:[&_.border-secondary]:border-ws-sidebar-border dark:[&_.bg-secondary]:!bg-surface-1",
     "dark:[&_.text-fg-quaternary]:text-fg-quaternary dark:[&_.text-secondary]:text-secondary",
 );
 
 export const WS_SIDEBAR_NAV_ACTIVE = cx(
     "[&_[aria-current=page]]:!border-slate-200 [&_[aria-current=page]]:!bg-slate-100 [&_[aria-current=page]]:shadow-none",
-    "[&_[aria-current=page]_span]:!text-slate-900 [&_[aria-current=page]_.text-brand-primary]:!text-violet-700",
+    "[&_[aria-current=page]_span]:!text-slate-900 [&_[aria-current=page]_.text-brand-primary]:!text-primary-700",
     "[&_span]:text-slate-600 [&_a]:bg-transparent [&_a]:text-slate-600 [&_summary]:text-slate-600",
     "[&_a:hover]:!bg-slate-50 [&_a:hover_span]:!text-slate-900",
     "[&_button:not(:disabled)]:text-slate-600 [&_button:hover]:bg-slate-50",
@@ -45,7 +45,7 @@ export const WS_MUTED_SURFACE = "bg-slate-50 dark:bg-slate-800";
 
 /** Barre filtres / topbar RH */
 export const WS_FILTER_BAR =
-    "rounded-xl border border-slate-200 bg-white p-3 dark:border-slate-700 dark:bg-slate-900";
+    "rounded-xl border border-slate-200 bg-surface-1 p-3 dark:border-slate-700 dark:bg-surface-1";
 
 /** Select natif */
 export const WS_SELECT =
@@ -65,7 +65,7 @@ export const WS_ALERT_WARN =
 export const RH_STATUS_ACTIVE =
     "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-200";
 export const RH_STATUS_INACTIVE = "bg-slate-50 text-slate-500 dark:bg-slate-800 dark:text-slate-400";
-export const RH_STATUS_ON_LEAVE = "bg-sky-50 text-sky-700 dark:bg-sky-950/40 dark:text-sky-200";
+export const RH_STATUS_ON_LEAVE = "bg-primary-50 text-primary-700 dark:bg-primary-950/40 dark:text-primary-200";
 
 export const RH_FILTER_ACTIVE =
     "border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-200";
@@ -79,7 +79,7 @@ export const WS_BTN_SECONDARY =
 
 /** Champs */
 export const WS_INPUT =
-    "rounded-lg border border-slate-200 bg-white text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-ws-accent focus:ring-2 focus:ring-violet-500/25 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:placeholder:text-slate-500";
+    "rounded-lg border border-slate-200 bg-white text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-ws-accent focus:ring-2 focus:ring-primary-500/25 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:placeholder:text-slate-500";
 
 export const WS_MODAL_OVERLAY = "bg-[color:var(--ws-overlay)]";
 
@@ -91,7 +91,7 @@ export const WS_DIVIDER = "border-slate-200 dark:border-slate-700";
 
 /** Alias RH (rétrocompat composants existants) */
 export const RH_SURFACE = WS_CANVAS;
-export const RH_SURFACE_CARD = "bg-white dark:bg-slate-900";
+export const RH_SURFACE_CARD = "bg-surface-1";
 export const RH_SHELL_ROOT = WS_CANVAS;
 export const RH_SIDEBAR = WS_SIDEBAR;
 export const RH_SIDEBAR_NAV_ACTIVE = WS_SIDEBAR_NAV_ACTIVE;
@@ -118,4 +118,4 @@ export const RH_ALERT_WARN = WS_ALERT_WARN;
 
 /** En-tête workspace RH (topbar) */
 export const RH_TOPBAR =
-    "border-slate-200 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-900";
+    "border-slate-200 bg-surface-1 shadow-sm dark:border-slate-700 dark:bg-surface-1";

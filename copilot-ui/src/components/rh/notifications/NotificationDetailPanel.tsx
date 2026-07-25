@@ -64,7 +64,7 @@ export function NotificationDetailPanel({ open, notification, onClose }: Notific
                                     "rounded-full px-1.5 py-0.5 text-[10px] font-medium",
                                     notification.is_read
                                         ? "bg-ws-muted-surface text-ws-muted"
-                                        : "bg-violet-100 text-violet-700 dark:bg-violet-950/50 dark:text-violet-200",
+                                        : "bg-primary-100 text-primary-700 dark:bg-primary-950/50 dark:text-primary-200",
                                 )}
                             >
                                 {notification.is_read ? "Lue" : "Non lue"}

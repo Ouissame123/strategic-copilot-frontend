@@ -8,14 +8,12 @@ import {
     riskTypeLabel,
     severityLeftBorderClass,
     type RiskAlertDedupEntry,
-    type RisksDensity,
 } from "@/lib/manager-risks-list-utils";
 import { managerProjectMissionControlPath } from "@/utils/workspace-routes";
 import { cx } from "@/utils/cx";
 
 type RiskAlertCardProps = {
     entry: RiskAlertDedupEntry;
-    density: RisksDensity;
     patchPending?: boolean;
     onOpenDrawer: (alert: DisplayAlert) => void;
     onPatch: (request: RiskAlertPatchRequest) => void;
@@ -24,7 +22,6 @@ type RiskAlertCardProps = {
 
 export function RiskAlertCard({
     entry,
-    density,
     patchPending,
     onOpenDrawer,
     onPatch,
@@ -32,7 +29,6 @@ export function RiskAlertCard({
 }: RiskAlertCardProps) {
     const navigate = useNavigate();
     const { alert, count } = entry;
-    const compact = density === "compact";
     const patchId = resolveRiskAlertPatchId(alert);
     const canPatch = Boolean(patchId);
 
@@ -40,9 +36,8 @@ export function RiskAlertCard({
         <article
             onClick={() => onOpenDrawer(alert)}
             className={cx(
-                "cursor-pointer rounded-md border border-slate-200 bg-white transition hover:border-violet-300 dark:border-slate-700 dark:bg-slate-950",
+                "cursor-pointer rounded-md border border-slate-200 bg-white px-4 py-3 transition hover:border-violet-300 dark:border-slate-700 dark:bg-slate-950",
                 severityLeftBorderClass(alert.severity),
-                compact ? "px-3 py-2" : "px-4 py-3",
             )}
         >
             <div className="flex items-center gap-3">
@@ -69,12 +64,10 @@ export function RiskAlertCard({
                 ) : null}
 
                 <div className="min-w-0 flex-1">
-                    <p className={cx("truncate font-medium text-slate-900 dark:text-slate-100", compact ? "text-sm" : "text-base")}>
+                    <p className="truncate text-base font-medium text-slate-900 dark:text-slate-100">
                         {alert.projectName}
                     </p>
-                    {!compact ? (
-                        <p className="mt-0.5 line-clamp-1 text-xs text-slate-500 dark:text-slate-400">{alert.message}</p>
-                    ) : null}
+                    <p className="mt-0.5 line-clamp-1 text-xs text-slate-500 dark:text-slate-400">{alert.message}</p>
                 </div>
 
                 <div className="flex shrink-0 items-center gap-1.5" onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>

@@ -3,6 +3,7 @@ import {
     MANAGER_TALENT_REQUESTS_LIST_PATH,
     managerTalentRequestDecisionPath,
     managerTalentRequestDetailPath,
+    managerTalentRequestStatusPath,
 } from "@/api/manager-talent-requests.constants";
 import { httpClient } from "@/lib/http-client";
 import {
@@ -12,6 +13,7 @@ import {
 } from "@/lib/talent-requests-normalize";
 import type {
     ManagerTalentRequestDecisionBody,
+    ManagerTalentRequestStatusPatch,
     TalentRequest,
     TalentRequestsFilters,
     TalentRequestsSummary,
@@ -38,6 +40,34 @@ function readErrorMessage(err: unknown, fallback: string): never {
         throw new Error(String(root.message ?? root.error ?? fallback));
     }
     throw new Error(err instanceof Error ? err.message : fallback);
+}
+
+export type TalentRequestDecision = "accept" | "refuse" | "transfer_to_hr";
+
+/**
+ * PATCH `.../manager/talent-requests/{id}/decision` — body `{ decision, reason }`.
+ * Contrat Validations Copilot (Approuver / Rejeter).
+ */
+export async function decideTalentRequest(
+    id: string,
+    decision: TalentRequestDecision,
+    reason?: string,
+) {
+    if ((decision === "refuse" || decision === "transfer_to_hr") && !reason) {
+        throw new Error("Un motif est requis pour refuser ou transférer à la RH.");
+    }
+    const requestId = id.trim();
+    if (!requestId) throw new Error("Identifiant de demande manquant.");
+    try {
+        const { data } = await httpClient.patch<unknown>(
+            `${MANAGER_TALENT_REQUESTS_LIST_PATH}/${encodeURIComponent(requestId)}/decision`,
+            { decision, reason },
+            silent,
+        );
+        return data;
+    } catch (err) {
+        readErrorMessage(err, "Impossible de mettre à jour la demande.");
+    }
 }
 
 export const managerTalentRequestsApi = {
@@ -81,6 +111,21 @@ export const managerTalentRequestsApi = {
     decide: async (id: string, body: ManagerTalentRequestDecisionBody): Promise<TalentRequest> => {
         try {
             const { data } = await httpClient.patch<unknown>(managerTalentRequestDecisionPath(id), body, silent);
+            return normalizeTalentRequestDetail(data);
+        } catch (err) {
+            readErrorMessage(err, "Impossible de mettre à jour la demande.");
+        }
+    },
+
+    /** PATCH statut direct (BDD : pending | accepted | rejected | refused | transferred_to_hr). */
+    patchStatus: async (id: string, status: ManagerTalentRequestStatusPatch): Promise<TalentRequest> => {
+        try {
+            const { data } = await httpClient.patch<unknown>(managerTalentRequestStatusPath(id), { status }, silent);
+            const root = unwrapN8nRoot(data) as Record<string, unknown>;
+            const apiStatus = String(root.status ?? "").toLowerCase();
+            if (apiStatus && apiStatus !== "success") {
+                throw new Error(String(root.message ?? root.error ?? "Erreur"));
+            }
             return normalizeTalentRequestDetail(data);
         } catch (err) {
             readErrorMessage(err, "Impossible de mettre à jour la demande.");

@@ -2,7 +2,6 @@ import { ArrowRight, Check, MoreVertical, X } from "lucide-react";
 import { motion } from "motion/react";
 import { Button } from "@/components/base/buttons/button";
 import { Dropdown } from "@/components/base/dropdown/dropdown";
-import type { ManagerRequestsDensity } from "@/components/rh-requests/manager-requests/use-manager-requests-density";
 import type { RhRequestRow } from "@/components/rh-requests/manager-requests/RequestCard";
 import { AgentBadge } from "@/components/rh/inbox/AgentBadge";
 import { AiReasoningBlock } from "@/components/rh/inbox/AiReasoningBlock";
@@ -21,7 +20,6 @@ import { cx } from "@/utils/cx";
 
 type ActionCardProps = {
     request: RhRequestRow;
-    density: ManagerRequestsDensity;
     selected?: boolean;
     focused?: boolean;
     onSelectToggle?: (id: string) => void;
@@ -55,7 +53,6 @@ function readAiConfidence(payload: Record<string, unknown> | null): number | nul
 
 export function ActionCard({
     request,
-    density,
     selected,
     focused,
     onSelectToggle,
@@ -65,7 +62,6 @@ export function ActionCard({
     onQuickReject,
     onDelete,
 }: ActionCardProps) {
-    const isCompact = density === "compact";
     const source = classifySource(request);
     const priority = String(request.priority ?? "normal").toLowerCase();
     const bucket = rhRequestStatusToBucket(request.status ?? request.state);
@@ -108,7 +104,7 @@ export function ActionCard({
         >
             <PriorityBorder priority={priority} />
 
-            <div className={cx("pl-4 pr-3", isCompact ? "py-2.5" : "py-3.5")}>
+            <div className="py-3.5 pl-4 pr-3">
                 <div className="flex items-center gap-1.5 text-xs">
                     {onSelectToggle ? (
                         <input
@@ -196,7 +192,7 @@ export function ActionCard({
 
                 <h3
                     id={`req-${request.id}-title`}
-                    className={cx("mt-2 font-medium leading-snug text-ws-primary", isCompact ? "text-sm" : "text-sm")}
+                    className="mt-2 text-sm font-medium leading-snug text-ws-primary"
                 >
                     {title}
                 </h3>
@@ -217,7 +213,7 @@ export function ActionCard({
                     <time dateTime={created}>{formatRelativeTimeFr(created)}</time>
                 </div>
 
-                <AiReasoningBlock source={source} payload={payload} compact={isCompact} />
+                <AiReasoningBlock source={source} payload={payload} />
 
                 {isPending ? (
                     <div

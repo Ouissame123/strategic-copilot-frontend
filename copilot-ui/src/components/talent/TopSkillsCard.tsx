@@ -12,7 +12,7 @@ type TopSkillsCardProps = {
 
 function levelBarColor(level: number): string {
     if (level >= 8) return "bg-emerald-500";
-    if (level >= 6) return "bg-blue-500";
+    if (level >= 6) return "bg-primary-500";
     if (level >= 4) return "bg-amber-500";
     return "bg-orange-500";
 }

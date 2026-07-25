@@ -163,7 +163,7 @@ export function RhRequestDrawer({
                     {rhResponse ? (
                         <section>
                             <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">{labels.rhResponse}</h3>
-                            <p className="mt-2 break-words whitespace-normal rounded-xl border border-violet-200 bg-violet-50/50 p-3 text-sm dark:border-violet-900 dark:bg-violet-950/30">
+                            <p className="mt-2 break-words whitespace-normal rounded-xl border border-primary-200 bg-primary-50/50 p-3 text-sm dark:border-primary-900 dark:bg-primary-950/30">
                                 {rhResponse}
                             </p>
                         </section>

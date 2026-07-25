@@ -4,10 +4,16 @@ export type TalentRequestStatus =
     | "pending"
     | "accepted"
     | "rejected"
+    | "refused"
+    | "transferred_to_hr"
+    | "transferred_rh"
     | "in_progress"
     | "done"
     | "closed"
     | "cancelled";
+
+/** PATCH `/webhook/manager/talent-requests/:id` — corps `{ status }`. */
+export type ManagerTalentRequestStatusPatch = "accepted" | "rejected" | "pending" | "transferred_to_hr";
 
 export interface TalentRequest {
     id: string;
@@ -62,7 +68,7 @@ export interface TalentRequestsFilters {
     limit?: number;
 }
 
-export type ManagerTalentRequestDecisionAction = "accept" | "reject" | "transfer_rh";
+export type ManagerTalentRequestDecisionAction = "accept" | "reject" | "transfer_rh" | "reconsider";
 
 export interface ManagerTalentRequestDecisionBody {
     action: ManagerTalentRequestDecisionAction;

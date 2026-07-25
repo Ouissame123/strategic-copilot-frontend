@@ -67,14 +67,14 @@ export function NineBoxInteractive({ grid, nineBoxMatrix, className }: NineBoxIn
                                 key={`${ri}-${ci}`}
                                 className={cx(
                                     "flex min-h-[72px] flex-col rounded-xl border border-slate-200 p-1.5 shadow-sm ring-1 ring-black/[0.03] dark:border-slate-700 dark:ring-white/[0.05]",
-                                    canOpen && "transition hover:ring-2 hover:ring-indigo-400/40 dark:hover:ring-indigo-500/30",
+                                    canOpen && "transition hover:ring-2 hover:ring-primary-400/40 dark:hover:ring-primary-500/30",
                                 )}
                                 style={nineBoxCellBackgroundStyle(cell.tone, ratio)}
                             >
                                 {canOpen ? (
                                     <button
                                         type="button"
-                                        className="flex h-full min-h-0 w-full flex-1 flex-col gap-1 text-left outline-none focus-visible:ring-2 focus-visible:ring-indigo-500/50 dark:focus-visible:ring-indigo-400/50"
+                                        className="flex h-full min-h-0 w-full flex-1 flex-col gap-1 text-left outline-none focus-visible:ring-2 focus-visible:ring-primary-500/50 dark:focus-visible:ring-primary-400/50"
                                         onClick={() => {
                                             setDrawer({ selectedBoxLabel: selectedBoxLabel!, title: cell.label });
                                         }}
@@ -152,7 +152,7 @@ export function NineBoxInteractive({ grid, nineBoxMatrix, className }: NineBoxIn
                         <footer className="border-t border-slate-200 px-5 py-3 dark:border-slate-700">
                             <Link
                                 to="/workspace/manager/team"
-                                className="inline-flex w-full items-center justify-center rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-indigo-700 dark:bg-indigo-500 dark:hover:bg-indigo-600"
+                                className="inline-flex w-full items-center justify-center rounded-lg bg-primary-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-primary-700 dark:bg-primary-500 dark:hover:bg-primary-600"
                             >
                                 {t("managerWorkspace.dashboard.analystNineBoxViewTeam")}
                             </Link>

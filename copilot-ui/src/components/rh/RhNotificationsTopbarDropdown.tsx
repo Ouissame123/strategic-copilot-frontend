@@ -56,7 +56,7 @@ function severityStyles(severity: RhNotificationSeverity): {
             row: "border-slate-100 bg-white dark:border-slate-800 dark:bg-slate-900/40",
         },
         low: {
-            pill: "bg-sky-100 text-sky-900 dark:bg-sky-950/40 dark:text-sky-100",
+            pill: "bg-primary-100 text-primary-900 dark:bg-primary-950/40 dark:text-primary-100",
             row: "border-slate-100 bg-white dark:border-slate-800 dark:bg-slate-900/40",
         },
     };
@@ -87,7 +87,7 @@ function RhNotificationRow({
             className={cx(
                 "rounded-lg border px-3 py-2.5 transition",
                 styles.row,
-                !n.is_read && "ring-1 ring-inset ring-violet-200/60 dark:ring-violet-800/40",
+                !n.is_read && "ring-1 ring-inset ring-primary-200/60 dark:ring-primary-800/40",
             )}
         >
             <div className="flex items-start justify-between gap-2">
@@ -103,7 +103,7 @@ function RhNotificationRow({
                 <span
                     className={cx(
                         "rounded-full px-1.5 py-0.5 text-[10px] font-medium",
-                        n.is_read ? "bg-slate-100 text-slate-500 dark:bg-slate-800" : "bg-violet-100 text-violet-700 dark:bg-violet-950/50 dark:text-violet-200",
+                        n.is_read ? "bg-slate-100 text-slate-500 dark:bg-slate-800" : "bg-primary-100 text-primary-700 dark:bg-primary-950/50 dark:text-primary-200",
                     )}
                 >
                     {n.is_read ? "Lu" : "Non lu"}
@@ -115,13 +115,13 @@ function RhNotificationRow({
                         type="button"
                         disabled={busy}
                         onClick={() => void onMarkRead(n.id)}
-                        className="text-[11px] font-semibold text-violet-700 hover:underline disabled:opacity-50 dark:text-violet-300"
+                        className="text-[11px] font-semibold text-primary-700 hover:underline disabled:opacity-50 dark:text-primary-300"
                     >
                         Marquer comme lu
                     </button>
                 ) : null}
                 {detailHref ? (
-                    <Link to={detailHref} className="text-[11px] font-semibold text-sky-700 hover:underline dark:text-sky-300">
+                    <Link to={detailHref} className="text-[11px] font-semibold text-primary-700 hover:underline dark:text-primary-300">
                         Voir détail
                     </Link>
                 ) : null}
@@ -174,7 +174,7 @@ export function RhNotificationsTopbarDropdown() {
                     cx(
                         "relative flex size-9 shrink-0 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 shadow-sm outline-none transition dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300",
                         (isHovered || isPressed) && "border-slate-300 bg-slate-50 dark:border-slate-600 dark:bg-slate-800",
-                        isFocusVisible && "ring-2 ring-violet-500/35 ring-offset-2",
+                        isFocusVisible && "ring-2 ring-primary-500/35 ring-offset-2",
                     )
                 }
             >
@@ -233,7 +233,7 @@ export function RhNotificationsTopbarDropdown() {
                         type="button"
                         disabled={isMarkingAllRead || unreadCount === 0 || isLoading}
                         onClick={() => void handleMarkAll()}
-                        className="flex w-full items-center justify-center rounded-lg py-2 text-xs font-semibold text-violet-700 transition hover:bg-violet-50 disabled:opacity-50 dark:text-violet-300 dark:hover:bg-violet-950/30"
+                        className="flex w-full items-center justify-center rounded-lg py-2 text-xs font-semibold text-primary-700 transition hover:bg-primary-50 disabled:opacity-50 dark:text-primary-300 dark:hover:bg-primary-950/30"
                     >
                         Tout marquer comme lu
                     </button>

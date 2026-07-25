@@ -16,8 +16,8 @@ import { cx } from "@/utils/cx";
 const CONFIG: Record<SuggestedAction["type"], { Icon: ComponentType<HTMLAttributes<HTMLOrSVGElement>>; bg: string }> = {
     assign: { Icon: UserPlus01, bg: "bg-green-50 text-green-600 dark:bg-green-950/40 dark:text-green-300" },
     training: { Icon: BookOpen01, bg: "bg-amber-50 text-amber-600 dark:bg-amber-950/40 dark:text-amber-300" },
-    review: { Icon: FileCheck02, bg: "bg-blue-50 text-blue-600 dark:bg-blue-950/40 dark:text-blue-300" },
-    view_talent: { Icon: User01, bg: "bg-blue-50 text-blue-600 dark:bg-blue-950/40 dark:text-blue-300" },
+    review: { Icon: FileCheck02, bg: "bg-primary-50 text-primary-600 dark:bg-primary-950/40 dark:text-primary-300" },
+    view_talent: { Icon: User01, bg: "bg-primary-50 text-primary-600 dark:bg-primary-950/40 dark:text-primary-300" },
     view_alert: { Icon: AlertTriangle, bg: "bg-orange-50 text-orange-600 dark:bg-orange-950/40 dark:text-orange-300" },
     launch_simulation: { Icon: Beaker01, bg: "bg-violet-50 text-violet-600 dark:bg-violet-950/40 dark:text-violet-300" },
 };
@@ -50,7 +50,7 @@ export function SuggestedActionsButtons({
                 if (projectId) navigate(managerProjectMissionControlPath(projectId, "team"));
                 return;
             case "training":
-                if (projectId) navigate(managerProjectMissionControlPath(projectId, "requirements"));
+                if (projectId) navigate(managerProjectMissionControlPath(projectId, "competences"));
                 return;
             case "review":
                 if (projectId) navigate(managerProjectMissionControlPath(projectId, "overview"));

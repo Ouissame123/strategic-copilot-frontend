@@ -12,7 +12,6 @@ export {
 } from "./rh-route-pages";
 
 export { default as RhWorkforceArbitrationPage } from "./rh-workforce-arbitration-page";
-export { default as RhChatPage } from "./rh-chat-page";
 export { default as RhAccountsPage } from "./rh-accounts-page";
 
 export { RhPlaceholderPage, type RhPageKey } from "./rh-placeholder-page";

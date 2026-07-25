@@ -1,12 +1,16 @@
-import { API_ROUTES } from "@/lib/api-routes";
-import { FEATURES } from "@/lib/feature-flags";
-import { httpClient, type HttpClientRequestConfig } from "@/lib/http-client";
+import { buildBrowserFetchN8nUrl } from "@/lib/build-n8n-url";
+import { authStorage } from "@/lib/auth-storage";
+import { getApiAuthToken } from "@/utils/apiClient";
 import type {
     ActionPriorite,
     ActionRecommandee,
     ArchiveRhConversationResponse,
     ConversationScope,
     ConversationStatus,
+    CreateRhChatSessionRequest,
+    CreateRhChatSessionResponse,
+    RhApiMessage,
+    RhChatSession,
     RhConversationDetailResponse,
     RhConversationsListResponse,
     RhConversationSummary,
@@ -19,7 +23,160 @@ import type {
 } from "./rh-copilot.types";
 import { parseRhIntent, type RhIntent } from "./rh-copilot.types";
 
-const silentCfg = { skipGlobalHttpErrorToast: true } satisfies HttpClientRequestConfig;
+const RH_CONVERSATIONS_URL = "/webhook/rh/conversations";
+const RH_CHAT_SESSIONS_URL = "/webhook/rh/chat/sessions";
+
+function rhConversationDetailUrl(id: string): string {
+    return `/webhook/rh/conversations/${encodeURIComponent(id.trim())}`;
+}
+
+function rhConversationArchiveUrl(id: string): string {
+    return `/webhook/rh/conversations/${encodeURIComponent(id.trim())}/archive`;
+}
+
+function rhChatSessionMessageUrl(sessionId: string): string {
+    return `/webhook/rh/chat/sessions/${encodeURIComponent(sessionId.trim())}/message`;
+}
+
+export class RhCopilotApiError extends Error {
+    readonly code?: string;
+    readonly httpStatus?: number;
+
+    constructor(message: string, code?: string, httpStatus?: number) {
+        super(message);
+        this.name = "RhCopilotApiError";
+        this.code = code;
+        this.httpStatus = httpStatus;
+    }
+}
+
+function rhApiErrorMessage(payload: unknown, fallback: string): string {
+    const body = asRecord(payload);
+    if (str(body.status).toLowerCase() === "error") {
+        const code = str(body.code);
+        const message = str(body.message) || fallback;
+        return code ? `${message} (${code})` : message;
+    }
+    return str(body.message ?? body.error ?? body.detail) || fallback;
+}
+
+async function rhCopilotFetch<T>(path: string, init: RequestInit = {}): Promise<T> {
+    const token = authStorage.getAccessToken()?.trim() || getApiAuthToken()?.trim() || "";
+    const headers = new Headers(init.headers);
+    if (!headers.has("Content-Type")) headers.set("Content-Type", "application/json");
+    if (token) headers.set("Authorization", `Bearer ${token}`);
+
+    const response = await fetch(buildBrowserFetchN8nUrl(path), { ...init, headers });
+    let payload: unknown = null;
+    try {
+        payload = await response.json();
+    } catch {
+        payload = null;
+    }
+
+    const body = asRecord(payload);
+    const errorCode = str(body.code) || undefined;
+    const errorMessage = rhApiErrorMessage(payload, response.statusText || "Erreur RH");
+
+    if (response.status >= 400 || str(body.status).toLowerCase() === "error") {
+        throw new RhCopilotApiError(errorMessage, errorCode, response.status);
+    }
+
+    return payload as T;
+}
+
+function mapApiMessage(row: Record<string, unknown>): RhApiMessage | undefined {
+    const id = str(row.id);
+    const content = str(row.content ?? row.message);
+    if (!id || !content) return undefined;
+    const roleRaw = str(row.role).toLowerCase();
+    return {
+        id,
+        role: roleRaw === "assistant" ? "assistant" : "user",
+        content,
+        created_at: str(row.created_at) || undefined,
+        model: str(row.model) || undefined,
+        llm_model: str(row.llm_model ?? row.model) || undefined,
+    };
+}
+
+function mapApiMessageToRhMessage(msg: RhApiMessage): RhMessage {
+    return {
+        id: msg.id,
+        role: msg.role,
+        content: msg.content,
+        created_at: msg.created_at ?? new Date().toISOString(),
+        intent: null,
+        sources: null,
+        suggested_actions: null,
+        confidence: null,
+        llm_model: msg.llm_model ?? msg.model ?? null,
+        analysis_run_id: null,
+    };
+}
+
+function normalizeCreateSessionResponse(data: unknown): CreateRhChatSessionResponse {
+    const root = asRecord(data);
+    const sessionRaw = asRecord(root.session);
+    const scopeRaw = str(sessionRaw.scope).toLowerCase();
+    const scope: ConversationScope =
+        scopeRaw === "manager" ? "manager" : scopeRaw === "all" ? "all" : "rh";
+
+    const session: RhChatSession = {
+        id: str(sessionRaw.id),
+        title: str(sessionRaw.title) || "Nouvelle conversation",
+        scope,
+        status: str(sessionRaw.status).toLowerCase() === "archived" ? "archived" : "active",
+        project_id: str(sessionRaw.project_id) || null,
+        message_count: Number(sessionRaw.message_count) || 0,
+        started_at: str(sessionRaw.started_at) || new Date().toISOString(),
+        last_message_at: str(sessionRaw.last_message_at) || null,
+    };
+
+    if (!session.id) throw new RhCopilotApiError("Impossible de créer la session RH", "VALIDATION_FAILED");
+
+    return {
+        status: "success",
+        operation: "create_session",
+        session,
+    };
+}
+
+function mapSessionMessageResponse(data: unknown, sessionId: string, projectId: string | null): SendRhMessageResponse {
+    const root = asRecord(data);
+    const assistantRaw = asRecord(root.assistant_message);
+    const userRaw = asRecord(root.user_message);
+    const meta = asRecord(root.meta);
+    const reply = str(assistantRaw.content ?? root.reply);
+    const userMessage = mapApiMessage(userRaw);
+    const assistantMessage = mapApiMessage(assistantRaw);
+
+    return {
+        status: "success",
+        workflow: "WF_RH_Chat",
+        api_version: "v2",
+        conversation_id: str(root.session_id ?? root.conversation_id) || sessionId,
+        project_id: projectId,
+        reply,
+        analyse: "",
+        risques: [],
+        actions_recommandees: [],
+        suggested_actions: [],
+        sources: [],
+        intent: "aide_generale",
+        confidence: 0.85,
+        confidence_explanation: "",
+        quick_replies: [],
+        llm_enriched: Boolean(reply),
+        source_agent: str(meta.source_agent) || "rh_copilot_chat",
+        meta: {
+            source_agent: str(meta.source_agent) || "rh_copilot_chat",
+            computed_at: str(assistantRaw.created_at ?? meta.computed_at) || new Date().toISOString(),
+        },
+        user_message: userMessage,
+        assistant_message: assistantMessage,
+    };
+}
 
 export interface RhConversationsFilters {
     project_id?: string;
@@ -227,7 +384,13 @@ function normalizeDetailResponse(data: unknown, id: string): RhConversationDetai
 
     const rawMessages = Array.isArray(block.messages) ? block.messages : [];
     const messages = rawMessages
-        .map((row, i) => mapRhMessage(asRecord(row), `msg-${i}`))
+        .map((row) => {
+            const r = asRecord(row);
+            const roleRaw = str(r.role).toLowerCase();
+            const role = roleRaw === "assistant" ? "assistant" : "user";
+            const createdAt = str(r.created_at ?? r.timestamp) || new Date().toISOString();
+            return mapRhMessage(r, `${role}_${createdAt}`);
+        })
         .filter((m): m is RhMessage => m !== null)
         .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
 
@@ -327,32 +490,73 @@ function normalizeArchiveResponse(data: unknown): ArchiveRhConversationResponse 
     };
 }
 
+export async function createRhChatSession(req: CreateRhChatSessionRequest = {}): Promise<CreateRhChatSessionResponse> {
+    const body: Record<string, string> = {};
+    const title = req.title?.trim();
+    if (title) body.title = title.slice(0, 200);
+    if (req.project_id?.trim()) body.project_id = req.project_id.trim();
+
+    const data = await rhCopilotFetch<unknown>(RH_CHAT_SESSIONS_URL, {
+        method: "POST",
+        body: JSON.stringify(body),
+    });
+    return normalizeCreateSessionResponse(data);
+}
+
 export async function fetchRhConversations(filters: RhConversationsFilters = {}): Promise<RhConversationsListResponse> {
-    const { data } = await httpClient.get(API_ROUTES.rhConversationsList(), { params: filters, ...silentCfg });
+    const params = new URLSearchParams();
+    if (filters.status) params.set("status", filters.status);
+    if (filters.scope) params.set("scope", filters.scope);
+    if (filters.limit != null) params.set("limit", String(filters.limit));
+    if (filters.project_id?.trim()) params.set("project_id", filters.project_id.trim());
+    if (filters.search?.trim()) params.set("search", filters.search.trim());
+    if (filters.manager_user_id?.trim()) params.set("manager_user_id", filters.manager_user_id.trim());
+
+    const query = params.toString();
+    const path = query ? `${RH_CONVERSATIONS_URL}?${query}` : RH_CONVERSATIONS_URL;
+    const data = await rhCopilotFetch<unknown>(path);
     return normalizeListResponse(data, filters);
 }
 
 export async function fetchRhConversationDetail(id: string, messagesLimit = 100): Promise<RhConversationDetailResponse> {
     const cid = id.trim();
-    const { data } = await httpClient.get(API_ROUTES.rhConversationDetail(cid), {
-        params: { messages_limit: messagesLimit },
-        ...silentCfg,
-    });
+    const params = new URLSearchParams();
+    if (messagesLimit > 0) params.set("messages_limit", String(messagesLimit));
+    const query = params.toString();
+    const path = query ? `${rhConversationDetailUrl(cid)}?${query}` : rhConversationDetailUrl(cid);
+    const data = await rhCopilotFetch<unknown>(path);
     return normalizeDetailResponse(data, cid);
 }
 
 export async function sendRhMessage(req: SendRhMessageRequest): Promise<SendRhMessageResponse> {
-    const body: Record<string, string> = { message: req.message.trim() };
-    if (req.conversation_id?.trim()) body.conversation_id = req.conversation_id.trim();
-    if (req.project_id?.trim()) body.project_id = req.project_id.trim();
-    if (req.talent_id?.trim()) body.talent_id = req.talent_id.trim();
+    const message = req.message.trim();
+    if (!message) throw new RhCopilotApiError("Message vide", "VALIDATION_FAILED", 400);
+    if (message.length > 4000) {
+        throw new RhCopilotApiError("Message trop long (max 4000 caractères)", "VALIDATION_FAILED", 400);
+    }
 
-    const route = FEATURES.USE_RH_CHAT_V3_RAG ? API_ROUTES.rhChatV3() : API_ROUTES.rhChat();
-    const { data } = await httpClient.post<unknown>(route, body);
-    return normalizeSendResponse(data);
+    let sessionId = req.conversation_id?.trim() || "";
+    const projectId = req.project_id?.trim() || null;
+
+    if (!sessionId) {
+        const created = await createRhChatSession(projectId ? { project_id: projectId } : {});
+        sessionId = created.session.id;
+    }
+
+    const data = await rhCopilotFetch<unknown>(rhChatSessionMessageUrl(sessionId), {
+        method: "POST",
+        body: JSON.stringify({ message }),
+    });
+
+    return mapSessionMessageResponse(data, sessionId, projectId);
 }
 
 export async function archiveRhConversation(id: string, restore = false): Promise<ArchiveRhConversationResponse> {
-    const { data } = await httpClient.patch(API_ROUTES.rhConversationArchive(id.trim()), { restore }, silentCfg);
+    const data = await rhCopilotFetch<unknown>(rhConversationArchiveUrl(id), {
+        method: "PATCH",
+        body: JSON.stringify(restore ? { restore: true } : {}),
+    });
     return normalizeArchiveResponse(data);
 }
+
+export { mapApiMessageToRhMessage };

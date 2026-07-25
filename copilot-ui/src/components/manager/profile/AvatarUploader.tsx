@@ -80,7 +80,7 @@ export function AvatarUploader({ userId, name, email, src, onChange, sizeClass =
                 {displaySrc ? (
                     <img src={displaySrc} alt="" className="size-full object-cover" />
                 ) : (
-                    <div className="flex size-full items-center justify-center bg-gradient-to-br from-indigo-500 to-violet-600 text-2xl font-bold text-white">
+                    <div className="flex size-full items-center justify-center bg-gradient-to-br from-primary-500 to-primary-700 text-2xl font-bold text-white">
                         {initials}
                     </div>
                 )}

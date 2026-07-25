@@ -12,7 +12,12 @@ export function AppLayoutHeaderActions() {
     const paths = useWorkspacePaths();
     const isManagerPortfolio = pathname === "/workspace/manager/portfolio";
     const isManagerProjectsPage = pathname === "/workspace/manager/projects";
-    const isProjectsList = (pathname === paths.projects || isManagerPortfolio || pathname === "/projects") && !isManagerProjectsPage;
+    /** CTA déplacé dans le header de page Talent « Mes projets ». */
+    const isTalentProjectsPage = pathname === "/workspace/talent/projects";
+    const isProjectsList =
+        (pathname === paths.projects || isManagerPortfolio || pathname === "/projects") &&
+        !isManagerProjectsPage &&
+        !isTalentProjectsPage;
     const newProjectBase = isManagerPortfolio ? "/workspace/manager/portfolio" : paths.projects;
 
     return (

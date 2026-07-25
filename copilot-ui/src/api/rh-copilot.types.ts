@@ -149,6 +149,37 @@ export interface RhConversationDetailResponse {
     messages: RhMessage[];
 }
 
+export interface RhApiMessage {
+    id: string;
+    role: MessageRole;
+    content: string;
+    created_at?: string;
+    model?: string;
+    llm_model?: string;
+}
+
+export interface RhChatSession {
+    id: string;
+    title: string;
+    scope: ConversationScope;
+    status: ConversationStatus;
+    project_id: string | null;
+    message_count: number;
+    started_at: string;
+    last_message_at: string | null;
+}
+
+export interface CreateRhChatSessionRequest {
+    title?: string;
+    project_id?: string;
+}
+
+export interface CreateRhChatSessionResponse {
+    status: "success";
+    operation: "create_session";
+    session: RhChatSession;
+}
+
 export interface SendRhMessageRequest {
     message: string;
     conversation_id?: string;
@@ -194,6 +225,8 @@ export interface SendRhMessageResponse {
         computed_at: string;
         duration_ms?: number;
     };
+    user_message?: RhApiMessage;
+    assistant_message?: RhApiMessage;
 }
 
 export interface ParsedCitationV3 {

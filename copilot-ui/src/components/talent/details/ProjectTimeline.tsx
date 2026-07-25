@@ -36,13 +36,13 @@ export function ProjectTimeline({ assignments }: { assignments: TalentAssignment
                         return (
                             <li key={`${a.project_id}-${index}`} className="flex min-w-[200px] max-w-[240px] flex-col">
                                 <Box className="flex items-center">
-                                    <span className="flex h-3 w-3 flex-shrink-0 rounded-full bg-indigo-500 ring-4 ring-indigo-100 dark:ring-indigo-950" />
+                                    <span className="flex h-3 w-3 flex-shrink-0 rounded-full bg-primary-500 ring-4 ring-primary-100 dark:ring-primary-950" />
                                     {!isLast ? (
                                         <span className="h-0.5 min-w-[2rem] flex-1 bg-slate-300 dark:bg-slate-600" aria-hidden />
                                     ) : null}
                                 </Box>
                                 <Box className="mt-3 pr-4">
-                                    <p className="text-xs font-semibold uppercase tracking-wide text-indigo-600 dark:text-indigo-400">
+                                    <p className="text-xs font-semibold uppercase tracking-wide text-primary-600 dark:text-primary-400">
                                         {period}
                                     </p>
                                     <p className="mt-1 truncate text-sm font-semibold text-slate-900 dark:text-slate-100">{name}</p>

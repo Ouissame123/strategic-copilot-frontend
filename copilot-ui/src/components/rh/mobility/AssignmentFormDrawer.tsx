@@ -10,6 +10,7 @@ import {
     mapRhAssignmentsError,
     RH_ASSIGNMENTS_OVERLOAD_CODE,
     RhAssignmentsApiError,
+    updateRhAssignment,
 } from "@/services/rh-assignments.api";
 import { useToast } from "@/providers/toast-provider";
 import type { CreateRhAssignmentPayload, RhAssignmentRow, RhAvailableManager } from "@/types/rh-assignments.types";
@@ -88,6 +89,7 @@ export function AssignmentFormDrawer({
 
     const intent: DrawerIntent = intentProp ?? (mode === "edit" ? "edit" : "create");
     const isCreate = mode === "create";
+    const isReassign = intent === "reassign";
 
     useEffect(() => {
         if (!open) return;
@@ -116,8 +118,13 @@ export function AssignmentFormDrawer({
 
     const validate = (): boolean => {
         const next: Record<string, string> = {};
-        if (isCreate && !form.talent_id.trim()) next.talent_id = "Sélectionnez un talent.";
-        if (isCreate && !form.manager_user_id.trim()) next.manager_user_id = "Sélectionnez un manager.";
+        if (isCreate && !isReassign && !form.talent_id.trim()) next.talent_id = "Sélectionnez un talent.";
+        if ((isCreate || isReassign) && !form.manager_user_id.trim()) {
+            next.manager_user_id = "Sélectionnez un manager.";
+        }
+        if (isReassign && !form.talent_id.trim() && !assignment?.talent_id?.trim() && !initialTalentId?.trim()) {
+            next.talent_id = "Talent introuvable pour la réaffectation.";
+        }
         setErrors(next);
         return Object.keys(next).length === 0;
     };
@@ -132,12 +139,23 @@ export function AssignmentFormDrawer({
         setSubmitting(true);
         setFormError(null);
         try {
-            const body: CreateRhAssignmentPayload = {
-                talent_id: form.talent_id.trim(),
-                manager_user_id: form.manager_user_id.trim(),
-            };
-            await createRhAssignment(body, { token, apiBase });
-            pushToast("Talent affecté au manager avec succès", "success");
+            if (isReassign) {
+                const talentId =
+                    form.talent_id.trim() || assignment?.talent_id?.trim() || initialTalentId?.trim() || "";
+                await updateRhAssignment(
+                    talentId,
+                    { manager_user_id: form.manager_user_id.trim() },
+                    { token, apiBase },
+                );
+                pushToast("Talent réaffecté au manager avec succès", "success");
+            } else {
+                const body: CreateRhAssignmentPayload = {
+                    talent_id: form.talent_id.trim(),
+                    manager_user_id: form.manager_user_id.trim(),
+                };
+                await createRhAssignment(body, { token, apiBase });
+                pushToast("Talent affecté au manager avec succès", "success");
+            }
             onSaved();
             onClose();
         } catch (err) {
@@ -198,29 +216,45 @@ export function AssignmentFormDrawer({
 
                         {isCreate ? (
                             <>
-                                <div>
-                                    <label className={labelCls} htmlFor="assign-talent">
-                                        Talent
-                                    </label>
-                                    <select
-                                        id="assign-talent"
-                                        className={fieldCls}
-                                        value={form.talent_id}
-                                        onChange={(e) => setForm((f) => ({ ...f, talent_id: e.target.value }))}
-                                        disabled={Boolean(initialTalentId) && intent === "reassign"}
+                                {!isReassign ? (
+                                    <div>
+                                        <label className={labelCls} htmlFor="assign-talent">
+                                            Talent
+                                        </label>
+                                        <select
+                                            id="assign-talent"
+                                            className={fieldCls}
+                                            value={form.talent_id}
+                                            onChange={(e) => setForm((f) => ({ ...f, talent_id: e.target.value }))}
+                                        >
+                                            <option value="">— Choisir —</option>
+                                            {sortedTalents.map((t) => (
+                                                <option key={t.id} value={t.id}>
+                                                    {t.name}
+                                                    {t.job_title ? ` · ${t.job_title}` : ""}
+                                                </option>
+                                            ))}
+                                        </select>
+                                        {errors.talent_id ? (
+                                            <p className="mt-0.5 text-xs text-rose-600">{errors.talent_id}</p>
+                                        ) : null}
+                                    </div>
+                                ) : (
+                                    <div
+                                        className={cx(
+                                            "rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-800/50",
+                                        )}
                                     >
-                                        <option value="">— Choisir —</option>
-                                        {sortedTalents.map((t) => (
-                                            <option key={t.id} value={t.id}>
-                                                {t.name}
-                                                {t.job_title ? ` · ${t.job_title}` : ""}
-                                            </option>
-                                        ))}
-                                    </select>
-                                    {errors.talent_id ? (
-                                        <p className="mt-0.5 text-xs text-rose-600">{errors.talent_id}</p>
-                                    ) : null}
-                                </div>
+                                        <p className={cx("text-[10px] font-semibold uppercase tracking-wide", RH_TEXT_MUTED)}>
+                                            Talent
+                                        </p>
+                                        <p className={cx("font-semibold", RH_TEXT_PRIMARY)}>
+                                            {sortedTalents.find((t) => t.id === contextTalentId)?.name ??
+                                                assignment?.talent_name ??
+                                                "Talent"}
+                                        </p>
+                                    </div>
+                                )}
                                 <div>
                                     <label className={labelCls} htmlFor="assign-manager">
                                         Manager
@@ -287,7 +321,7 @@ export function AssignmentFormDrawer({
                                 )}
                             >
                                 {submitting ? <Loader2 size={16} className="animate-spin" aria-hidden /> : null}
-                                Confirmer l&apos;affectation
+                                {isReassign ? "Confirmer la réaffectation" : "Confirmer l&apos;affectation"}
                             </button>
                         ) : null}
                     </footer>

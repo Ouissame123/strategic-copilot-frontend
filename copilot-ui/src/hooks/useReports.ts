@@ -1,30 +1,23 @@
 import { useDashboard } from "@/hooks/useDashboard";
 import { useDecisions } from "@/hooks/useDecisions";
 import { useProjects } from "@/hooks/useProjects";
+import type { ManagerDashboardV4Response } from "@/features/manager/types/dashboard-v4";
 
 export const useReportsData = () => {
     const dashboard = useDashboard("enterprise");
     const decisions = useDecisions({ limit: 100 });
     const projects = useProjects({ limit: 200 });
 
-    const dashboardAlerts = dashboard.data?.widgets?.top_alerts ?? [];
-    const severitySummary = dashboardAlerts.reduce(
-        (acc, alert) => {
-            const key = String(alert.severity ?? "").toLowerCase();
-            if (key === "critical") acc.critical += 1;
-            else if (key === "high") acc.high += 1;
-            else if (key === "medium") acc.medium += 1;
-            else if (key === "low") acc.low += 1;
-            return acc;
-        },
-        { critical: 0, high: 0, medium: 0, low: 0 },
-    );
+    const data = dashboard.data as ManagerDashboardV4Response | undefined;
+    const portfolio = data?.portfolio;
+    const team = data?.team;
+
     const summary = {
-        ...severitySummary,
-        total_alerts:
-            dashboard.data?.kpi_cards?.alerts?.total_open ??
-            dashboard.data?.kpi_cards?.alerts?.critical_or_high ??
-            dashboardAlerts.length,
+        critical: 0,
+        high: 0,
+        medium: 0,
+        low: 0,
+        total_alerts: 0,
     };
 
     return {
@@ -32,13 +25,33 @@ export const useReportsData = () => {
         isLoading: dashboard.isLoading || decisions.isLoading,
         isError: dashboard.isError || decisions.isError || projects.isError,
         data: {
-            kpi: dashboard.data?.kpi_cards,
-            health: dashboard.data?.health,
-            widgets: dashboard.data?.widgets,
+            kpi: {
+                projects: {
+                    total: portfolio?.total_projects ?? 0,
+                    active: portfolio?.by_status.active ?? 0,
+                    planned: portfolio?.by_status.planned ?? 0,
+                    completed: portfolio?.by_status.completed ?? 0,
+                },
+                decisions: undefined,
+                alerts: {
+                    total_open: 0,
+                    critical_or_high: 0,
+                },
+                team: {
+                    size: team?.total_pool ?? 0,
+                    overloaded: team?.overloaded ?? 0,
+                },
+            },
+            health: undefined,
+            widgets: {
+                top_alerts: [] as unknown[],
+                fragile_projects: data?.projects ?? [],
+                recent_decisions: [] as unknown[],
+            },
             decisions: decisions.data?.decisions ?? [],
             decisionsBy: decisions.data?.by_decision ?? {},
             summary,
-            alerts: dashboardAlerts,
+            alerts: [] as unknown[],
             projects: projects.data?.items ?? [],
         },
     };

@@ -1,13 +1,9 @@
 import type { TalentDashboard } from "@/types/talent-dashboard";
-import { TalentDashboardDensityToggle } from "./TalentDashboardDensityToggle";
 import { HEALTH_TONES, toneClasses } from "./talent-dashboard-tones";
-import type { TalentDashboardDensity } from "./use-talent-dashboard-density";
 import { cx } from "@/utils/cx";
 
 type DashboardHeaderProps = {
     health?: TalentDashboard["health"];
-    density: TalentDashboardDensity;
-    onToggleDensity: () => void;
 };
 
 export function dashboardHeaderSubtitle(header: NonNullable<TalentDashboard["header"]>): string {
@@ -15,7 +11,7 @@ export function dashboardHeaderSubtitle(header: NonNullable<TalentDashboard["hea
     return parts.join(" · ");
 }
 
-export function DashboardHeader({ health, density, onToggleDensity }: DashboardHeaderProps) {
+export function DashboardHeader({ health }: DashboardHeaderProps) {
     const healthTone = health?.label ? HEALTH_TONES[health.label] : "slate";
     const healthCls = toneClasses(healthTone);
 
@@ -32,7 +28,6 @@ export function DashboardHeader({ health, density, onToggleDensity }: DashboardH
                     <span className="font-medium">· {health.label}</span>
                 </span>
             ) : null}
-            <TalentDashboardDensityToggle density={density} onToggle={onToggleDensity} />
         </div>
     );
 }
